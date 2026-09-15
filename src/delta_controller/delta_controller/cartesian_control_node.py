@@ -59,6 +59,9 @@ Lenh cap cao (vat: red_box/do, green_cylinder/xanhla, blue_sphere/cau; o khay: A
   place [o] | tha [o]         -> mang vat dang giu toi o (mac dinh o trong dau tien), nha
   pickplace <vat> [o] | chuyen <vat> [o]
   sort | don                  -> don het vat tren ban vao khay
+  lay_ra <vat> [x y] | unload -> lay vat tu khay ra, dat len ban tai (x, y)
+                                 (mac dinh: vi tri ban dau cua vat)
+  reset                       -> lay het vat trong khay ra, dat ve vi tri ban dau
 
 Lenh khac:
   where           -> vi tri platform hien tai (FK tu goc khop do duoc)
@@ -77,6 +80,8 @@ TASK_ALIASES = {
     'place': 'place', 'tha': 'place',
     'pickplace': 'pickplace', 'chuyen': 'pickplace',
     'sort': 'sort', 'don': 'sort',
+    'unload': 'unload', 'lay_ra': 'unload',
+    'reset': 'reset',
 }
 
 
@@ -238,6 +243,9 @@ def _handle_task(node, command, args):
     if task == 'sort':
         executor.sort()
         return
+    if task == 'reset':
+        executor.reset()
+        return
     if task == 'place':
         executor.place(resolve_slot(args[0]) if args else None)
         return
@@ -250,6 +258,10 @@ def _handle_task(node, command, args):
         executor.pick(name)
     elif task == 'pickplace':
         executor.pick_place(name, resolve_slot(args[1]) if len(args) > 1 else None)
+    elif task == 'unload':
+        if len(args) not in (1, 3):
+            raise TaskError(f'Dung: {command} <vat>  hoac  {command} <vat> x y')
+        executor.unload(name, (float(args[1]), float(args[2])) if len(args) == 3 else None)
 
 
 def _handle(node, raw):

@@ -67,15 +67,21 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
 - `launch/pick_place.launch.py` — include `3dof_delta.launch.py` (world `delta_objects_world`)
   + bridge riêng cho gripper/odometry + `gripper`. Danh sách vật đọc từ `scene.py`.
 - `cartesian_control` có thêm `grip`/`release`; khi đang giữ vật, `safe` dùng `safe_z_holding` -0.14.
-- `scene.py` — **nguồn duy nhất phía ROS** cho vật (tên model, nửa chiều cao, tên tắt), khay
-  (`BIN_CENTER`, `BIN_FLOOR_Z`) và ô thả `BIN_SLOTS` A/B/C. Launch, `gripper_node`, planner đều đọc.
+- `scene.py` — **nguồn duy nhất phía ROS** cho vật (tên model, nửa chiều cao, tên tắt, `home_xy` =
+  vị trí ban đầu, phải khớp `<pose>` trong world), bàn `TABLE_Z`, khay (`BIN_CENTER`, `BIN_FLOOR_Z`,
+  `BIN_OUTER_HALF`) và ô thả `BIN_SLOTS` A/B/C. Launch, `gripper_node`, planner đều đọc.
 - `task_planner.py` — thuần Python: lệnh cấp cao → chuỗi `Move`/`Grip`/`Release` từ vị trí **thật**
   của vật; `touch_point` = đỉnh vật + 0.003, `release_point` = đáy khay + 5 mm + cao vật + 0.003;
   `locate` (tren ban / o A / trong khay / dang giu), `check_reachable` kiểm IK mọi đích trước khi chạy.
 - `task_executor.py` — chạy kế hoạch trên node + **kiểm chứng bằng odometry vật** (pick: vật phải
   nhấc lên ≥ 10 mm; place: vật phải nằm trong ô). `pickplace` kiểm ô trống **trước khi** nhặt;
   `sort` lập lại kế hoạch sau mỗi vật. Lệnh REPL: `objects|vat`, `goto|den`, `pick|nhat`,
-  `place|tha [o]`, `pickplace|chuyen <vat> [o]`, `sort|don`.
+  `place|tha [o]`, `pickplace|chuyen <vat> [o]`, `sort|don`, `unload|lay_ra <vat> [x y]`, `reset`.
+  `lay_ra`: đặt ra bàn tại `table_release_point` (mặt bàn + 5 mm + cao vật + 0.003 = -0.182),
+  `check_table_spot` từ chối điểm chồng khay (tính cả thành + 5 mm) hoặc cách tâm vật khác < 35 mm —
+  kiểm tra **trước khi** nhặt; kiểm chứng: vật "tren ban", lệch ≤ 10 mm. `reset` = lay_ra mọi vật
+  trong khay về `home_xy`. `_objects()` **chờ đủ vị trí mọi vật** (≤ 3 s): lệnh gõ ngay khi node
+  vừa khởi động từng thấy danh sách rỗng → báo nhầm "Khong con vat nao tren ban".
 - `test/` — lint + `test_delta_kinematics.py`, `test_trajectory.py`, `test_gripper_logic.py`,
   `test_task_planner.py`.
 
@@ -307,6 +313,11 @@ bán kính với tới mọi hướng ≈ 0.128 tại z=-0.14, 0.096 tại z=-0.
       bằng platform (0.060 → 0.0686) rồi `pick do` gắp đúng vị trí mới**, nhấc 44 mm; `place B` ✓;
       `pickplace xanhla B` (ô đã có vật) bị từ chối, robot không nhặt; `don` dọn 2 vật còn lại vào
       A, C (~28 s) ✓; `sort` lần 2 → "Khong con vat nao tren ban". Cầu lăn nhẹ trong ô (lệch ~5 mm).
+  - [x] 7.1 `lay_ra` + `reset` (2026-09-15). Gazebo: `don` 3 vật (~39 s) → `lay_ra do` từ ô B
+    về (0.06, 0) lệch 0.6 mm; trụ ở ô A bên cạnh **không xê dịch** dù platform 5 cm đè cả đỉnh
+    vật bên cạnh; điểm chồng khay / ngoài tầm với bị từ chối, robot không nhặt; `lay_ra xanhla -0.07 0`
+    lệch 0.8 mm; `reset` 2 vật về chỗ cũ (trụ lệch 0.5 mm, **cầu 5.3 mm rồi tiếp tục lăn tới ~7 mm**).
+    ⚠️ Quả cầu không có cản lăn: lăn chậm cả trong ô (trôi ~4 mm theo thời gian) lẫn trên bàn.
 
 ## Ghi chú về cách làm việc
 

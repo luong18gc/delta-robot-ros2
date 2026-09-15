@@ -6,9 +6,10 @@ from delta_controller.gripper_logic import (
     PLATFORM_HALF_THICKNESS,
     select_graspable,
 )
-from delta_controller.scene import BIN_FLOOR_Z, BIN_SLOTS
+from delta_controller.scene import BIN_CENTER, BIN_FLOOR_Z, BIN_SLOTS, OBJECTS
 from delta_controller.task_planner import (
     check_reachable,
+    check_table_spot,
     first_free_slot,
     Grip,
     hover_point,
@@ -19,11 +20,14 @@ from delta_controller.task_planner import (
     plan_pick,
     plan_pick_place,
     plan_place,
+    plan_reset,
     plan_sort,
+    plan_unload,
     Release,
     release_point,
     resolve_object,
     resolve_slot,
+    table_release_point,
     TaskError,
     touch_point,
 )
@@ -198,3 +202,83 @@ def test_check_reachable_rejects_far_object():
 
 def test_platform_half_thickness_consistent():
     assert PLATFORM_HALF_THICKNESS == pytest.approx(0.003)
+
+
+# ---------------------------------------------------------------- lấy ra / reset
+
+IN_BIN = {
+    'red_box': in_slot('B'),
+    'green_cylinder': in_slot('A'),
+    'blue_sphere': in_slot('C'),
+}
+
+
+def test_table_release_point_height():
+    """Mặt bàn -0.22 + khe 5 mm + vật 3 cm + nửa platform 3 mm = -0.182."""
+    assert table_release_point(0.06, 0.0, 0.015) == pytest.approx((0.06, 0.0, -0.182))
+
+
+def test_home_positions_are_valid_table_spots():
+    for obj in OBJECTS:
+        check_table_spot(obj.name, obj.home_xy, {})
+        inverse_kinematics(*table_release_point(*obj.home_xy, obj.half_height))
+
+
+@pytest.mark.parametrize('xy', [BIN_CENTER, BIN_SLOTS['A'], (0.0375, 0.065 - 0.05)])
+def test_table_spot_rejects_bin_footprint(xy):
+    with pytest.raises(TaskError, match='khay'):
+        check_table_spot('red_box', xy, {})
+
+
+def test_table_spot_rejects_near_other_object_but_ignores_itself():
+    objects = dict(ON_TABLE)
+    with pytest.raises(TaskError, match='qua gan green_cylinder'):
+        check_table_spot('red_box', (-0.03, 0.052 - 0.02), objects)
+    check_table_spot('red_box', (0.06, 0.0), objects)  # chính nó đang ở đó: không tính
+
+
+def test_unload_sequence_goes_to_home_by_default():
+    actions = plan_unload('red_box', IN_BIN, '', LIFT_Z, RETREAT_Z)
+    assert [type(a) for a in actions] == [Move, Grip, Move, Move, Release, Move]
+    touch = touch_point(IN_BIN['red_box'])
+    assert actions[0].goal == pytest.approx(touch)
+    assert actions[3].safe and actions[3].goal == pytest.approx((0.06, 0.0, -0.182))
+
+
+def test_unload_to_custom_spot():
+    actions = plan_unload('red_box', IN_BIN, '', LIFT_Z, RETREAT_Z, xy=(-0.06, 0.0))
+    assert actions[3].goal == pytest.approx((-0.06, 0.0, -0.182))
+
+
+def test_unload_rejects_object_on_table():
+    with pytest.raises(TaskError, match='tren ban'):
+        plan_unload('red_box', ON_TABLE, '', LIFT_Z, RETREAT_Z)
+
+
+def test_unload_rejects_blocked_spot_before_picking():
+    objects = dict(IN_BIN, green_cylinder=ObjectState((0.065, 0.0, -0.205), 0.015))
+    with pytest.raises(TaskError, match='qua gan green_cylinder'):
+        plan_unload('red_box', objects, '', LIFT_Z, RETREAT_Z)
+
+
+def test_reset_unloads_every_bin_object_to_its_home():
+    actions = plan_reset(IN_BIN, '', LIFT_Z, RETREAT_Z)
+    check_reachable(actions)
+    grips = [a.expected for a in actions if isinstance(a, Grip)]
+    assert grips == ['red_box', 'green_cylinder', 'blue_sphere']
+    drops = [a.goal for a in actions if isinstance(a, Move) and a.label.startswith('Mang')]
+    assert drops == [pytest.approx(table_release_point(*o.home_xy, 0.015)) for o in OBJECTS]
+
+
+def test_reset_skips_objects_already_on_table():
+    objects = dict(IN_BIN, red_box=ON_TABLE['red_box'])
+    grips = [a.expected for a in plan_reset(objects, '', LIFT_Z, RETREAT_Z)
+             if isinstance(a, Grip)]
+    assert grips == ['green_cylinder', 'blue_sphere']
+
+
+def test_reset_with_empty_bin_or_holding():
+    with pytest.raises(TaskError, match='Khong co vat nao trong khay'):
+        plan_reset(ON_TABLE, '', LIFT_Z, RETREAT_Z)
+    with pytest.raises(TaskError, match='Dang giu'):
+        plan_reset(IN_BIN, 'red_box', LIFT_Z, RETREAT_Z)

@@ -13,11 +13,16 @@ from delta_controller.delta_kinematics import inverse_kinematics, UnreachableErr
 from delta_controller.gripper_logic import ObjectState, PLATFORM_HALF_THICKNESS
 from delta_controller.scene import (
     BIN_CENTER,
+    BIN_CLEARANCE,
     BIN_FLOOR_Z,
     BIN_INNER_HALF,
+    BIN_OUTER_HALF,
     BIN_SLOTS,
     DROP_GAP,
+    MIN_SEPARATION,
+    OBJECT_HALF_WIDTH,
     OBJECTS,
+    TABLE_Z,
 )
 
 # Độ cao lơ lửng trên đỉnh vật cho lệnh goto (m).
@@ -83,11 +88,43 @@ def hover_point(obj):
     return (x, y, z + HOVER_CLEARANCE)
 
 
+def _release_z(surface_z, half_height):
+    return surface_z + DROP_GAP + 2.0 * half_height + PLATFORM_HALF_THICKNESS
+
+
 def release_point(slot, half_height):
     """Tâm tool0 để đáy vật đang giữ cách đáy khay DROP_GAP tại ô slot."""
     x, y = BIN_SLOTS[slot]
-    z = BIN_FLOOR_Z + DROP_GAP + 2.0 * half_height + PLATFORM_HALF_THICKNESS
-    return (x, y, z)
+    return (x, y, _release_z(BIN_FLOOR_Z, half_height))
+
+
+def table_release_point(x, y, half_height):
+    """Tâm tool0 để đáy vật đang giữ cách mặt bàn DROP_GAP tại (x, y)."""
+    return (x, y, _release_z(TABLE_Z, half_height))
+
+
+def home_xy_of(name):
+    return next(o.home_xy for o in OBJECTS if o.name == name)
+
+
+def check_table_spot(name, xy, objects):
+    """
+    Kiểm tra đặt vật name xuống bàn tại xy có an toàn không.
+
+    Từ chối nếu vật chạm khay (tính cả thành) hoặc quá gần tâm vật khác. Ném TaskError.
+    """
+    x, y = xy
+    reach = BIN_OUTER_HALF + OBJECT_HALF_WIDTH + BIN_CLEARANCE
+    if abs(x - BIN_CENTER[0]) < reach and abs(y - BIN_CENTER[1]) < reach:
+        raise TaskError(f'Diem ({x:.4f}, {y:.4f}) chong len khay')
+    for other, obj in objects.items():
+        if other == name:
+            continue
+        distance = math.hypot(x - obj.center[0], y - obj.center[1])
+        if distance < MIN_SEPARATION:
+            raise TaskError(
+                f'Diem ({x:.4f}, {y:.4f}) qua gan {other} ({distance * 1000:.0f} mm, '
+                f'can >= {MIN_SEPARATION * 1000:.0f} mm)')
 
 
 # ---------------------------------------------------------------- trạng thái cảnh
@@ -164,12 +201,58 @@ def plan_place(held, slot, objects, retreat_z):
         raise TaskError('Khong giu vat nao de tha')
     if slot in occupied_slots(objects, held):
         raise TaskError(f'O {slot} da co vat')
-    rx, ry, rz = release_point(slot, half_height_of(held))
+    return _drop(held, release_point(slot, half_height_of(held)), retreat_z, f'o {slot}')
+
+
+def plan_place_on_table(held, xy, objects, retreat_z):
+    """Mang vật đang giữ tới (x, y) trên bàn -> nhả -> lùi lên."""
+    if not held:
+        raise TaskError('Khong giu vat nao de dat')
+    check_table_spot(held, xy, objects)
+    x, y = xy
+    return _drop(held, table_release_point(x, y, half_height_of(held)), retreat_z,
+                 f'ban ({x:.4f}, {y:.4f})')
+
+
+def _drop(held, point, retreat_z, where):
+    rx, ry, rz = point
     return [
-        Move((rx, ry, rz), safe=True, label=f'Mang {held} toi o {slot}'),
+        Move((rx, ry, rz), safe=True, label=f'Mang {held} toi {where}'),
         Release(label=f'Nha {held}'),
         Move((rx, ry, max(retreat_z, rz)), safe=False, label='Lui len'),
     ]
+
+
+def plan_unload(name, objects, held, lift_z, retreat_z, xy=None):
+    """Lấy vật name từ khay ra, đặt lên bàn tại xy (mặc định: vị trí ban đầu của vật)."""
+    obj = _require_object(name, objects)
+    where = locate(name, obj, held)
+    if where == 'tren ban':
+        raise TaskError(f'{name} dang nam tren ban, khong o trong khay')
+    target = xy if xy is not None else home_xy_of(name)
+    others = _without(objects, name)
+    check_table_spot(name, target, others)  # kiểm tra TRƯỚC khi nhặt
+    return (plan_pick(name, objects, held, lift_z)
+            + plan_place_on_table(name, target, others, retreat_z))
+
+
+def plan_reset(objects, held, lift_z, retreat_z):
+    """Lấy mọi vật trong khay ra, đặt về vị trí ban đầu (theo thứ tự scene.OBJECTS)."""
+    if held:
+        raise TaskError(f'Dang giu {held}, hay place/release truoc')
+    todo = [o.name for o in OBJECTS
+            if o.name in objects and locate(o.name, objects[o.name], held) != 'tren ban']
+    if not todo:
+        raise TaskError('Khong co vat nao trong khay')
+    actions = []
+    # Mô phỏng cảnh sau từng vật để vật sau kiểm tra chỗ đặt với vị trí MỚI của vật trước.
+    scene = dict(objects)
+    for name in todo:
+        actions += plan_unload(name, scene, '', lift_z, retreat_z)
+        hx, hy = home_xy_of(name)
+        scene[name] = ObjectState((hx, hy, TABLE_Z + scene[name].half_height),
+                                  scene[name].half_height)
+    return actions
 
 
 def plan_pick_place(name, slot, objects, held, lift_z, retreat_z):
