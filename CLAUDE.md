@@ -18,6 +18,9 @@ Người làm đồ án giao tiếp bằng **tiếng Việt**. Trả lời bằn
 - Gazebo **Harmonic** (`gz sim`, KHÔNG phải Gazebo Classic)
 - Workspace: `~/ros2_closed_loop_ws`
 - RAM 7.6GB + 4GB swap → build nặng phải dùng `--executor sequential --parallel-workers 1`
+- Git remote: `origin` = repo **private** của người làm đồ án
+  `https://github.com/luong18gc/delta-robot-ros2` (sao lưu: commit xong `git push`);
+  `upstream` = repo gốc `LevinTamir/ros2_closed_loop_ws` (chỉ để tham khảo, **không push**).
 
 ## Cấu trúc workspace
 
