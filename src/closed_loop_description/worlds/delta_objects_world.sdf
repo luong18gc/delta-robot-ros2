@@ -1,0 +1,285 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <!-- Bản sao delta_world.sdf + bàn và vật thể cho robot delta 3-DOF (Bước 5 đồ án).
+       Giữ nguyên tên world "delta_world" vì 3dof_delta.launch.py hardcode topic
+       /world/delta_world/model/delta_3dof/joint_state.
+       Chạy: ros2 launch closed_loop_bringup 3dof_delta.launch.py world_name:=delta_objects_world
+
+       Quy đổi tọa độ: base_link đặt tại world (0, 0, 1.0), trục không xoay
+         => (x, y, z)_robot = (x, y, z - 1.0)_world
+       Tất cả chú thích "robot:" bên dưới là tọa độ trong hệ robot (nhập vào cartesian_control). -->
+  <world name="delta_world">
+
+    <physics name="fast" type="dart">
+      <!-- pgs (iterative) like fivebar_world: the closed delta is over-constrained (3 loops with
+           redundant constraints), and the direct dantzig LCP solver fails/jams on it. pgs is
+           softer but robust to the redundant loop constraints. Small step keeps it stiff. -->
+      <max_step_size>0.0005</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <dart>
+        <solver>
+          <solver_type>pgs</solver_type>
+        </solver>
+        <collision_detector>ode</collision_detector>
+      </dart>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system"
+            name="gz::sim::systems::Contact"/>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <specular>0.8 0.8 0.8 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===================== Bàn làm việc ===================== -->
+    <!-- Mặt bàn: đỉnh tại world z = 0.78  <=>  robot z = -0.22 -->
+    <model name="work_table">
+      <static>true</static>
+      <link name="link">
+        <collision name="top_collision">
+          <pose>0 0 0.77 0 0 0</pose>
+          <geometry><box><size>0.40 0.40 0.02</size></box></geometry>
+        </collision>
+        <visual name="top_visual">
+          <pose>0 0 0.77 0 0 0</pose>
+          <geometry><box><size>0.40 0.40 0.02</size></box></geometry>
+          <material>
+            <ambient>0.55 0.40 0.25 1</ambient>
+            <diffuse>0.55 0.40 0.25 1</diffuse>
+          </material>
+        </visual>
+        <visual name="leg1"><pose>0.18 0.18 0.38 0 0 0</pose>
+          <geometry><box><size>0.02 0.02 0.76</size></box></geometry></visual>
+        <visual name="leg2"><pose>-0.18 0.18 0.38 0 0 0</pose>
+          <geometry><box><size>0.02 0.02 0.76</size></box></geometry></visual>
+        <visual name="leg3"><pose>0.18 -0.18 0.38 0 0 0</pose>
+          <geometry><box><size>0.02 0.02 0.76</size></box></geometry></visual>
+        <visual name="leg4"><pose>-0.18 -0.18 0.38 0 0 0</pose>
+          <geometry><box><size>0.02 0.02 0.76</size></box></geometry></visual>
+        <!-- Vòng đánh dấu vùng với tới ở độ cao đỉnh vật (robot z = -0.19 -> r_max ≈ 0.096).
+             Chỉ có visual, không va chạm. -->
+        <visual name="reach_marker">
+          <pose>0 0 0.7805 0 0 0</pose>
+          <geometry><cylinder><radius>0.096</radius><length>0.001</length></cylinder></geometry>
+          <transparency>0.6</transparency>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===================== Vật thể ===================== -->
+    <!-- Cả 3 vật cao 0.03 m, đặt trên mặt bàn, cách tâm r = 0.06 theo hướng 0°/120°/240°
+         (thẳng dưới chân 1/2/3). Đỉnh vật tại robot z = -0.19. -->
+
+    <!-- Hộp đỏ — tâm robot: (0.06, 0, -0.205); đỉnh: (0.06, 0, -0.19) -->
+    <model name="red_box">
+      <!-- Phát pose THẾ GIỚI của vật (nav_msgs/Odometry qua bridge) cho gripper_node. -->
+      <plugin filename="gz-sim-odometry-publisher-system"
+              name="gz::sim::systems::OdometryPublisher">
+        <dimensions>3</dimensions>
+        <odom_frame>world</odom_frame>
+        <robot_base_frame>red_box</robot_base_frame>
+        <odom_topic>/objects/red_box/odometry</odom_topic>
+        <tf_topic>/objects/red_box/tf</tf_topic>
+        <odom_publish_frequency>30</odom_publish_frequency>
+      </plugin>
+      <pose>0.06 0 0.795 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.05</mass>
+          <inertia>
+            <ixx>7.5e-6</ixx><iyy>7.5e-6</iyy><izz>7.5e-6</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><box><size>0.03 0.03 0.03</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.03 0.03 0.03</size></box></geometry>
+          <material>
+            <ambient>0.9 0.1 0.1 1</ambient>
+            <diffuse>0.9 0.1 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Trụ xanh lá — tâm robot: (-0.03, 0.052, -0.205); đỉnh: (-0.03, 0.052, -0.19) -->
+    <model name="green_cylinder">
+      <!-- Phát pose THẾ GIỚI của vật (nav_msgs/Odometry qua bridge) cho gripper_node. -->
+      <plugin filename="gz-sim-odometry-publisher-system"
+              name="gz::sim::systems::OdometryPublisher">
+        <dimensions>3</dimensions>
+        <odom_frame>world</odom_frame>
+        <robot_base_frame>green_cylinder</robot_base_frame>
+        <odom_topic>/objects/green_cylinder/odometry</odom_topic>
+        <tf_topic>/objects/green_cylinder/tf</tf_topic>
+        <odom_publish_frequency>30</odom_publish_frequency>
+      </plugin>
+      <pose>-0.03 0.052 0.795 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.05</mass>
+          <inertia>
+            <ixx>6.6e-6</ixx><iyy>6.6e-6</iyy><izz>5.6e-6</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><cylinder><radius>0.015</radius><length>0.03</length></cylinder></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.015</radius><length>0.03</length></cylinder></geometry>
+          <material>
+            <ambient>0.1 0.7 0.2 1</ambient>
+            <diffuse>0.1 0.7 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Cầu xanh dương — tâm robot: (-0.03, -0.052, -0.205); đỉnh: (-0.03, -0.052, -0.19) -->
+    <model name="blue_sphere">
+      <!-- Phát pose THẾ GIỚI của vật (nav_msgs/Odometry qua bridge) cho gripper_node. -->
+      <plugin filename="gz-sim-odometry-publisher-system"
+              name="gz::sim::systems::OdometryPublisher">
+        <dimensions>3</dimensions>
+        <odom_frame>world</odom_frame>
+        <robot_base_frame>blue_sphere</robot_base_frame>
+        <odom_topic>/objects/blue_sphere/odometry</odom_topic>
+        <tf_topic>/objects/blue_sphere/tf</tf_topic>
+        <odom_publish_frequency>30</odom_publish_frequency>
+      </plugin>
+      <pose>-0.03 -0.052 0.795 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.05</mass>
+          <inertia>
+            <ixx>4.5e-6</ixx><iyy>4.5e-6</iyy><izz>4.5e-6</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><sphere><radius>0.015</radius></sphere></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><sphere><radius>0.015</radius></sphere></geometry>
+          <material>
+            <ambient>0.1 0.3 0.9 1</ambient>
+            <diffuse>0.1 0.3 0.9 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===================== Khay thả vật ===================== -->
+    <!-- Khay tĩnh, lòng 0.07 x 0.07 m, thành dày 0.003 cao 0.02 (đỉnh thành robot z = -0.20),
+         đáy dày 0.003 (mặt đáy robot z = -0.217). Tâm robot: (0.0375, 0.065) — hướng 60°,
+         giữa chân 1 và chân 2; khe tới hộp đỏ 1.2 cm, tới trụ xanh 1.45 cm.
+         3 ô thả (tool0), đáy vật 3 cm cách đáy khay ~5 mm, các ô cách nhau ≥ 3.4 cm:
+           A (0.0205, 0.048, -0.179)   B (0.0545, 0.048, -0.179)   C (0.0205, 0.082, -0.179) -->
+    <model name="drop_bin">
+      <static>true</static>
+      <pose>0.0375 0.065 0.78 0 0 0</pose>
+      <link name="link">
+        <collision name="floor_collision">
+          <pose>0 0 0.0015 0 0 0</pose>
+          <geometry><box><size>0.076 0.076 0.003</size></box></geometry>
+        </collision>
+        <visual name="floor_visual">
+          <pose>0 0 0.0015 0 0 0</pose>
+          <geometry><box><size>0.076 0.076 0.003</size></box></geometry>
+          <material><ambient>0.15 0.15 0.18 1</ambient><diffuse>0.15 0.15 0.18 1</diffuse></material>
+        </visual>
+
+        <collision name="wall_px_collision">
+          <pose>0.0365 0 0.01 0 0 0</pose>
+          <geometry><box><size>0.003 0.076 0.02</size></box></geometry>
+        </collision>
+        <visual name="wall_px_visual">
+          <pose>0.0365 0 0.01 0 0 0</pose>
+          <geometry><box><size>0.003 0.076 0.02</size></box></geometry>
+          <material><ambient>0.95 0.55 0.1 1</ambient><diffuse>0.95 0.55 0.1 1</diffuse></material>
+        </visual>
+
+        <collision name="wall_nx_collision">
+          <pose>-0.0365 0 0.01 0 0 0</pose>
+          <geometry><box><size>0.003 0.076 0.02</size></box></geometry>
+        </collision>
+        <visual name="wall_nx_visual">
+          <pose>-0.0365 0 0.01 0 0 0</pose>
+          <geometry><box><size>0.003 0.076 0.02</size></box></geometry>
+          <material><ambient>0.95 0.55 0.1 1</ambient><diffuse>0.95 0.55 0.1 1</diffuse></material>
+        </visual>
+
+        <collision name="wall_py_collision">
+          <pose>0 0.0365 0.01 0 0 0</pose>
+          <geometry><box><size>0.07 0.003 0.02</size></box></geometry>
+        </collision>
+        <visual name="wall_py_visual">
+          <pose>0 0.0365 0.01 0 0 0</pose>
+          <geometry><box><size>0.07 0.003 0.02</size></box></geometry>
+          <material><ambient>0.95 0.55 0.1 1</ambient><diffuse>0.95 0.55 0.1 1</diffuse></material>
+        </visual>
+
+        <collision name="wall_ny_collision">
+          <pose>0 -0.0365 0.01 0 0 0</pose>
+          <geometry><box><size>0.07 0.003 0.02</size></box></geometry>
+        </collision>
+        <visual name="wall_ny_visual">
+          <pose>0 -0.0365 0.01 0 0 0</pose>
+          <geometry><box><size>0.07 0.003 0.02</size></box></geometry>
+          <material><ambient>0.95 0.55 0.1 1</ambient><diffuse>0.95 0.55 0.1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

@@ -317,6 +317,16 @@
         <color rgba="0.95 0.75 0.10 1.0"/>
       </material>
     </visual>
+    <!-- Collision (đồ án): chỉ platform có va chạm để đẩy/chạm vật; cánh tay vẫn không có.
+         Xấp xỉ tấm Werkzeugtraeger (bbox ~0.059 x 0.051 x 0.006 m) bằng hộp dẹt.
+         Hạn chế đã đo: ép platform XUỐNG vật động đang nằm trên bàn thì platform lún dần vào vật
+         (~mm, với cả hộp/trụ/cầu); đẩy ngang và chạm bàn tĩnh thì ổn định. -->
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.05 0.05 0.006"/>
+      </geometry>
+    </collision>
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.3"/>
@@ -509,6 +519,7 @@
   </joint>
 
     <xacro:include filename="3dof_delta.gazebo.xacro"/>
+    <xacro:include filename="3dof_delta.gripper.xacro"/>
   </xacro:if>  <!-- end sim: closure helpers + Gazebo plugins -->
 
   <xacro:if value="$(arg ros2_control)">

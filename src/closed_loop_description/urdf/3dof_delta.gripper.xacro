@@ -1,0 +1,35 @@
+<?xml version="1.0" ?>
+<!-- Giác hút ảo cho platform (đồ án): mỗi vật gắp được = 1 DetachableJoint tool0 -> vật.
+     Included by 3dof_delta.urdf.xacro (khối sim).
+
+     ⚠️ BẮT BUỘC đặt topic riêng. Các DetachableJoint đóng mạch kín trong 3dof_delta.gazebo.xacro
+     dùng topic mặc định /model/delta_3dof/detachable_joint/{attach,detach} — publish vào đó sẽ
+     làm đứt CẢ 4 mối hàn mạch kín.
+
+     Plugin (gz-sim8) tự ATTACH ngay khi tìm thấy vật -> gripper_node phải gửi detach cho tất cả
+     vật lúc khởi động. World không có vật (delta_world.sdf) thì plugin chỉ chờ, không cảnh báo.
+
+     Danh sách vật phải khớp với: worlds/delta_objects_world.sdf và
+     delta_controller/launch/pick_place.launch.py (OBJECTS). -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="vacuum_target" params="object">
+    <gazebo>
+      <plugin filename="libgz-sim-detachable-joint-system.so"
+              name="gz::sim::systems::DetachableJoint">
+        <parent_link>tool0</parent_link>
+        <child_model>${object}</child_model>
+        <child_link>link</child_link>
+        <attach_topic>/delta_3dof/gripper/${object}/attach</attach_topic>
+        <detach_topic>/delta_3dof/gripper/${object}/detach</detach_topic>
+        <output_topic>/delta_3dof/gripper/${object}/state</output_topic>
+        <suppress_child_warning>true</suppress_child_warning>
+      </plugin>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:vacuum_target object="red_box"/>
+  <xacro:vacuum_target object="green_cylinder"/>
+  <xacro:vacuum_target object="blue_sphere"/>
+
+</robot>
