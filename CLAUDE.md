@@ -65,9 +65,19 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
   `/objects/<vật>/odometry` (OdometryPublisher trong world, pose world → trừ base_z 1.0).
   MultiThreadedExecutor + ReentrantCallbackGroup vì service chờ callback trạng thái.
 - `launch/pick_place.launch.py` — include `3dof_delta.launch.py` (world `delta_objects_world`)
-  + bridge riêng cho gripper/odometry + `gripper`. Danh sách vật `OBJECTS` ở đây.
+  + bridge riêng cho gripper/odometry + `gripper`. Danh sách vật đọc từ `scene.py`.
 - `cartesian_control` có thêm `grip`/`release`; khi đang giữ vật, `safe` dùng `safe_z_holding` -0.14.
-- `test/` — lint + `test_delta_kinematics.py` + `test_trajectory.py` + `test_gripper_logic.py`.
+- `scene.py` — **nguồn duy nhất phía ROS** cho vật (tên model, nửa chiều cao, tên tắt), khay
+  (`BIN_CENTER`, `BIN_FLOOR_Z`) và ô thả `BIN_SLOTS` A/B/C. Launch, `gripper_node`, planner đều đọc.
+- `task_planner.py` — thuần Python: lệnh cấp cao → chuỗi `Move`/`Grip`/`Release` từ vị trí **thật**
+  của vật; `touch_point` = đỉnh vật + 0.003, `release_point` = đáy khay + 5 mm + cao vật + 0.003;
+  `locate` (tren ban / o A / trong khay / dang giu), `check_reachable` kiểm IK mọi đích trước khi chạy.
+- `task_executor.py` — chạy kế hoạch trên node + **kiểm chứng bằng odometry vật** (pick: vật phải
+  nhấc lên ≥ 10 mm; place: vật phải nằm trong ô). `pickplace` kiểm ô trống **trước khi** nhặt;
+  `sort` lập lại kế hoạch sau mỗi vật. Lệnh REPL: `objects|vat`, `goto|den`, `pick|nhat`,
+  `place|tha [o]`, `pickplace|chuyen <vat> [o]`, `sort|don`.
+- `test/` — lint + `test_delta_kinematics.py`, `test_trajectory.py`, `test_gripper_logic.py`,
+  `test_task_planner.py`.
 
 ### Giác hút ảo (DetachableJoint) — những điều đã kiểm chứng
 - **4 DetachableJoint đóng mạch kín dùng topic mặc định chung**
@@ -80,7 +90,9 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
 - Bridge `/world/<w>/pose/info` → `tf2_msgs/TFMessage` **mất tên model** (child_frame_id rỗng) →
   dùng OdometryPublisher cho từng vật.
 - Thêm vật mới: sửa 3 chỗ — world SDF (model + OdometryPublisher), `3dof_delta.gripper.xacro`,
-  `OBJECTS` trong `pick_place.launch.py`.
+  `OBJECTS` trong `delta_controller/scene.py`.
+- Khi viết script test điều khiển REPL qua pipe: dấu nhắc `Nhap lenh > ` **không có xuống dòng** →
+  đọc stdout theo dòng sẽ treo; đọc theo byte (`os.read`) + `PYTHONUNBUFFERED=1`.
 - Đo quỹ đạo thật trong Gazebo: `gz topic -e -t /world/delta_world/dynamic_pose/info` có pose
   `tool0` tần số cao (z world − 1.0). Cẩn thận `pkill -f 'gz sim'` trong Bash tool: pattern khớp
   chính shell đang chạy → tự kill shell, không kill được sim; kill theo PID.
@@ -290,7 +302,11 @@ bán kính với tới mọi hướng ≈ 0.128 tại z=-0.14, 0.096 tại z=-0.
     trên đáy); `grip` khi chưa chạm vật bị từ chối kèm gợi ý; robot về home vẫn chính xác (-0.1410).
     Khay: tâm (0.0375, 0.065), lòng 7×7 cm, thành cao 2 cm; ô thả tool0 A (0.0205, 0.048, -0.179),
     B (0.0545, 0.048, -0.179), C (0.0205, 0.082, -0.179).
-- [ ] **Bước 7** — Giao diện lệnh cấp cao ("di chuyển đến vật A", "nhặt vật lên")
+- [x] **Bước 7** — Lệnh cấp cao (2026-09-15), trong `cartesian_control` + `pick_place.launch.py`.
+      Kiểm chứng Gazebo: lỗi đầu vào (vật/ô sai, place khi không giữ) bị từ chối; **đẩy lệch hộp đỏ
+      bằng platform (0.060 → 0.0686) rồi `pick do` gắp đúng vị trí mới**, nhấc 44 mm; `place B` ✓;
+      `pickplace xanhla B` (ô đã có vật) bị từ chối, robot không nhặt; `don` dọn 2 vật còn lại vào
+      A, C (~28 s) ✓; `sort` lần 2 → "Khong con vat nao tren ban". Cầu lăn nhẹ trong ô (lệch ~5 mm).
 
 ## Ghi chú về cách làm việc
 

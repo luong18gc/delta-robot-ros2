@@ -15,7 +15,16 @@ from delta_controller.delta_kinematics import (
     UnreachableError,
 )
 from delta_controller.joint_commander import JointCommander
+from delta_controller.scene import OBJECTS
+from delta_controller.task_executor import TaskExecutor
+from delta_controller.task_planner import (
+    object_states,
+    resolve_object,
+    resolve_slot,
+    TaskError,
+)
 from delta_controller.trajectory import plan_path, safe_waypoints
+from nav_msgs.msg import Odometry
 import rclpy
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
@@ -43,6 +52,14 @@ Giac hut (can: ros2 launch delta_controller pick_place.launch.py):
   release         -> nha vat dang giu
   Khi dang giu vat, duong 'safe' tu nang len safe_z_holding de vat khong quet trung vat khac.
 
+Lenh cap cao (vat: red_box/do, green_cylinder/xanhla, blue_sphere/cau; o khay: A, B, C):
+  objects | vat               -> vi tri va trang thai tung vat (tren ban / o A / dang giu)
+  goto <vat> | den <vat>      -> di toi phia tren vat
+  pick <vat> | nhat <vat>     -> ha xuong, hut, nhac vat len (kiem chung vat da roi ban)
+  place [o] | tha [o]         -> mang vat dang giu toi o (mac dinh o trong dau tien), nha
+  pickplace <vat> [o] | chuyen <vat> [o]
+  sort | don                  -> don het vat tren ban vao khay
+
 Lenh khac:
   where           -> vi tri platform hien tai (FK tu goc khop do duoc)
   state           -> goc khop do duoc va sai lech so voi lenh cuoi
@@ -50,8 +67,17 @@ Lenh khac:
   help            -> hien lai huong dan nay
   q / quit / exit -> thoat (Ctrl+C khi dang chay -> dung quy dao)
 
-Vi du: 0 0 -0.15    safe 0.06 0 -0.185    speed 0.03
+Vi du: 0 0 -0.15    safe 0.06 0 -0.185    pick do    place A    sort
 """
+
+TASK_ALIASES = {
+    'objects': 'objects', 'vat': 'objects',
+    'goto': 'goto', 'den': 'goto',
+    'pick': 'pick', 'nhat': 'pick',
+    'place': 'place', 'tha': 'place',
+    'pickplace': 'pickplace', 'chuyen': 'pickplace',
+    'sort': 'sort', 'don': 'sort',
+}
 
 
 def parse_xyz(raw: str):
@@ -84,6 +110,23 @@ class CartesianController(Node):
         self.create_subscription(String, '/gripper/held_object', self._on_held, latched)
         self._grip_client = self.create_client(Trigger, '/gripper/grip')
         self._release_client = self.create_client(Trigger, '/gripper/release')
+
+        self._object_centers = {}
+        for obj in OBJECTS:
+            self.create_subscription(
+                Odometry, f'/objects/{obj.name}/odometry',
+                lambda msg, n=obj.name: self._on_odometry(n, msg), 10)
+        self._base_z = self.declare_parameter('base_z', 1.0).value
+
+    def _on_odometry(self, name, msg):
+        p = msg.pose.pose.position
+        with self._lock:
+            self._object_centers[name] = (p.x, p.y, p.z - self._base_z)
+
+    def object_states(self):
+        """Vị trí thật của các vật (hệ robot) theo odometry từ Gazebo."""
+        with self._lock:
+            return object_states(dict(self._object_centers))
 
     def _on_joint_state(self, msg):
         positions = dict(zip(msg.name, msg.position))
@@ -123,6 +166,10 @@ class CartesianController(Node):
         if not done.wait(timeout_sec):
             return False, 'Dich vu giac hut khong tra loi'
         result = future.result()
+        if result.success:
+            # Cập nhật ngay, không chờ topic latched /gripper/held_object tới (lệnh kế tiếp cần).
+            with self._lock:
+                self._held_object = '' if release else result.message.split()[-1]
         return result.success, result.message
 
     def measured(self):
@@ -181,6 +228,30 @@ def _format_xyz(p):
     return f'({p[0]:+.4f}, {p[1]:+.4f}, {p[2]:+.4f})'
 
 
+def _handle_task(node, command, args):
+    executor = TaskExecutor(node)
+    task = TASK_ALIASES[command]
+    if task == 'objects':
+        for line in executor.objects_report():
+            print(f'   {line}')
+        return
+    if task == 'sort':
+        executor.sort()
+        return
+    if task == 'place':
+        executor.place(resolve_slot(args[0]) if args else None)
+        return
+    if not args:
+        raise TaskError(f'Can ten vat, vd: {command} do')
+    name = resolve_object(args[0])
+    if task == 'goto':
+        executor.goto(name)
+    elif task == 'pick':
+        executor.pick(name)
+    elif task == 'pickplace':
+        executor.pick_place(name, resolve_slot(args[1]) if len(args) > 1 else None)
+
+
 def _handle(node, raw):
     """Xử lý một dòng lệnh. Trả về False nếu người dùng muốn thoát."""
     command, _, rest = raw.partition(' ')
@@ -188,6 +259,9 @@ def _handle(node, raw):
 
     if command in ('q', 'quit', 'exit'):
         return False
+    if command in TASK_ALIASES:
+        _handle_task(node, command, rest.split())
+        return True
     if command == 'help':
         print(HELP_TEXT)
         return True
@@ -271,6 +345,8 @@ def main(args=None):
                     break
             except UnreachableError as e:
                 print(f'Khong toi duoc: {e}')
+            except TaskError as e:
+                print(f'Khong thuc hien duoc: {e}')
             except (ValueError, RuntimeError) as e:
                 print(f'Loi: {e}')
             except KeyboardInterrupt:

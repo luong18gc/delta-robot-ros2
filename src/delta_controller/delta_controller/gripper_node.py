@@ -19,6 +19,7 @@ from delta_controller.gripper_logic import (
     ObjectState,
     select_graspable,
 )
+from delta_controller.scene import OBJECTS
 from nav_msgs.msg import Odometry
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -44,9 +45,9 @@ class GripperNode(Node):
 
     def __init__(self):
         super().__init__('delta_gripper')
-        names = self.declare_parameter(
-            'objects', ['red_box', 'green_cylinder', 'blue_sphere']).value
-        half_heights = self.declare_parameter('object_half_heights', [0.015, 0.015, 0.015]).value
+        names = self.declare_parameter('objects', [o.name for o in OBJECTS]).value
+        half_heights = self.declare_parameter(
+            'object_half_heights', [o.half_height for o in OBJECTS]).value
         if len(names) != len(half_heights):
             raise ValueError('objects va object_half_heights phai cung do dai')
         self._base_z = self.declare_parameter('base_z', 1.0).value

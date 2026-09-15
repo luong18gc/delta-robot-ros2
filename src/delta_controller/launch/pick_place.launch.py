@@ -8,18 +8,14 @@ Sau đó ở terminal khác: ros2 run delta_controller cartesian_control
 import os
 
 from ament_index_python.packages import get_package_share_directory
+from delta_controller.scene import OBJECTS
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
-# Phải khớp với closed_loop_description/urdf/3dof_delta.gripper.xacro
-# và worlds/delta_objects_world.sdf. Giá trị = nửa chiều cao vật (m).
-OBJECTS = {
-    'red_box': 0.015,
-    'green_cylinder': 0.015,
-    'blue_sphere': 0.015,
-}
+# Danh sách vật lấy từ delta_controller/scene.py; phải khớp với
+# closed_loop_description/urdf/3dof_delta.gripper.xacro và worlds/delta_objects_world.sdf.
 
 
 def generate_launch_description():
@@ -31,7 +27,7 @@ def generate_launch_description():
     )
 
     bridge_args = []
-    for name in OBJECTS:
+    for name in (o.name for o in OBJECTS):
         prefix = f'/delta_3dof/gripper/{name}'
         bridge_args += [
             f'{prefix}/attach@std_msgs/msg/Empty]gz.msgs.Empty',
@@ -52,8 +48,8 @@ def generate_launch_description():
         executable='gripper',
         output='screen',
         parameters=[{
-            'objects': list(OBJECTS),
-            'object_half_heights': list(OBJECTS.values()),
+            'objects': [o.name for o in OBJECTS],
+            'object_half_heights': [o.half_height for o in OBJECTS],
             'use_sim_time': True,
         }],
     )
