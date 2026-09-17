@@ -1,7 +1,8 @@
 """
-Mô phỏng gắp–thả: robot delta 3-DOF + bàn, vật, khay + giác hút ảo.
+Mô phỏng gắp–thả: robot delta 3-DOF + bàn, vật, khay + giác hút ảo + camera nhìn xiên.
 
-ros2 launch delta_controller pick_place.launch.py
+ros2 launch delta_controller pick_place.launch.py            # co cua so Gazebo
+ros2 launch delta_controller pick_place.launch.py gui:=false  # khong cua so, xem anh camera bang rqt_image_view
 Sau đó ở terminal khác: ros2 run delta_controller cartesian_control
 """
 
@@ -10,8 +11,9 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from delta_controller.scene import OBJECTS
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 # Danh sách vật lấy từ delta_controller/scene.py; phải khớp với
@@ -21,9 +23,16 @@ from launch_ros.actions import Node
 def generate_launch_description():
     bringup = get_package_share_directory('closed_loop_bringup')
 
+    gui_arg = DeclareLaunchArgument(
+        'gui', default_value='true',
+        description='false = chay Gazebo khong cua so (nhanh hon khi co camera mo phong)')
+
     simulation = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(bringup, 'launch', '3dof_delta.launch.py')),
-        launch_arguments={'world_name': 'delta_objects_world'}.items(),
+        launch_arguments={
+            'world_name': 'delta_objects_world',
+            'gui': LaunchConfiguration('gui'),
+        }.items(),
     )
 
     bridge_args = []
@@ -35,6 +44,11 @@ def generate_launch_description():
             f'{prefix}/state@std_msgs/msg/String[gz.msgs.StringMsg',
             f'/objects/{name}/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry',
         ]
+    # Camera nhìn xiên (Bước 8): ảnh + nội tham số từ Gazebo sang ROS.
+    bridge_args += [
+        '/side_camera/image@sensor_msgs/msg/Image[gz.msgs.Image',
+        '/side_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
+    ]
     gripper_bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -54,4 +68,4 @@ def generate_launch_description():
         }],
     )
 
-    return LaunchDescription([simulation, gripper_bridge, gripper])
+    return LaunchDescription([gui_arg, simulation, gripper_bridge, gripper])

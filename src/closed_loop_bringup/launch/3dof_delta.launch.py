@@ -29,6 +29,14 @@ def generate_launch_description():
 
     world_name_arg = DeclareLaunchArgument(name="world_name", default_value="delta_world")
 
+    # gui:=false -> chỉ chạy server Gazebo (không cửa sổ). Dùng khi có camera mô phỏng: trên máy
+    # render bằng GPU tích hợp, cửa sổ Gazebo + camera tranh GPU làm tốc độ mô phỏng tụt ~0.35.
+    gui_arg = DeclareLaunchArgument(
+        name="gui",
+        default_value="true",
+        description="false = run the Gazebo server without the GUI window",
+    )
+
     world_path = PathJoinSubstitution(
         [
             closed_loop_description,
@@ -62,7 +70,12 @@ def generate_launch_description():
             ]
         ),
         launch_arguments={
-            "gz_args": PythonExpression(["' ", world_path, " -v 4 -r'"])
+            "gz_args": PythonExpression(
+                [
+                    "' ", world_path, " -v 4 -r' + ('' if '",
+                    LaunchConfiguration("gui"), "'.lower() == 'true' else ' -s')",
+                ]
+            )
         }.items(),
     )
 
@@ -99,6 +112,7 @@ def generate_launch_description():
         [
             model_arg,
             world_name_arg,
+            gui_arg,
             robot_state_publisher_node,
             gazebo_resource_path,
             gazebo,

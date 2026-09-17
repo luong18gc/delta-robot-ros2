@@ -2,12 +2,25 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-# Đồ án tốt nghiệp — Mô phỏng robot Delta 3-DOF trên ROS 2
+# Đồ án tốt nghiệp — Ứng dụng thị giác máy tính trong điều khiển Robot delta
 
 ## Bối cảnh
 
-Đồ án tốt nghiệp về robot delta, hướng mô phỏng trên ROS 2. Workspace dựa trên repo
-`LevinTamir/ros2_closed_loop_ws` (mô phỏng robot mạch động học kín trong Gazebo).
+**Tên đề tài (kỹ sư hệ 4.5 năm): "Ứng dụng thị giác máy tính trong điều khiển Robot delta".**
+
+Mục tiêu cuối: lấy tín hiệu từ **camera thật bên ngoài** để điều khiển robot delta **trong mô phỏng**
+ROS 2/Gazebo. Phần động học, quỹ đạo, gắp–thả đã làm là **nền**; **thị giác máy tính là trọng tâm** mà
+hội đồng chấm. Workspace dựa trên repo `LevinTamir/ros2_closed_loop_ws` (mô phỏng robot mạch động học
+kín trong Gazebo).
+
+**Điểm nối cho phần thị giác:** vị trí vật hiện vào hệ điều khiển qua `/objects/<vật>/odometry`
+(ground truth từ Gazebo). Kết quả nhận dạng từ camera nên đi vào đúng chỗ này (topic tương đương hoặc
+lớp chọn nguồn), không sửa logic gắp–thả; giữ ground truth để **đo sai số nhận dạng**. Phát triển với
+camera mô phỏng trước (có ground truth), rồi mới sang camera thật.
+
+Phần cứng/phần mềm sẵn có trên máy (kiểm tra 2026-09-17): `/dev/video0`, `/dev/video1`; OpenCV 4.6
+(Python); `cv_bridge`, `image_transport` của ROS Jazzy. **Chưa có** `usb_cam`/`v4l2_camera`, chưa có
+thư viện ArUco/AprilTag cho ROS.
 
 Người làm đồ án giao tiếp bằng **tiếng Việt**. Trả lời bằng tiếng Việt.
 
@@ -290,12 +303,54 @@ bán kính với tới mọi hướng ≈ 0.128 tại z=-0.14, 0.096 tại z=-0.
 ### Đang làm
 - (chưa có)
 
-### Kế hoạch tiếp theo (yêu cầu của giảng viên)
+### Hướng tiếp theo — thị giác máy tính (trọng tâm đề tài, chưa bắt đầu)
+Quyết định của người làm đồ án (2026-09-17):
+- Kịch bản: **cả hai** — (1) **bản sao số** làm chính: vật thật trên bàn thật → camera nhận dạng →
+  vật ảo trong Gazebo đặt đúng vị trí tương ứng → robot tự gắp–thả; (2) chế độ **bám theo tay/marker**
+  để demo.
+- Camera thật: **chưa chọn** → thiết kế để đổi nguồn ảnh dễ dàng (camera mô phỏng / webcam / khác).
+- **Làm với camera mô phỏng trong Gazebo trước** (có ground truth để đo sai số), rồi mới sang camera thật.
+
+Lộ trình dự kiến (từng bước, hỏi lại trước quyết định lớn):
+- [ ] **Bước 8** — Camera mô phỏng.
+  - [x] 8.1 Camera nhìn xiên (2026-09-17). Model `side_camera` trong `delta_objects_world.sdf`
+    (+ plugin `gz-sim-sensors-system`, ogre2). Pose world **ground truth**: xyz (-0.40, 0, 1.03),
+    rpy (0, 0.558599, 0) = nhìn xuống 32°, đặt hướng 180° (giữa chân 2 và 3, cánh tay ít che nhất);
+    hệ robot (-0.40, 0, 0.03). 640×480, hfov 45° → fx = fy ≈ 772.5, cx 320, cy 240; 10 Hz; nhiễu
+    gauss σ 0.007; frame_id `side_camera` (thẻ `<gz_frame_id>`, `gz sdf -k` cảnh báo nhưng chạy đúng).
+    Topic ROS: `/side_camera/image` (rgb8), `/side_camera/camera_info` (bridge trong
+    `pick_place.launch.py`). Ảnh thấy trọn 3 vật + khay + platform; **có bóng đổ của robot** trên bàn
+    (thử thách cho nhận dạng màu). Xem ảnh: `ros2 run rqt_image_view rqt_image_view /side_camera/image`.
+  - [ ] 8.2 Nhận dạng vật theo màu (OpenCV, HSV).
+  - [ ] 8.3 Hiệu chuẩn + đổi pixel → tọa độ robot (homography mặt bàn); so với pose ground truth ở trên.
+  - [ ] 8.4 Đo sai số so với ground truth.
+
+  **Hiệu năng camera (đã đo 2026-09-17):** máy chưa cài driver NVIDIA (đang `nouveau`) → Gazebo render
+  bằng GPU Intel UHD. **Cửa sổ Gazebo + camera cùng lúc: RTF ~0.35** (1280×720 hay 640×480 đều vậy).
+  Server không GUI + camera: **RTF ~0.9–1.0**, ảnh 9.4 Hz. ⇒ Khi dùng camera chạy
+  `ros2 launch delta_controller pick_place.launch.py gui:=false` (tham số `gui` mới thêm vào
+  `closed_loop_bringup/3dof_delta.launch.py`, mặc định `true`) và xem cảnh qua rqt_image_view.
+  Muốn vừa cửa sổ vừa camera: cần cài driver NVIDIA (GTX 1650) — việc của người dùng (sudo, khởi động lại).
+  `cartesian_control` phát quỹ đạo theo **đồng hồ thật** → RTF thấp làm quỹ đạo nhanh hơn trong thời gian
+  mô phỏng (vẫn tới đích, bám kém hơn); chưa chuyển sang sim time.
+
+  **Tải CPU:** `JointStatePublisher` (gz-sim8, **không có tùy chọn update_rate**) phát `/joint_states`
+  **mỗi bước mô phỏng** (~2000 Hz ở RTF 1). `gripper_node` (MultiThreadedExecutor) ăn ~100% một nhân
+  chỉ để nhận topic này — **không** làm giảm RTF (đã đo) nhưng tốn CPU; chưa sửa.
+  Sau khi dừng launch (TaskStop/kill GUI) có thể **sót tiến trình** bridge/robot_state_publisher →
+  kiểm tra `ps` và kill theo PID. `pgrep -f`/`pkill -f` trong Bash tool cũng khớp chính shell.
+- [ ] **Bước 9** — Đưa kết quả thị giác vào hệ điều khiển (chọn nguồn vị trí: ground truth / camera);
+  `don` chỉ dựa trên camera.
+- [ ] **Bước 10** — Camera thật + bản sao số (đặt/di chuyển vật ảo theo vật thật).
+- [ ] **Bước 11** — Chế độ bám theo tay/marker.
+- [ ] **Bước 12** — Đánh giá (độ chính xác, độ trễ, tỉ lệ gắp thành công) + báo cáo.
+
+### Kế hoạch đã làm (yêu cầu của giảng viên)
 > "Tạo môi trường với đối tượng cụ thể: object để thực thi câu lệnh, xây dựng phương trình
 > và lập trình động học (kinematics). Robot có thể tương tác với môi trường và vật thể
 > trong môi trường interaction."
 
-- [ ] **Bước 6** — Tương tác robot–vật thể. Đã chọn **cách kết hợp**: va chạm vật lý cho platform
+- [x] **Bước 6** — Tương tác robot–vật thể. Đã chọn **cách kết hợp**: va chạm vật lý cho platform
       + gắp/thả "giác hút" bằng `DetachableJoint` + quỹ đạo an toàn nội suy x,y,z.
   - [x] 6.1 Thêm collision cho `tool0` + đo va chạm (xem mục Kiến trúc)
   - [x] 6.2 Nội suy quỹ đạo + FK (2026-09-15). Đo trên Gazebo (ghi `tool0` từ `dynamic_pose/info`):

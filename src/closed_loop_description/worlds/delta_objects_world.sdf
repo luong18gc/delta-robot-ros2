@@ -32,6 +32,11 @@
             name="gz::sim::systems::SceneBroadcaster"/>
     <plugin filename="gz-sim-contact-system"
             name="gz::sim::systems::Contact"/>
+    <!-- Cần cho cảm biến camera (Bước 8 — thị giác máy tính). -->
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
 
     <light type="directional" name="sun">
       <cast_shadows>true</cast_shadows>
@@ -277,6 +282,73 @@
           <pose>0 -0.0365 0.01 0 0 0</pose>
           <geometry><box><size>0.07 0.003 0.02</size></box></geometry>
           <material><ambient>0.95 0.55 0.1 1</ambient><diffuse>0.95 0.55 0.1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===================== Camera nhìn xiên (Bước 8.1) ===================== -->
+    <!-- Đặt phía -X (hướng 180°, giữa chân 2 và chân 3 nên cánh tay ít che nhất), cách tâm bàn
+         0.40 m, cao hơn mặt bàn 0.25 m, nhìn xuống 32.0° về tâm bàn.
+         Tia nhìn tới vùng vật đi DƯỚI đế robot và platform (khi robot ở home).
+         Pose thế giới (ground truth để kiểm chứng hiệu chuẩn ở Bước 8.3):
+           xyz = (-0.40, 0, 1.03)   rpy = (0, 0.558599, 0)
+         Trong hệ robot (z - 1.0): (-0.40, 0, 0.03).
+         Nội tham số danh nghĩa: 640x480, hfov 45° -> fx = fy = 320 / tan(22.5°) ≈ 772.5 px,
+         cx = 320, cy = 240. Topic Gazebo: /side_camera/image, /side_camera/camera_info. -->
+    <model name="side_camera">
+      <static>true</static>
+      <pose>-0.40 0 1.03 0 0.558599 0</pose>
+      <link name="link">
+        <visual name="body">
+          <geometry><box><size>0.04 0.06 0.04</size></box></geometry>
+          <material><ambient>0.12 0.12 0.14 1</ambient><diffuse>0.12 0.12 0.14 1</diffuse></material>
+        </visual>
+        <visual name="lens">
+          <pose>0.025 0 0 0 1.5708 0</pose>
+          <geometry><cylinder><radius>0.012</radius><length>0.012</length></cylinder></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+        <sensor name="side_camera" type="camera">
+          <always_on>true</always_on>
+          <update_rate>10</update_rate>
+          <visualize>true</visualize>
+          <topic>side_camera/image</topic>
+          <gz_frame_id>side_camera</gz_frame_id>
+          <camera>
+            <horizontal_fov>0.785398</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.05</near>
+              <far>3.0</far>
+            </clip>
+            <noise>
+              <type>gaussian</type>
+              <mean>0.0</mean>
+              <stddev>0.007</stddev>
+            </noise>
+          </camera>
+        </sensor>
+      </link>
+    </model>
+
+    <!-- Chân đế camera (chỉ hiển thị). -->
+    <model name="side_camera_stand">
+      <static>true</static>
+      <pose>-0.40 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="pole">
+          <pose>0 0 0.505 0 0 0</pose>
+          <geometry><cylinder><radius>0.008</radius><length>1.01</length></cylinder></geometry>
+          <material><ambient>0.5 0.52 0.55 1</ambient><diffuse>0.5 0.52 0.55 1</diffuse></material>
+        </visual>
+        <visual name="foot">
+          <pose>0 0 0.005 0 0 0</pose>
+          <geometry><cylinder><radius>0.08</radius><length>0.01</length></cylinder></geometry>
+          <material><ambient>0.3 0.32 0.35 1</ambient><diffuse>0.3 0.32 0.35 1</diffuse></material>
         </visual>
       </link>
     </model>
