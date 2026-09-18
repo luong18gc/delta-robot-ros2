@@ -14,21 +14,23 @@ class SceneObject:
     Vật gắp được.
 
     name: tên model Gazebo; half_height: nửa chiều cao (m); aliases: tên tắt khi nhập lệnh;
-    home_xy: vị trí ban đầu trên bàn (khớp <pose> trong world) — dùng cho lay_ra / reset.
+    home_xy: vị trí ban đầu trên bàn (khớp <pose> trong world) — dùng cho lay_ra / reset;
+    color: màu vật, để bộ nhận dạng camera biết mảng màu nào là vật nào.
     """
 
     name: str
     half_height: float
     aliases: tuple
     home_xy: tuple
+    color: str   # lớp màu để camera nhận dạng (khóa trong color_detector.COLOR_CLASSES)
 
 
 OBJECTS = (
-    SceneObject('red_box', 0.015, ('red', 'box', 'do', 'hop', 'hop_do'), (0.06, 0.0)),
+    SceneObject('red_box', 0.015, ('red', 'box', 'do', 'hop', 'hop_do'), (0.06, 0.0), 'red'),
     SceneObject('green_cylinder', 0.015, ('green', 'cylinder', 'xanhla', 'tru', 'tru_xanh'),
-                (-0.03, 0.052)),
+                (-0.03, 0.052), 'green'),
     SceneObject('blue_sphere', 0.015, ('blue', 'sphere', 'xanhduong', 'cau', 'cau_xanh'),
-                (-0.03, -0.052)),
+                (-0.03, -0.052), 'blue'),
 )
 
 # Mặt bàn (hệ robot).

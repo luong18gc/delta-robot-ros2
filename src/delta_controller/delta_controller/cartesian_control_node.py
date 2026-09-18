@@ -110,6 +110,7 @@ class CartesianController(Node):
         self._measured = None
         self._last_command = None
         self._held_object = ''
+        self._held_known = False
         self.create_subscription(JointState, '/joint_states', self._on_joint_state, 10)
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.create_subscription(String, '/gripper/held_object', self._on_held, latched)
@@ -142,6 +143,7 @@ class CartesianController(Node):
     def _on_held(self, msg):
         with self._lock:
             self._held_object = msg.data
+            self._held_known = True
 
     @property
     def held_object(self):
@@ -157,6 +159,12 @@ class CartesianController(Node):
             if time.monotonic() > deadline:
                 return False
             time.sleep(0.05)
+        # Có giác hút thì chờ trạng thái "đang giữ vật gì" (topic latched) trước khi nhận lệnh:
+        # thiếu bước này, 'tha' gõ ngay sau khi mở node báo nhầm "Khong giu vat nao".
+        if self._grip_client.wait_for_service(timeout_sec=1.0):
+            held_deadline = time.monotonic() + 2.0
+            while not self._held_known and time.monotonic() < held_deadline:
+                time.sleep(0.05)
         return True
 
     def call_gripper(self, release, timeout_sec=5.0):

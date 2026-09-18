@@ -1,9 +1,10 @@
 """
-Mô phỏng gắp–thả: robot delta 3-DOF + bàn, vật, khay + giác hút ảo + camera nhìn xiên.
+Mô phỏng gắp–thả: robot delta 3-DOF + bàn, vật, khay + giác hút ảo + camera + nhận dạng màu.
 
 ros2 launch delta_controller pick_place.launch.py            # co cua so Gazebo
-ros2 launch delta_controller pick_place.launch.py gui:=false  # khong cua so, xem anh camera bang rqt_image_view
-Sau đó ở terminal khác: ros2 run delta_controller cartesian_control
+ros2 launch delta_controller pick_place.launch.py gui:=false  # khong cua so Gazebo
+Xem ảnh nhận dạng: ros2 run rqt_image_view rqt_image_view /vision/debug_image
+Điều khiển:        ros2 run delta_controller cartesian_control
 """
 
 import os
@@ -69,4 +70,11 @@ def generate_launch_description():
         }],
     )
 
-    return LaunchDescription([gui_arg, simulation, gripper_bridge, gripper])
+    # Nhận dạng vật theo màu từ camera (Bước 8.2): /vision/detections, /vision/debug_image.
+    vision = Node(
+        package='delta_controller',
+        executable='vision',
+        output='screen',
+    )
+
+    return LaunchDescription([gui_arg, simulation, gripper_bridge, gripper, vision])
