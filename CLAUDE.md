@@ -98,8 +98,10 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
 - `color_detector.py`, `vision_node.py` (entry `vision`) — nhận dạng vật theo màu (Bước 8.2),
   đổi ra tọa độ robot khi có file hiệu chuẩn (Bước 8.3).
 - `camera_model.py`, `calibrate_camera_node.py` (entry `calibrate_camera`) — hiệu chuẩn ArUco + PnP (Bước 8.3).
+- `vision_eval.py` + `scripts/record_vision_dataset.py`, `scripts/evaluate_vision.py` — đánh giá sai số (Bước 8.4).
 - `test/` — lint + `test_delta_kinematics.py`, `test_trajectory.py`, `test_gripper_logic.py`,
-  `test_task_planner.py`, `test_color_detector.py`, `test_camera_model.py` (ảnh mẫu trong `test/data/`).
+  `test_task_planner.py`, `test_color_detector.py`, `test_camera_model.py`, `test_vision_eval.py`
+  (ảnh mẫu trong `test/data/`).
 
 ### Giác hút ảo (DetachableJoint) — những điều đã kiểm chứng
 - **4 DetachableJoint đóng mạch kín dùng topic mặc định chung**
@@ -315,7 +317,7 @@ Quyết định của người làm đồ án (2026-09-17):
 - **Làm với camera mô phỏng trong Gazebo trước** (có ground truth để đo sai số), rồi mới sang camera thật.
 
 Lộ trình dự kiến (từng bước, hỏi lại trước quyết định lớn):
-- [ ] **Bước 8** — Camera mô phỏng.
+- [x] **Bước 8** — Camera mô phỏng (8.1–8.4 xong 2026-09-18).
   - [x] 8.1 Camera nhìn xiên (2026-09-17). Model `side_camera` trong `delta_objects_world.sdf`
     (+ plugin `gz-sim-sensors-system`, ogre2). Pose world **ground truth**: xyz (-0.40, 0, 1.03),
     rpy (0, 0.558599, 0) = nhìn xuống 32°, đặt hướng 180° (giữa chân 2 và 3, cánh tay ít che nhất);
@@ -371,7 +373,26 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
       mọi khung gần như giống hệt nhau; 8.4 muốn đo độ bền với nhiễu phải **tự thêm nhiễu**.
     - Test: `test_camera_model.py` (12 bài, gồm hiệu chuẩn trên ảnh thật `test/data/side_camera_markers.png`).
     - Ảnh cho báo cáo: `docs/figures/vision_objects_mm.png`, `docs/figures/calibration_markers.png`.
-  - [ ] 8.4 Đo sai số so với ground truth.
+  - [x] 8.4 Đo sai số hệ thống (2026-09-18). Kết quả đầy đủ: `docs/results/vision_eval.md` (+ `.csv`),
+    hình `docs/figures/vision_error_map.png`, `docs/figures/vision_robustness.png`.
+    - Bộ dữ liệu `datasets/vision_eval/` (172 ảnh + `labels.json`, 12 MB) thu bằng
+      `python3 src/delta_controller/scripts/record_vision_dataset.py` khi sim chạy: dời vật bằng dịch vụ
+      Gazebo `/world/delta_world/set_pose` (gọi `gz service`, ~0.37 s/lần) qua lưới 61 điểm × 3 vật,
+      robot lơ lửng trên vật (khe 60/30/15/5 mm), vật trong 3 ô khay. Chụp ảnh **sau** khi dời + 0.8 s.
+    - Phân tích offline: `vision_eval.py` (thuần, tái hiện đúng node `vision`; nhiễu Gauss/độ sáng
+      tất định theo seed) + `python3 src/delta_controller/scripts/evaluate_vision.py` (~36 s).
+    - **Vùng robot gắp được (58 mẫu): TB 1.13 mm, P95 3.7 mm, max 6.2 mm → 100% trong dung sai 12 mm.**
+      Mọi điểm trong ảnh: TB 2.0 mm, trung vị 0.77, max 20.6 (đều ngoài tầm với). Lệch hệ thống 0.16 mm.
+    - **Che khuất một phần = nguyên nhân sai số lớn** (tâm khối là tâm phần nhìn thấy, lệch theo hướng
+      nhìn): vật sau platform (x ≥ 90 mm, y ≈ 0) → gần hơn thật ~19 mm; **vật trong khay: thành khay che
+      nửa dưới → xa hơn thật +12…+20 mm (TB 13.4) → VƯỢT dung sai giác hút** → `lay_ra`/`reset` dựa
+      camera sẽ hụt nếu chưa sửa. Platform sát đỉnh vật (khe 5 mm): TB 4.6 mm.
+    - Bị cắt mép ảnh (góc gần camera, ngoài tầm với): TB 8.2 mm.
+    - Nhiễu: vô hại tới σ 10 mức xám; σ 20 → 99.2% nhận dạng; σ 40 → 83%. Độ sáng ổn định 0.5×–1.6×;
+      0.3× mất 16.5% (ngưỡng V ≥ 40).
+    - Hướng cải thiện (chưa làm, chờ người làm đồ án chọn): ước lượng riêng cho vật trong khay (dùng
+      mép trên/mặt trên thay vì tâm khối), cờ "bị che" khi diện tích nhìn thấy nhỏ hơn dự đoán, đưa
+      robot tránh tầm nhìn trước khi chụp.
 
   **Hiệu năng (đo 2026-09-17/18).** Máy: i5-10300H (4 nhân/8 luồng), Intel UHD + **GTX 1650**.
   Driver NVIDIA **595.91 (`nvidia-driver-595-open`) đã cài 2026-09-18** (Secure Boot bật → đã enroll MOK);
