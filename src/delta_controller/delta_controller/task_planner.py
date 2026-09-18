@@ -141,9 +141,13 @@ def locate(name, obj, held):
     return 'tren ban'
 
 
+def inside_bin_region(x, y):
+    """Điểm (x, y) nằm trong lòng khay."""
+    return abs(x - BIN_CENTER[0]) < BIN_INNER_HALF and abs(y - BIN_CENTER[1]) < BIN_INNER_HALF
+
+
 def in_bin(obj):
-    return (abs(obj.center[0] - BIN_CENTER[0]) < BIN_INNER_HALF
-            and abs(obj.center[1] - BIN_CENTER[1]) < BIN_INNER_HALF)
+    return inside_bin_region(obj.center[0], obj.center[1])
 
 
 def occupied_slots(objects, held):

@@ -100,9 +100,10 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
 - `camera_model.py`, `calibrate_camera_node.py` (entry `calibrate_camera`) — hiệu chuẩn ArUco + PnP (Bước 8.3).
 - `vision_eval.py` + `scripts/record_vision_dataset.py`, `scripts/evaluate_vision.py` — đánh giá sai số (Bước 8.4).
 - `vision_estimation.py` — ước lượng vị trí có xét che khuất: hình bóng dự đoán, khớp mép trên, cờ tin cậy (8.5).
+- `cartesian_control`: `object_source` camera (mặc định) | ground_truth, lệnh `nguon`; `scripts/run_pick_place_trials.py` (Bước 9).
 - `test/` — lint + `test_delta_kinematics.py`, `test_trajectory.py`, `test_gripper_logic.py`,
   `test_task_planner.py`, `test_color_detector.py`, `test_camera_model.py`, `test_vision_eval.py`,
-  `test_vision_estimation.py` (ảnh mẫu trong `test/data/`).
+  `test_vision_estimation.py`, `test_task_executor.py` (ảnh mẫu trong `test/data/`).
 
 ### Giác hút ảo (DetachableJoint) — những điều đã kiểm chứng
 - **4 DetachableJoint đóng mạch kín dùng topic mặc định chung**
@@ -441,8 +442,35 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
   gian mô phỏng (vẫn tới đích, bám kém hơn); chưa chuyển sang sim time.
   Sau khi dừng launch (TaskStop/kill GUI) có thể **sót tiến trình** bridge/robot_state_publisher →
   kiểm tra `ps` và kill theo PID. `pgrep -f`/`pkill -f` trong Bash tool cũng khớp chính shell.
-- [ ] **Bước 9** — Đưa kết quả thị giác vào hệ điều khiển (chọn nguồn vị trí: ground truth / camera);
-  `don` chỉ dựa trên camera.
+- [x] **Bước 9** — Gắp–thả dựa trên camera (2026-09-18).
+  - Nguồn vị trí vật cho **bộ não** (`cartesian_control` → `task_executor`): tham số `object_source`
+    (**mặc định `camera`**) hoặc `ground_truth`; đổi lúc chạy bằng `nguon camera | nguon that`.
+    **`gripper_node` vẫn dùng ground truth** — nó mô phỏng PHẦN CỨNG giác hút (hút được hay không là
+    chuyện vật lý), không phải phần nhận thức.
+  - Chế độ camera (`task_executor`): trước mỗi lần đo robot về **`scene.OBSERVE_XYZ = (0, 0, -0.11)`**
+    (ở home platform che vật vùng xa: hộp tại x 120 mm score 0 / sai 17 mm → ở -0.11: 0.99 / 0.3 mm),
+    rồi `node.observe_camera(after)` chờ ≥ 2 khung `/vision/objects` nhận SAU khi dừng + 0.3 s; chỉ
+    dùng vật score > 0. Đang giữ vật → dùng lần quan sát trước khi nhặt (không quan sát lại).
+    "Đã nhấc lên" = giác hút xác nhận (camera không đo được vật lơ lửng); "đã thả đúng chỗ" = camera
+    sau khi quan sát lại. Vật không rõ → từ chối kèm lý do; `don`/`reset` bỏ qua và ghi chú.
+  - **Một `TaskExecutor` cho cả phiên** (`node.task_executor`) — trước đó tạo mới mỗi lệnh nên `tha`
+    gõ riêng sau `nhat` mất lần quan sát trước khi nhặt.
+  - `task_executor.py` không import ROS → `test/test_task_executor.py` test chế độ camera bằng robot giả.
+  - **Che khuất vật–vật**: hộp đỏ đứng sau trụ xanh (nhìn từ camera) bị che ~15% → lệch 8 mm nhưng tỉ
+    lệ nhìn thấy nhỉnh hơn 0.85 → hút lệch tâm 8 mm → thả ô A (cách thành 3 mm) đè thành khay, trượt
+    sang ô B (kiểm chứng bằng camera bắt được). Dời platform tới 6 tư thế: kết quả y hệt (không phải
+    robot che). Sửa: **`VISIBLE_MIN` 0.85 → 0.90** (dữ liệu 8.4: bỏ sót 1/29 → 0/29, báo nhầm
+    10 → 12/143; ước lượng tin cậy max 5.65 → 3.42 mm). Vòng `don` quan sát lại sau mỗi vật nên vật
+    bị che sẽ được gắp sau khi vật phía trước đã dọn đi.
+  - Thí nghiệm: `python3 src/delta_controller/scripts/run_pick_place_trials.py [n] [seed] [modes]`
+    (bố trí ngẫu nhiên trong tầm với, `don` + `reset`, chấm bằng ground truth) →
+    `docs/results/pick_place_trials.{md,json}` + nhận xét `docs/results/pick_place_nhan_xet.md`.
+    **Kết quả (10 bố trí, seed 2026, ngưỡng 0.90): camera 30/30 vật vào ô, 10/10 `don`; 30/30 về chỗ
+    cũ, 10/10 `reset` — bằng hệt chế độ ground truth.** Thời gian/lượt: camera 58 + 55 s, ground truth
+    43 + 36 s (~35% chậm hơn do quan sát).
+  - ⚠️ Chế độ ground truth, 1/5 lượt ở lần chạy đầu (không lặp lại ở lần 10 lượt): khi lấy hộp đỏ
+    khỏi ô C, trụ xanh ở ô A bên cạnh **văng khỏi bàn (2.2 m)**. Chưa rõ nguyên nhân (nghi liên quan platform 5 cm đè cả vật bên cạnh + hiện tượng
+    lún/xung lực ở 6.1) — **chưa kiểm chứng, chưa sửa**.
 - [ ] **Bước 10** — Camera thật + bản sao số (đặt/di chuyển vật ảo theo vật thật).
 - [ ] **Bước 11** — Chế độ bám theo tay/marker.
 - [ ] **Bước 12** — Đánh giá (độ chính xác, độ trễ, tỉ lệ gắp thành công) + báo cáo.

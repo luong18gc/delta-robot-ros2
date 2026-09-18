@@ -24,6 +24,7 @@ from delta_controller.scene import (
     CALIB_MARKERS,
     OBJECTS,
 )
+from delta_controller.vision_estimation import VISIBLE_MIN
 from delta_controller.vision_eval import (
     bias,
     COLOR_OF,
@@ -141,7 +142,7 @@ def main():
         lines.append(f"| {name} | {b['mean_mm']:.2f} | {b['max_mm']:.2f} | "
                      f"{a['mean_mm']:.2f} | {a['max_mm']:.2f} |")
     fq = flag_quality(records)
-    lines += ['', '## 4. Cờ tin cậy (tỉ lệ nhìn thấy ≥ 0.85, không chạm mép ảnh, '
+    lines += ['', f'## 4. Cờ tin cậy (tỉ lệ nhìn thấy ≥ {VISIBLE_MIN:.2f}, không chạm mép ảnh, '
               'hoặc đã khớp mép trên)', '',
               f"- Ước lượng **tệ** (sai số > 5 mm): {fq['bad']} — bị gắn *không tin cậy*: "
               f"**{100 * fq['recall']:.0f}%**.",

@@ -33,6 +33,7 @@ from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
+from vision_msgs.msg import Detection3DArray
 
 
 HOME_XYZ = (0.0, 0.0, -0.1405)
@@ -62,6 +63,9 @@ Lenh cap cao (vat: red_box/do, green_cylinder/xanhla, blue_sphere/cau; o khay: A
   lay_ra <vat> [x y] | unload -> lay vat tu khay ra, dat len ban tai (x, y)
                                  (mac dinh: vi tri ban dau cua vat)
   reset                       -> lay het vat trong khay ra, dat ve vi tri ban dau
+  nguon camera | nguon that   -> vi tri vat lay tu CAMERA (mac dinh) hoac vi tri THAT cua Gazebo
+                                 (source camera | source gt). Che do camera: truoc khi do, robot
+                                 len tu the quan sat de khong che camera.
 
 Lenh khac:
   where           -> vi tri platform hien tai (FK tu goc khop do duoc)
@@ -82,6 +86,11 @@ TASK_ALIASES = {
     'sort': 'sort', 'don': 'sort',
     'unload': 'unload', 'lay_ra': 'unload',
     'reset': 'reset',
+}
+
+SOURCE_ALIASES = {
+    'camera': 'camera', 'cam': 'camera',
+    'gt': 'ground_truth', 'that': 'ground_truth', 'ground_truth': 'ground_truth',
 }
 
 
@@ -124,13 +133,53 @@ class CartesianController(Node):
                 lambda msg, n=obj.name: self._on_odometry(n, msg), 10)
         self._base_z = self.declare_parameter('base_z', 1.0).value
 
+        # Nguồn vị trí vật cho lệnh cấp cao: 'camera' (thị giác, Bước 9) | 'ground_truth'.
+        self.object_source = self.declare_parameter('object_source', 'camera').value
+        self._vision = {}            # lần nhận /vision/objects gần nhất: tên -> ((x, y, z), score)
+        self._vision_stamps = []     # thời điểm (đồng hồ thật) nhận các khung gần đây
+        self.create_subscription(Detection3DArray, '/vision/objects', self._on_vision, 10)
+        # Một executor cho cả phiên: giữ lần quan sát camera trước khi nhặt, để lệnh 'tha' gõ
+        # riêng sau 'nhat' vẫn biết ô nào đã có vật.
+        self.task_executor = TaskExecutor(self)
+
+    def _on_vision(self, msg):
+        estimates = {}
+        for d in msg.detections:
+            p = d.bbox.center.position
+            score = d.results[0].hypothesis.score if d.results else 0.0
+            estimates[d.id] = ((p.x, p.y, p.z), score)
+        with self._lock:
+            self._vision = estimates
+            self._vision_stamps = (self._vision_stamps + [time.monotonic()])[-20:]
+
+    def observe_camera(self, after, frames=2, timeout_sec=5.0):
+        """
+        Chờ khung /vision/objects nhận SAU thời điểm `after` (đồng hồ thật).
+
+        Trả về (vật thấy rõ: tên -> ObjectState, vật thấy nhưng không tin cậy: tên -> score).
+        """
+        deadline = max(after, time.monotonic()) + timeout_sec
+        while True:
+            with self._lock:
+                fresh = sum(t > after for t in self._vision_stamps)
+                estimates = dict(self._vision)
+            if fresh >= frames:
+                break
+            if time.monotonic() > deadline:
+                raise RuntimeError('Chua nhan duoc /vision/objects moi — node vision co chay '
+                                   'va da hieu chuan camera chua? (hoac dung: nguon that)')
+            time.sleep(0.03)
+        reliable = {n: xyz for n, (xyz, score) in estimates.items() if score > 0.0}
+        unclear = {n: score for n, (_, score) in estimates.items() if score <= 0.0}
+        return object_states(reliable), unclear
+
     def _on_odometry(self, name, msg):
         p = msg.pose.pose.position
         with self._lock:
             self._object_centers[name] = (p.x, p.y, p.z - self._base_z)
 
     def object_states(self):
-        """Vị trí thật của các vật (hệ robot) theo odometry từ Gazebo."""
+        """Vị trí THẬT của các vật (hệ robot) theo odometry Gazebo — nguồn 'ground_truth'."""
         with self._lock:
             return object_states(dict(self._object_centers))
 
@@ -242,7 +291,7 @@ def _format_xyz(p):
 
 
 def _handle_task(node, command, args):
-    executor = TaskExecutor(node)
+    executor = node.task_executor
     task = TASK_ALIASES[command]
     if task == 'objects':
         for line in executor.objects_report():
@@ -306,6 +355,14 @@ def _handle(node, raw):
         success, message = node.call_gripper(release=(command == 'release'))
         print(f'-> {message}' if success else f'Loi: {message}')
         return True
+    if command in ('nguon', 'source'):
+        if rest.strip():
+            key = rest.strip().lower()
+            if key not in SOURCE_ALIASES:
+                raise ValueError('Dung: nguon camera | nguon that')
+            node.object_source = SOURCE_ALIASES[key]
+        print(f'-> Nguon vi tri vat: {node.object_source}')
+        return True
     if command == 'speed':
         speed = float(rest)
         if speed <= 0.0:
@@ -351,6 +408,7 @@ def main(args=None):
         print('Canh bao: sau 5s chua ket noi duoc mo phong (cmd_pos / joint_states)')
 
     print(HELP_TEXT)
+    print(f'Nguon vi tri vat: {node.object_source} (doi bang: nguon camera | nguon that)')
     try:
         while rclpy.ok():
             try:

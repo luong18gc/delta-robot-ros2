@@ -21,7 +21,11 @@ import cv2
 from delta_controller.scene import BIN_CENTER, BIN_FLOOR_Z, BIN_INNER_HALF, BIN_OUTER_HALF, TABLE_Z
 import numpy as np
 
-VISIBLE_MIN = 0.85          # tỉ lệ nhìn thấy tối thiểu để tin vị trí tâm khối
+# Tỉ lệ nhìn thấy tối thiểu để tin vị trí tâm khối. Trên bộ dữ liệu 8.4: 0.85 bỏ sót 1/29 ước lượng
+# tệ (> 5 mm), 0.90 bỏ sót 0/29 (báo nhầm 12/143 thay vì 10/143). Bước 9 gặp đúng ca bị bỏ sót:
+# hộp đỏ bị trụ xanh đứng trước che ~15% -> lệch 8 mm -> hút lệch tâm -> đè thành khay, trượt
+# sang ô khác.
+VISIBLE_MIN = 0.90
 # Ước lượng thô cách thành ngoài khay tới mức này thì thử giả thuyết "vật trong khay" (m).
 BIN_SEARCH_MARGIN = 0.03
 _NEWTON_STEP = 1e-4         # bước sai phân để tính Jacobian (m)

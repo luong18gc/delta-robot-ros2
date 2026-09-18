@@ -1,14 +1,24 @@
 """
 Thực thi lệnh cấp cao trên CartesianController: lập kế hoạch -> chạy từng thao tác -> kiểm chứng.
 
-Mỗi lệnh lập lại kế hoạch từ vị trí vật đo được ngay lúc đó, và kiểm tra kết quả bằng vị trí
-thật của vật sau khi làm (đã nhấc lên chưa, đã nằm đúng ô chưa) thay vì tin là đã thành công.
+Mỗi lệnh lập lại kế hoạch từ vị trí vật đo được ngay lúc đó, và kiểm tra kết quả sau khi làm
+(đã nhấc lên chưa, đã nằm đúng ô chưa) thay vì tin là đã thành công.
+
+Hai nguồn vị trí vật (node.object_source):
+  'ground_truth' — odometry Gazebo (đáp án; dùng để so sánh).
+  'camera'       — thị giác máy tính (Bước 9). Trước mỗi lần đo, robot về OBSERVE_XYZ để
+                   platform không che camera, rồi chỉ dùng khung ảnh chụp SAU khi robot đã dừng.
+                   Chỉ dùng ước lượng tin cậy (score > 0). Vật đang giữ lơ lửng thì camera không
+                   đo được (giả định vật nằm trên bàn/khay) -> "đã nhấc lên" kiểm chứng bằng trạng
+                   thái giác hút; "đã thả đúng chỗ" kiểm chứng bằng camera sau khi quan sát lại.
+Module không import ROS: node chỉ cần object_source, held_object, safe_z, safe_z_holding,
+move(goal, safe), call_gripper(release), object_states(), observe_camera(after).
 """
 
 import math
 import time
 
-from delta_controller.scene import OBJECTS
+from delta_controller.scene import OBJECTS, OBSERVE_XYZ
 from delta_controller.task_planner import (
     check_reachable,
     first_free_slot,
@@ -32,6 +42,8 @@ LIFT_CHECK = 0.01
 # Vật đặt ra bàn được coi là đúng chỗ nếu lệch không quá giá trị này (m).
 PLACE_TOLERANCE = 0.01
 OBJECTS_WAIT_SEC = 3.0
+# Sau khi tới tư thế quan sát, chờ thêm chừng này rồi mới nhận khung ảnh (robot hết rung).
+OBSERVE_SETTLE_SEC = 0.3
 
 
 class TaskExecutor:
@@ -40,16 +52,27 @@ class TaskExecutor:
     def __init__(self, node, log=print):
         self._node = node
         self._log = log
+        self._last_seen = {}      # lần quan sát camera gần nhất (dùng khi đang giữ vật)
+        self._last_unclear = {}   # vật camera thấy nhưng không tin cậy: tên -> score
+
+    @property
+    def camera_mode(self):
+        return self._node.object_source == 'camera'
 
     # ------------------------------------------------------------------ lệnh
 
     def objects_report(self):
         objects = self._objects()
         held = self._node.held_object
-        lines = []
+        source = 'camera' if self.camera_mode else 'vi tri that (Gazebo)'
+        lines = [f'(nguon: {source})']
         for name, obj in objects.items():
             x, y, z = obj.center
             lines.append(f'{name:15s} ({x:+.4f}, {y:+.4f}, {z:+.4f})  {locate(name, obj, held)}')
+        if self.camera_mode:
+            for name in self._missing(objects, held):
+                lines.append(f'{name:15s} camera chua thay ro'
+                             + (' (dang giu)' if name == held else ' (bi che / ngoai anh?)'))
         return lines
 
     def goto(self, name):
@@ -58,9 +81,16 @@ class TaskExecutor:
     def pick(self, name):
         node = self._node
         objects = self._objects()
+        self._require_seen(name, objects)
         actions = plan_pick(name, objects, node.held_object, node.safe_z_holding)
         start_z = objects[name].center[2]
         self._run(actions)
+        if self.camera_mode:
+            # Vật lơ lửng: camera (giả định vật nằm trên bàn/khay) không đo được -> tin giác hút.
+            if node.held_object != name:
+                raise TaskError(f'Kiem chung that bai: giac hut khong giu {name}')
+            self._log(f'   ✓ giac hut xac nhan dang giu {name}')
+            return
         time.sleep(SETTLE_SEC)
         now = self._objects()[name].center[2]
         lifted_mm = 1000 * (now - start_z)
@@ -77,7 +107,9 @@ class TaskExecutor:
         actions = plan_place(held, slot, others, node.safe_z)
         self._run(actions)
         time.sleep(SETTLE_SEC)
-        where = locate(held, self._objects()[held], '')
+        after = self._objects()
+        self._require_seen(held, after, 'khong kiem chung duoc: ')
+        where = locate(held, after[held], '')
         if where != f'o {slot}':
             raise TaskError(f'Kiem chung that bai: {held} dang "{where}", khong phai o {slot}')
         self._log(f'   ✓ {held} nam trong o {slot}')
@@ -111,7 +143,9 @@ class TaskExecutor:
         others = {n: o for n, o in self._objects().items() if n != name}
         self._run(plan_place_on_table(name, target, others, node.safe_z))
         time.sleep(SETTLE_SEC)
-        obj = self._objects()[name]
+        after = self._objects()
+        self._require_seen(name, after, 'khong kiem chung duoc: ')
+        obj = after[name]
         error = math.hypot(obj.center[0] - target[0], obj.center[1] - target[1])
         where = locate(name, obj, '')
         if where != 'tren ban' or error > PLACE_TOLERANCE:
@@ -136,7 +170,7 @@ class TaskExecutor:
             self._log(f'== Lay {name} ra ({len(done) + 1}/{len(done) + len(todo)})')
             self.unload(name)
             done.append(name)
-        self._log(f'== Da dua ve vi tri ban dau: {", ".join(done)}')
+        self._log(f'== Da dua ve vi tri ban dau: {", ".join(done)}' + self._unclear_note())
 
     def sort(self):
         """Dọn lần lượt từng vật còn trên bàn vào ô trống; lập lại kế hoạch sau mỗi vật."""
@@ -154,18 +188,24 @@ class TaskExecutor:
             self.pick_place(name)
             done.append(name)
         if not done:
-            raise TaskError('Khong con vat nao tren ban')
-        self._log(f'== Da don xong: {", ".join(done)}')
+            raise TaskError('Khong con vat nao tren ban' + self._unclear_note())
+        self._log(f'== Da don xong: {", ".join(done)}' + self._unclear_note())
 
     # ------------------------------------------------------------------ thực thi
 
     def _objects(self):
         """
-        Vị trí thật của TẤT CẢ vật trong scene, chờ tối đa OBJECTS_WAIT_SEC.
+        Vị trí vật theo nguồn đang chọn.
 
-        Không chờ thì lệnh gõ ngay sau khi node khởi động thấy danh sách rỗng và hiểu nhầm là
-        "không còn vật nào trên bàn" (đã gặp khi chạy kịch bản thử).
+        Camera: quan sát lại (trừ khi đang giữ vật -> dùng lần quan sát trước khi nhặt), chỉ vật
+        thấy rõ. Vị trí thật: TẤT CẢ vật, chờ tối đa OBJECTS_WAIT_SEC — không chờ thì lệnh gõ ngay
+        sau khi node khởi động thấy danh sách rỗng và hiểu nhầm là "không còn vật nào trên bàn".
         """
+        if self.camera_mode:
+            held = self._node.held_object
+            if held and self._last_seen:
+                return {n: o for n, o in self._last_seen.items() if n != held}
+            return self._observe()
         deadline = time.monotonic() + OBJECTS_WAIT_SEC
         while True:
             objects = self._node.object_states()
@@ -176,6 +216,32 @@ class TaskExecutor:
                 raise TaskError(f'Chua nhan duoc vi tri {", ".join(missing)} '
                                 f'(da chay pick_place.launch.py chua?)')
             time.sleep(0.05)
+
+    def _observe(self):
+        """Đưa robot về tư thế quan sát, lấy vị trí vật từ khung ảnh chụp sau khi robot dừng."""
+        self._node.move(OBSERVE_XYZ, safe=True)
+        states, unclear = self._node.observe_camera(time.monotonic() + OBSERVE_SETTLE_SEC)
+        self._last_seen, self._last_unclear = states, unclear
+        return states
+
+    def _missing(self, objects, held=''):
+        return [o.name for o in OBJECTS if o.name not in objects]
+
+    def _require_seen(self, name, objects, prefix=''):
+        if name in objects:
+            return
+        if self.camera_mode:
+            score = self._last_unclear.get(name)
+            why = ('thay nhung khong tin cay (bi che mot phan?)' if score is not None
+                   else 'khong thay (bi che hoan toan / ngoai anh?)')
+            raise TaskError(f'{prefix}camera {why}: {name}')
+        raise TaskError(f'{prefix}chua nhan duoc vi tri {name}')
+
+    def _unclear_note(self):
+        if not self.camera_mode:
+            return ''
+        missing = self._missing(self._last_seen)
+        return f' (camera chua thay ro: {", ".join(missing)})' if missing else ''
 
     def _run(self, actions):
         check_reachable(actions)

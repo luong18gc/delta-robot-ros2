@@ -15,7 +15,7 @@ Sai số = khoảng cách **ngang** (x, y) giữa vị trí camera ước lượ
 | Lưới trọn trong ảnh — Trụ xanh lá | 44 | 100.0% | 1.39 | 0.49 | 2.56 | 6.62 | 8.26 |
 | Lưới trọn trong ảnh — Cầu xanh dương | 46 | 100.0% | 2.65 | 1.42 | 4.88 | 9.89 | 20.58 |
 | Vật trong khay (mặt đáy cao hơn bàn 3 mm) | 9 | 100.0% | 1.01 | 0.88 | 1.08 | 1.63 | 1.91 |
-| Chỉ các ước lượng **tin cậy** (mọi kịch bản) | 132 | 100.0% | 0.90 | 0.74 | 1.14 | 1.89 | 5.65 |
+| Chỉ các ước lượng **tin cậy** (mọi kịch bản) | 131 | 100.0% | 0.86 | 0.73 | 1.03 | 1.89 | 3.42 |
 
 Độ lệch hệ thống (lưới, trọn trong ảnh): dx = +0.16 mm, dy = +0.00 mm.
 
@@ -37,11 +37,11 @@ Sai số = khoảng cách **ngang** (x, y) giữa vị trí camera ước lượ
 | Vật trong khay | 13.44 | 19.74 | 1.01 | 1.91 |
 | Platform sát vật (khe 5 mm) | 4.57 | 7.63 | 4.57 | 7.63 |
 
-## 4. Cờ tin cậy (tỉ lệ nhìn thấy ≥ 0.85, không chạm mép ảnh, hoặc đã khớp mép trên)
+## 4. Cờ tin cậy (tỉ lệ nhìn thấy ≥ 0.90, không chạm mép ảnh, hoặc đã khớp mép trên)
 
-- Ước lượng **tệ** (sai số > 5 mm): 29 — bị gắn *không tin cậy*: **97%**.
+- Ước lượng **tệ** (sai số > 5 mm): 29 — bị gắn *không tin cậy*: **100%**.
 - Ước lượng **tốt** (≤ 5 mm): 143 — bị gắn nhầm *không tin cậy*: 8%.
-- Sai số lớn nhất trong các ước lượng được gắn *tin cậy*: **5.65 mm**.
+- Sai số lớn nhất trong các ước lượng được gắn *tin cậy*: **3.42 mm**.
 - Phương pháp dùng: 9 lần khớp mép trên, 163 lần tâm khối.
 
 ## 5. Độ bền với nhiễu Gauss (lưới, vật trọn trong ảnh)

@@ -24,9 +24,11 @@ Kiểm chứng: vật không bị che có tỉ lệ nhìn thấy ≈ 0.99 → m�
   (x, y) để mép trên + tâm ngang của hình bóng dự đoán trùng quan sát. Vật trong khay:
   **TB 13.4 → 1.0 mm, max 19.7 → 1.9 mm**. Chỉ kích hoạt khi ước lượng thô gần khay và kết quả nằm trong
   lòng khay → 9/9 lần đúng là vật trong khay, 0 lần kích hoạt nhầm cho vật trên bàn.
-- **(a) Cờ tin cậy** = tỉ lệ nhìn thấy ≥ 0.85, không chạm mép ảnh (hoặc đã khớp mép trên): bắt **97%**
-  ước lượng tệ (> 5 mm), báo nhầm 8% ước lượng tốt. Chỉ tính ước lượng tin cậy: TB 0.90 mm,
-  **max 5.65 mm** (< 12 mm). Cờ không sửa được vị trí vật bị platform che (không biết phần bị che) — hệ
+- **(a) Cờ tin cậy** = tỉ lệ nhìn thấy ≥ ngưỡng, không chạm mép ảnh (hoặc đã khớp mép trên).
+  Ngưỡng ban đầu 0.85: bắt 97% ước lượng tệ (> 5 mm), báo nhầm 10/143, tin cậy max 5.65 mm.
+  **Ngưỡng 0.90 (từ Bước 9)**: bắt **100%** ước lượng tệ, báo nhầm 12/143 (8%), ước lượng tin cậy
+  **max 3.42 mm**. Lý do nâng: Bước 9 gặp đúng ca bị bỏ sót ở 0.85 (hộp bị vật khác che ~15%, lệch 8 mm,
+  hút lệch tâm rồi thả trượt ô) — xem `pick_place_nhan_xet.md`. Cờ không sửa được vị trí vật bị platform che (không biết phần bị che) — hệ
   điều khiển nên **đưa robot tránh tầm nhìn rồi đo lại** khi gặp cờ này.
 
 ## Độ bền

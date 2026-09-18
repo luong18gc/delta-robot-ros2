@@ -86,3 +86,8 @@ CALIB_MARKERS = {
 # để điều khiển.
 SIDE_CAMERA_GT_XYZ = (-0.40, 0.0, 0.03)
 SIDE_CAMERA_GT_RPY = (0.0, 0.558599, 0.0)
+
+# Tư thế quan sát (Bước 9): trước khi đọc vị trí vật từ camera, robot đưa platform lên cao ở giữa
+# để không che tầm nhìn. Đo 2026-09-18: hộp đỏ tại x = 120 mm, robot ở home -> bị platform che
+# (score 0, sai 17 mm); platform ở z -0.105…-0.11 -> score 0.99, sai 0.3 mm.
+OBSERVE_XYZ = (0.0, 0.0, -0.11)
