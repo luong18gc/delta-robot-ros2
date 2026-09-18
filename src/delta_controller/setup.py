@@ -31,6 +31,7 @@ setup(
             'cartesian_control = delta_controller.cartesian_control_node:main',
             'gripper = delta_controller.gripper_node:main',
             'vision = delta_controller.vision_node:main',
+            'calibrate_camera = delta_controller.calibrate_camera_node:main',
         ],
     },
 )

@@ -95,9 +95,11 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
   kiểm tra **trước khi** nhặt; kiểm chứng: vật "tren ban", lệch ≤ 10 mm. `reset` = lay_ra mọi vật
   trong khay về `home_xy`. `_objects()` **chờ đủ vị trí mọi vật** (≤ 3 s): lệnh gõ ngay khi node
   vừa khởi động từng thấy danh sách rỗng → báo nhầm "Khong con vat nao tren ban".
-- `color_detector.py`, `vision_node.py` (entry `vision`) — nhận dạng vật theo màu (Bước 8.2).
+- `color_detector.py`, `vision_node.py` (entry `vision`) — nhận dạng vật theo màu (Bước 8.2),
+  đổi ra tọa độ robot khi có file hiệu chuẩn (Bước 8.3).
+- `camera_model.py`, `calibrate_camera_node.py` (entry `calibrate_camera`) — hiệu chuẩn ArUco + PnP (Bước 8.3).
 - `test/` — lint + `test_delta_kinematics.py`, `test_trajectory.py`, `test_gripper_logic.py`,
-  `test_task_planner.py`, `test_color_detector.py` (ảnh mẫu trong `test/data/`).
+  `test_task_planner.py`, `test_color_detector.py`, `test_camera_model.py` (ảnh mẫu trong `test/data/`).
 
 ### Giác hút ảo (DetachableJoint) — những điều đã kiểm chứng
 - **4 DetachableJoint đóng mạch kín dùng topic mặc định chung**
@@ -317,8 +319,8 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
   - [x] 8.1 Camera nhìn xiên (2026-09-17). Model `side_camera` trong `delta_objects_world.sdf`
     (+ plugin `gz-sim-sensors-system`, ogre2). Pose world **ground truth**: xyz (-0.40, 0, 1.03),
     rpy (0, 0.558599, 0) = nhìn xuống 32°, đặt hướng 180° (giữa chân 2 và 3, cánh tay ít che nhất);
-    hệ robot (-0.40, 0, 0.03). 640×480, hfov 45° → fx = fy ≈ 772.5, cx 320, cy 240; 10 Hz; nhiễu
-    gauss σ 0.007; frame_id `side_camera` (thẻ `<gz_frame_id>`, `gz sdf -k` cảnh báo nhưng chạy đúng).
+    hệ robot (-0.40, 0, 0.03). 640×480, hfov 45° → fx = fy ≈ 772.5, cx 320, cy 240; 10 Hz; khai báo
+    nhiễu gauss σ 0.007 nhưng **đo được là không có tác dụng** (xem 8.3); frame_id `side_camera` (thẻ `<gz_frame_id>`, `gz sdf -k` cảnh báo nhưng chạy đúng).
     Topic ROS: `/side_camera/image` (rgb8), `/side_camera/camera_info` (bridge trong
     `pick_place.launch.py`). Ảnh thấy trọn 3 vật + khay + platform; **có bóng đổ của robot** trên bàn
     (thử thách cho nhận dạng màu). Xem ảnh: `ros2 run rqt_image_view rqt_image_view /side_camera/image`.
@@ -342,7 +344,33 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
     camera vẫn thấy quả cầu; phải nghiêng > 24° mới đổ). Tâm cầu cao hơn 0.5 mm (z -0.2045). Đo lại:
     trong ô B đứng yên 20 s; `reset` lệch 2.7 mm rồi đứng yên 20 s; `don` + `reset` trọn vẹn.
     Nhận dạng trong lượt này (1117 khung): 98.6% đủ 3 vật, 1.4% thiếu cầu (platform che).
-  - [ ] 8.3 Hiệu chuẩn + đổi pixel → tọa độ robot (homography mặt bàn); so với pose ground truth ở trên.
+  - [x] 8.3 Hiệu chuẩn ngoại tham số + đổi pixel → tọa độ robot (2026-09-18). Người làm đồ án chọn
+    **marker trên bàn** (dùng lại được cho camera thật ở Bước 10).
+    - 6 marker ArUco `DICT_4X4_50` (id 0–5), ô đen 50 mm, vị trí trong `scene.CALIB_MARKERS`, model
+      `calib_markers` trong world (chỉ visual). Ảnh + khối SDF sinh bằng
+      `src/delta_controller/scripts/make_calib_markers.py`; texture ở
+      `closed_loop_description/materials/textures/` (đã thêm `materials` vào install của CMake;
+      SDF dùng `model://closed_loop_description/materials/textures/aruco_<id>.png`).
+    - `camera_model.py` (thuần): `CameraModel` (K, dist, rvec, tvec: X_c = R·X_robot + t),
+      `project`, `ray`, `pixel_to_plane(u, v, z)`; `estimate_pose` = **SQPnP + tinh chỉnh LM**;
+      `marker_center` = **giao điểm 2 đường chéo** (ảnh đúng của tâm; trung bình 4 góc lệch khi nhìn
+      xiên); `camera_model_from_gazebo_pose` (chỉ để đánh giá). ⚠️ **IPPE cho nghiệm sai** trên ảnh
+      thật (chiếu lại 434 px) dù pass với điểm tổng hợp → không dùng.
+    - `ros2 run delta_controller calibrate_camera`: 20 khung, `CORNER_REFINE_CONTOUR`, lưu
+      `~/ros2_closed_loop_ws/calibration/side_camera.yaml` + `.png`. Kết quả: chiếu lại RMS
+      **0.14 px**, vị trí camera lệch thật **0.35 mm**, hướng nhìn lệch **0.017°**.
+    - `vision` nạp file hiệu chuẩn → `/vision/objects` (vision_msgs/Detection3DArray, `base_link`):
+      tia qua tâm khối giao mặt phẳng **z = mặt bàn + nửa chiều cao vật**. Kiểm tra nhanh 3 vật ở vị
+      trí ban đầu: lệch thật **0.5 / 0.7 / 1.1 mm**. Giao nhầm với mặt bàn → sai ~12 mm (có test).
+    - Kiểm chứng mô hình: chiếu tâm 3D thật lên ảnh rơi cách tâm khối nhận dạng 0.7–1.2 px → với vật
+      cao ≈ rộng, tâm phần nhìn thấy ≈ hình chiếu tâm 3D. Độ phân giải tại tâm bàn: 1 mm = 0.87 px
+      (theo X, bị nén do nhìn xiên), 1.64 px (theo Y).
+    - Phát hiện: tâm marker đo được lệch dự đoán **~0.5 px cùng chiều** — nghi do quy ước tâm pixel
+      (Gazebo cx = 320 vs OpenCV 319.5), **chưa kiểm chứng**; PnP tự bù (~0.4 mm).
+    - ⚠️ **Nhiễu camera `<noise>` không có tác dụng** (đo: 0.4% pixel thay đổi giữa 2 khung). Hệ quả:
+      mọi khung gần như giống hệt nhau; 8.4 muốn đo độ bền với nhiễu phải **tự thêm nhiễu**.
+    - Test: `test_camera_model.py` (12 bài, gồm hiệu chuẩn trên ảnh thật `test/data/side_camera_markers.png`).
+    - Ảnh cho báo cáo: `docs/figures/vision_objects_mm.png`, `docs/figures/calibration_markers.png`.
   - [ ] 8.4 Đo sai số so với ground truth.
 
   **Hiệu năng (đo 2026-09-17/18).** Máy: i5-10300H (4 nhân/8 luồng), Intel UHD + **GTX 1650**.

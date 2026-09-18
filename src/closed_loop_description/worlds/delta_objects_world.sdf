@@ -295,6 +295,82 @@
       </link>
     </model>
 
+    <!-- Marker ArUco hiệu chuẩn camera (Bước 8.3), sinh bởi
+         delta_controller/scripts/make_calib_markers.py từ scene.CALIB_MARKERS.
+         DICT_4X4_50, ô đen 50 mm, tấm 66.7 mm (có lề trắng), dày 1 mm.
+         Chỉ có visual (không va chạm). -->
+    <model name="calib_markers">
+      <static>true</static>
+      <link name="link">
+        <visual name="aruco_0">
+          <pose>-0.13 0.075 0.7805 0 0 0</pose>
+          <geometry><box><size>0.06667 0.06667 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/aruco_0.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
+        <visual name="aruco_1">
+          <pose>-0.13 -0.075 0.7805 0 0 0</pose>
+          <geometry><box><size>0.06667 0.06667 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/aruco_1.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
+        <visual name="aruco_2">
+          <pose>-0.025 0.145 0.7805 0 0 0</pose>
+          <geometry><box><size>0.06667 0.06667 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/aruco_2.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
+        <visual name="aruco_3">
+          <pose>-0.025 -0.145 0.7805 0 0 0</pose>
+          <geometry><box><size>0.06667 0.06667 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/aruco_3.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
+        <visual name="aruco_4">
+          <pose>0.14 0.085 0.7805 0 0 0</pose>
+          <geometry><box><size>0.06667 0.06667 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/aruco_4.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
+        <visual name="aruco_5">
+          <pose>0.14 -0.085 0.7805 0 0 0</pose>
+          <geometry><box><size>0.06667 0.06667 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/aruco_5.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
     <!-- ===================== Camera nhìn xiên (Bước 8.1) ===================== -->
     <!-- Đặt phía -X (hướng 180°, giữa chân 2 và chân 3 nên cánh tay ít che nhất), cách tâm bàn
          0.40 m, cao hơn mặt bàn 0.25 m, nhìn xuống 32.0° về tâm bàn.
@@ -334,6 +410,9 @@
               <near>0.05</near>
               <far>3.0</far>
             </clip>
+            <!-- ⚠️ Đo 2026-09-18: nhiễu này KHÔNG có tác dụng (2 khung liên tiếp chỉ khác 0.4% pixel,
+                 độ lệch chuẩn 0.1 mức xám, thay vì ~1.8). Muốn thử độ bền với nhiễu thì thêm nhiễu
+                 bằng phần mềm khi đánh giá. -->
             <noise>
               <type>gaussian</type>
               <mean>0.0</mean>

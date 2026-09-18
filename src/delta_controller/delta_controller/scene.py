@@ -58,3 +58,27 @@ DROP_GAP = 0.005
 MIN_SEPARATION = 0.035
 OBJECT_HALF_WIDTH = 0.015
 BIN_CLEARANCE = 0.005
+
+# ---------------------------------------------------------------- hiệu chuẩn camera (Bước 8.3)
+# Marker ArUco (từ điển DICT_4X4_50) dán phẳng trên mặt bàn, vị trí biết trước trong hệ robot.
+# Camera nhận dạng số hiệu marker -> cặp điểm 3D (ở đây) <-> 2D (trên ảnh) -> solvePnP ra vị trí và
+# hướng camera. Dùng TÂM marker (không dùng góc) nên không phụ thuộc chiều dán marker.
+# Phải khớp với model `calib_markers` trong worlds/delta_objects_world.sdf.
+CALIB_ARUCO_DICT = 'DICT_4X4_50'
+CALIB_MARKER_SIZE = 0.05         # cạnh ô vuông đen (m)
+CALIB_MARKER_THICKNESS = 0.001   # marker là tấm dày 1 mm đặt trên mặt bàn
+CALIB_MARKER_Z = TABLE_Z + CALIB_MARKER_THICKNESS
+CALIB_MARKERS = {
+    0: (-0.130, 0.075),
+    1: (-0.130, -0.075),
+    2: (-0.025, 0.145),
+    3: (-0.025, -0.145),
+    4: (0.140, 0.085),
+    5: (0.140, -0.085),
+}
+
+# Pose THẬT của camera mô phỏng (hệ robot = world - (0, 0, 1)), trích từ model `side_camera` trong
+# world. CHỈ dùng để ĐÁNH GIÁ kết quả hiệu chuẩn — hệ thống không được dùng giá trị này
+# để điều khiển.
+SIDE_CAMERA_GT_XYZ = (-0.40, 0.0, 0.03)
+SIDE_CAMERA_GT_RPY = (0.0, 0.558599, 0.0)
