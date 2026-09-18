@@ -1,9 +1,10 @@
 """
 Đánh giá sai số thị giác offline trên bộ dữ liệu (Bước 8.4) — thuần Python + OpenCV.
 
-Tái hiện đúng chuỗi xử lý của node `vision`: nhận dạng màu -> tâm khối pixel -> tia nhìn giao
-mặt phẳng z = mặt bàn + nửa chiều cao vật. So với vị trí thật (odometry Gazebo) theo phương
-ngang (x, y) — đại lượng mà robot cần để gắp.
+Tái hiện đúng chuỗi xử lý của node `vision`: nhận dạng màu -> vision_estimation.estimate_object
+(tâm khối + tia nhìn; khớp mép trên cho vật trong khay; tỉ lệ nhìn thấy -> cờ tin cậy). So với vị
+trí thật (odometry Gazebo) theo phương ngang (x, y) — đại lượng mà robot cần để gắp.
+use_top_edge=False tái hiện cách của Bước 8.3/8.4 (chỉ tâm khối) để so sánh trước/sau.
 
 Nhiễu loạn để thử độ bền (camera mô phỏng thực tế KHÔNG có nhiễu, xem Bước 8.3):
   noise_sigma — nhiễu Gauss cộng vào từng kênh màu (mức xám 0–255)
@@ -17,11 +18,11 @@ import os
 
 import cv2
 from delta_controller.color_detector import detect_objects
-from delta_controller.scene import OBJECTS, TABLE_Z
+from delta_controller.scene import OBJECTS
+from delta_controller.vision_estimation import estimate_object
 import numpy as np
 
 COLOR_OF = {o.name: o.color for o in OBJECTS}
-HALF_HEIGHT = {o.name: o.half_height for o in OBJECTS}
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,9 @@ class Record:
     ground_truth: tuple
     estimate: tuple = None        # None nếu không nhận dạng được
     meta: dict = field(default_factory=dict)
+    method: str = None            # 'centroid' | 'top_edge'
+    visible_fraction: float = None
+    reliable: bool = None
 
     @property
     def detected(self):
@@ -72,15 +76,11 @@ def perturb(bgr, noise_sigma=0.0, brightness=1.0, seed=0):
     return np.clip(img, 0, 255).astype(np.uint8)
 
 
-def estimate_positions(bgr, camera):
-    """Tên vật -> (x, y, z) ước lượng trong hệ robot, cho các vật nhận dạng được."""
+def estimate_positions(bgr, camera, use_top_edge=True):
+    """Tên vật -> ObjectEstimate trong hệ robot, cho các vật nhận dạng được."""
     found = detect_objects(bgr)
-    out = {}
-    for name, color in COLOR_OF.items():
-        if color in found:
-            u, v = found[color].centroid
-            out[name] = camera.pixel_to_plane(u, v, TABLE_Z + HALF_HEIGHT[name])
-    return out
+    return {o.name: estimate_object(found[o.color], camera, o, bgr.shape, use_top_edge)
+            for o in OBJECTS if o.color in found}
 
 
 def evaluated_objects(sample):
@@ -89,18 +89,23 @@ def evaluated_objects(sample):
     return [name] if name else list(sample.ground_truth)
 
 
-def evaluate(samples, camera, noise_sigma=0.0, brightness=1.0):
+def evaluate(samples, camera, noise_sigma=0.0, brightness=1.0, use_top_edge=True):
     records = []
     for i, sample in enumerate(samples):
         bgr = cv2.imread(sample.image_path)
         if bgr is None:
             raise FileNotFoundError(sample.image_path)
-        estimates = estimate_positions(perturb(bgr, noise_sigma, brightness, seed=i), camera)
+        estimates = estimate_positions(perturb(bgr, noise_sigma, brightness, seed=i), camera,
+                                       use_top_edge)
         for name in evaluated_objects(sample):
-            records.append(Record(image=os.path.basename(sample.image_path),
-                                  scenario=sample.scenario, name=name,
-                                  ground_truth=sample.ground_truth[name],
-                                  estimate=estimates.get(name), meta=sample.meta))
+            est = estimates.get(name)
+            records.append(Record(
+                image=os.path.basename(sample.image_path), scenario=sample.scenario, name=name,
+                ground_truth=sample.ground_truth[name], meta=sample.meta,
+                estimate=None if est is None else est.position,
+                method=None if est is None else est.method,
+                visible_fraction=None if est is None else est.visible_fraction,
+                reliable=None if est is None else est.reliable))
     return records
 
 
@@ -126,3 +131,22 @@ def bias(records):
     d = np.array([(r.estimate[0] - r.ground_truth[0], r.estimate[1] - r.ground_truth[1])
                   for r in records if r.detected]) * 1000.0
     return (float(d[:, 0].mean()), float(d[:, 1].mean())) if len(d) else (float('nan'),) * 2
+
+
+def flag_quality(records, bad_mm=5.0):
+    """
+    Cờ tin cậy có bắt đúng các ước lượng tệ không (sai số > bad_mm).
+
+    recall: tỉ lệ ước lượng tệ bị gắn "không tin cậy";
+    false_alarm: tỉ lệ ước lượng tốt bị gắn nhầm.
+    """
+    det = [r for r in records if r.detected]
+    bad = [r for r in det if r.error_xy * 1000 > bad_mm]
+    good = [r for r in det if r.error_xy * 1000 <= bad_mm]
+    return {
+        'bad': len(bad), 'good': len(good),
+        'recall': sum(not r.reliable for r in bad) / len(bad) if bad else float('nan'),
+        'false_alarm': sum(not r.reliable for r in good) / len(good) if good else float('nan'),
+        'reliable_max_mm': max((r.error_xy * 1000 for r in det if r.reliable),
+                               default=float('nan')),
+    }

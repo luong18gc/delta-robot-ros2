@@ -24,7 +24,14 @@ from delta_controller.scene import (
     CALIB_MARKERS,
     OBJECTS,
 )
-from delta_controller.vision_eval import bias, COLOR_OF, evaluate, load_dataset, summarize
+from delta_controller.vision_eval import (
+    bias,
+    COLOR_OF,
+    evaluate,
+    flag_quality,
+    load_dataset,
+    summarize,
+)
 import matplotlib
 import matplotlib.pyplot as plt
 import yaml
@@ -85,6 +92,7 @@ def main():
     samples = load_dataset(dataset)
     by_image = {os.path.basename(s.image_path): s.image_path for s in samples}
     records = evaluate(samples, camera)
+    baseline = evaluate(samples, camera, use_top_edge=False)   # cách của Bước 8.3/8.4
     cut = {id(r): touches_border(r, by_image) for r in records}
 
     lines = ['# Đánh giá sai số thị giác (Bước 8.4)', '',
@@ -102,11 +110,10 @@ def main():
     row('Lưới — vật **trọn trong ảnh**', grid_in)
     row('Lưới — vật **bị cắt mép ảnh**', [r for r in grid if cut[id(r)]])
     row('Lưới — **trong tầm với của robot**', [r for r in grid if graspable(r)])
-    row('Lưới — trong tầm với, sai số ≤ 12 mm (dung sai giác hút)',
-        [r for r in grid if graspable(r) and r.detected and r.error_xy <= 0.012])
     for obj in OBJECTS:
         row(f'Lưới trọn trong ảnh — {LABEL[obj.name]}', [r for r in grid_in if r.name == obj.name])
     row('Vật trong khay (mặt đáy cao hơn bàn 3 mm)', [r for r in records if r.scenario == 'bin'])
+    row('Chỉ các ước lượng **tin cậy** (mọi kịch bản)', [r for r in records if r.reliable])
     bx, by = bias(grid_in)
     lines += ['', f'Độ lệch hệ thống (lưới, trọn trong ảnh): dx = {bx:+.2f} mm, '
               f'dy = {by:+.2f} mm.', '', '## 2. Bị platform che (robot lơ lửng phía trên vật)', '',
@@ -114,6 +121,37 @@ def main():
     occ = [r for r in records if r.scenario == 'occlusion']
     for gap in sorted({r.meta['gap_mm'] for r in occ}, reverse=True):
         lines.append(f'| {gap:.0f} ' + fmt(summarize([r for r in occ if r.meta['gap_mm'] == gap])))
+
+    # ---------------------------------------------------------------- trước / sau 8.5
+    def groups(recs):
+        g = [r for r in recs if r.scenario == 'grid']
+        return [
+            ('Lưới — trong tầm với', [r for r in g if graspable(r)]),
+            ('Lưới — mọi điểm', g),
+            ('Vật trong khay', [r for r in recs if r.scenario == 'bin']),
+            ('Platform sát vật (khe 5 mm)',
+             [r for r in recs if r.scenario == 'occlusion' and r.meta['gap_mm'] == 5]),
+        ]
+
+    lines += ['', '## 3. Trước / sau cải tiến Bước 8.5 (khớp mép trên cho vật trong khay)', '',
+              '| Nhóm | TB trước (mm) | Max trước | TB sau (mm) | Max sau |',
+              '|---|---|---|---|---|']
+    for (name, before), (_, after) in zip(groups(baseline), groups(records)):
+        b, a = summarize(before), summarize(after)
+        lines.append(f"| {name} | {b['mean_mm']:.2f} | {b['max_mm']:.2f} | "
+                     f"{a['mean_mm']:.2f} | {a['max_mm']:.2f} |")
+    fq = flag_quality(records)
+    lines += ['', '## 4. Cờ tin cậy (tỉ lệ nhìn thấy ≥ 0.85, không chạm mép ảnh, '
+              'hoặc đã khớp mép trên)', '',
+              f"- Ước lượng **tệ** (sai số > 5 mm): {fq['bad']} — bị gắn *không tin cậy*: "
+              f"**{100 * fq['recall']:.0f}%**.",
+              f"- Ước lượng **tốt** (≤ 5 mm): {fq['good']} — bị gắn nhầm *không tin cậy*: "
+              f"{100 * fq['false_alarm']:.0f}%.",
+              '- Sai số lớn nhất trong các ước lượng được gắn *tin cậy*: '
+              f"**{fq['reliable_max_mm']:.2f} mm**.",
+              '- Phương pháp dùng: '
+              f"{sum(r.method == 'top_edge' for r in records)} lần khớp mép trên, "
+              f"{sum(r.method == 'centroid' for r in records)} lần tâm khối."]
 
     # ---------------------------------------------------------------- nhiễu và độ sáng
     grid_samples = [s for s in samples if s.scenario == 'grid']
@@ -124,12 +162,13 @@ def main():
         noise_rows.append((sigma, summarize(evaluate(clean_samples, camera, noise_sigma=sigma))))
     for scale in BRIGHTNESS_LEVELS:
         bright_rows.append((scale, summarize(evaluate(clean_samples, camera, brightness=scale))))
-    lines += ['', '## 3. Độ bền với nhiễu Gauss (lưới, vật trọn trong ảnh)', '',
+    lines += ['', '## 5. Độ bền với nhiễu Gauss (lưới, vật trọn trong ảnh)', '',
               *header('σ (mức xám)')]
     lines += [f'| {s} ' + fmt(st) for s, st in noise_rows]
-    lines += ['', '## 4. Độ bền với thay đổi độ sáng (lưới, vật trọn trong ảnh)', '',
+    lines += ['', '## 6. Độ bền với thay đổi độ sáng (lưới, vật trọn trong ảnh)', '',
               *header('Hệ số sáng')]
     lines += [f'| {s} ' + fmt(st) for s, st in bright_rows]
+    lines += ['', 'Nhận xét và phân tích nguyên nhân: `docs/results/vision_eval_nhan_xet.md`.']
     with open(out_md, 'w') as f:
         f.write('\n'.join(lines) + '\n')
 

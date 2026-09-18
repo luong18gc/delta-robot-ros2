@@ -7,8 +7,10 @@ Ra  : /vision/detections  (vision_msgs/Detection2DArray) — tọa độ PIXEL.
         Mỗi Detection2D: id = tên vật (theo scene.OBJECTS), bbox = khung bao phần nhìn thấy,
         results[0].pose.pose.position.(x, y) = tâm khối (u, v) của phần nhìn thấy.
       /vision/objects (vision_msgs/Detection3DArray, frame base_link) — tọa độ ROBOT (m), chỉ khi
-        có file hiệu chuẩn: tia nhìn qua tâm khối giao với mặt phẳng z = mặt bàn + nửa chiều cao
-        vật (vật nằm trên bàn). id và class_id = tên vật; bbox.center.position = tâm vật ước lượng.
+        có file hiệu chuẩn, tính bằng vision_estimation.estimate_object (tâm khối + tia nhìn; vật
+        trong khay: khớp mép trên). id và class_id = tên vật; bbox.center.position = tâm vật;
+        hypothesis.score = tỉ lệ nhìn thấy (cắt ở 1.0), = 0 nếu ước lượng KHÔNG tin cậy (bị che /
+        chạm mép ảnh) — nơi dùng nên bỏ qua hoặc đo lại.
       /vision/debug_image (sensor_msgs/Image, bgr8) — ảnh chú thích để xem bằng rqt_image_view.
 """
 
@@ -19,7 +21,8 @@ from cv_bridge import CvBridge
 from delta_controller.calibrate_camera_node import DEFAULT_OUTPUT as DEFAULT_CALIBRATION
 from delta_controller.camera_model import CameraModel
 from delta_controller.color_detector import detect_objects, draw_detections
-from delta_controller.scene import OBJECTS, TABLE_Z
+from delta_controller.scene import OBJECTS
+from delta_controller.vision_estimation import estimate_object
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -35,7 +38,7 @@ from vision_msgs.msg import (
 import yaml
 
 COLOR_TO_OBJECT = {o.color: o.name for o in OBJECTS}
-CENTER_Z = {o.color: TABLE_Z + o.half_height for o in OBJECTS}   # độ cao tâm vật nằm trên bàn
+OBJECT_OF_COLOR = {o.color: o for o in OBJECTS}
 
 
 class VisionNode(Node):
@@ -71,12 +74,12 @@ class VisionNode(Node):
             f'Da nap hieu chuan {path}: camera tai ({x:+.3f}, {y:+.3f}, {z:+.3f}) m (he robot)')
         return camera
 
-    def _robot_positions(self, detections):
-        """Tâm khối pixel -> tọa độ robot (m) trên mặt phẳng độ cao tâm vật."""
+    def _estimates(self, detections, image_shape):
+        """Màu -> ObjectEstimate (tọa độ robot + tỉ lệ nhìn thấy + cờ tin cậy)."""
         if self._camera is None:
             return {}
-        return {c: self._camera.pixel_to_plane(*d.centroid, CENTER_Z[c])
-                for c, d in detections.items() if c in CENTER_Z}
+        return {c: estimate_object(d, self._camera, OBJECT_OF_COLOR[c], image_shape)
+                for c, d in detections.items() if c in OBJECT_OF_COLOR}
 
     def _on_image(self, msg):
         start = time.perf_counter()
@@ -103,12 +106,13 @@ class VisionNode(Node):
             out.detections.append(d)
         self._det_pub.publish(out)
 
-        positions = self._robot_positions(detections)
+        estimates = self._estimates(detections, bgr.shape)
         if self._camera is not None:
             objects = Detection3DArray()
             objects.header.stamp = msg.header.stamp
             objects.header.frame_id = 'base_link'
-            for color, (x, y, z) in positions.items():
+            for color, est in estimates.items():
+                x, y, z = est.position
                 d3 = Detection3D()
                 d3.header = objects.header
                 d3.id = COLOR_TO_OBJECT[color]
@@ -117,7 +121,7 @@ class VisionNode(Node):
                 d3.bbox.center.position.z = z
                 hyp = ObjectHypothesisWithPose()
                 hyp.hypothesis.class_id = d3.id
-                hyp.hypothesis.score = 1.0
+                hyp.hypothesis.score = min(1.0, est.visible_fraction) if est.reliable else 0.0
                 hyp.pose.pose.position = d3.bbox.center.position
                 d3.results.append(hyp)
                 objects.detections.append(d3)
@@ -125,8 +129,14 @@ class VisionNode(Node):
 
         if self._debug_pub.get_subscription_count() > 0:
             labels = {c: COLOR_TO_OBJECT.get(c, c) for c in detections}
-            for c, (x, y, _) in positions.items():
-                labels[c] += f' {x * 1000:+.0f},{y * 1000:+.0f}mm'
+            for c, est in estimates.items():
+                x, y, _ = est.position
+                labels[c] += (f' {x * 1000:+.0f},{y * 1000:+.0f}mm'
+                              f' {100 * est.visible_fraction:.0f}%')
+                if est.method == 'top_edge':
+                    labels[c] += ' [mep tren]'
+                if not est.reliable:
+                    labels[c] += ' BI CHE?'
             debug = draw_detections(bgr, detections, labels=labels)
             debug_msg = self._bridge.cv2_to_imgmsg(debug, 'bgr8')
             debug_msg.header = msg.header

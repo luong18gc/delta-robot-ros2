@@ -15,7 +15,8 @@ class SceneObject:
 
     name: tên model Gazebo; half_height: nửa chiều cao (m); aliases: tên tắt khi nhập lệnh;
     home_xy: vị trí ban đầu trên bàn (khớp <pose> trong world) — dùng cho lay_ra / reset;
-    color: màu vật, để bộ nhận dạng camera biết mảng màu nào là vật nào.
+    color: màu vật, để bộ nhận dạng camera biết mảng màu nào là vật nào;
+    shape, half_width: hình dạng và nửa bề rộng, để dự đoán hình bóng vật trên ảnh.
     """
 
     name: str
@@ -23,14 +24,17 @@ class SceneObject:
     aliases: tuple
     home_xy: tuple
     color: str   # lớp màu để camera nhận dạng (khóa trong color_detector.COLOR_CLASSES)
+    shape: str   # 'box' | 'cylinder' | 'sphere' — để dự đoán hình bóng trên ảnh (Bước 8.5)
+    half_width: float   # nửa cạnh hộp / bán kính trụ, cầu (m)
 
 
 OBJECTS = (
-    SceneObject('red_box', 0.015, ('red', 'box', 'do', 'hop', 'hop_do'), (0.06, 0.0), 'red'),
+    SceneObject('red_box', 0.015, ('red', 'box', 'do', 'hop', 'hop_do'), (0.06, 0.0), 'red',
+                'box', 0.015),
     SceneObject('green_cylinder', 0.015, ('green', 'cylinder', 'xanhla', 'tru', 'tru_xanh'),
-                (-0.03, 0.052), 'green'),
+                (-0.03, 0.052), 'green', 'cylinder', 0.015),
     SceneObject('blue_sphere', 0.015, ('blue', 'sphere', 'xanhduong', 'cau', 'cau_xanh'),
-                (-0.03, -0.052), 'blue'),
+                (-0.03, -0.052), 'blue', 'sphere', 0.015),
 )
 
 # Mặt bàn (hệ robot).

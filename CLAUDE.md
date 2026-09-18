@@ -99,9 +99,10 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
   đổi ra tọa độ robot khi có file hiệu chuẩn (Bước 8.3).
 - `camera_model.py`, `calibrate_camera_node.py` (entry `calibrate_camera`) — hiệu chuẩn ArUco + PnP (Bước 8.3).
 - `vision_eval.py` + `scripts/record_vision_dataset.py`, `scripts/evaluate_vision.py` — đánh giá sai số (Bước 8.4).
+- `vision_estimation.py` — ước lượng vị trí có xét che khuất: hình bóng dự đoán, khớp mép trên, cờ tin cậy (8.5).
 - `test/` — lint + `test_delta_kinematics.py`, `test_trajectory.py`, `test_gripper_logic.py`,
-  `test_task_planner.py`, `test_color_detector.py`, `test_camera_model.py`, `test_vision_eval.py`
-  (ảnh mẫu trong `test/data/`).
+  `test_task_planner.py`, `test_color_detector.py`, `test_camera_model.py`, `test_vision_eval.py`,
+  `test_vision_estimation.py` (ảnh mẫu trong `test/data/`).
 
 ### Giác hút ảo (DetachableJoint) — những điều đã kiểm chứng
 - **4 DetachableJoint đóng mạch kín dùng topic mặc định chung**
@@ -317,7 +318,7 @@ Quyết định của người làm đồ án (2026-09-17):
 - **Làm với camera mô phỏng trong Gazebo trước** (có ground truth để đo sai số), rồi mới sang camera thật.
 
 Lộ trình dự kiến (từng bước, hỏi lại trước quyết định lớn):
-- [x] **Bước 8** — Camera mô phỏng (8.1–8.4 xong 2026-09-18).
+- [x] **Bước 8** — Camera mô phỏng (8.1–8.5 xong 2026-09-18).
   - [x] 8.1 Camera nhìn xiên (2026-09-17). Model `side_camera` trong `delta_objects_world.sdf`
     (+ plugin `gz-sim-sensors-system`, ogre2). Pose world **ground truth**: xyz (-0.40, 0, 1.03),
     rpy (0, 0.558599, 0) = nhìn xuống 32°, đặt hướng 180° (giữa chân 2 và 3, cánh tay ít che nhất);
@@ -390,9 +391,25 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
     - Bị cắt mép ảnh (góc gần camera, ngoài tầm với): TB 8.2 mm.
     - Nhiễu: vô hại tới σ 10 mức xám; σ 20 → 99.2% nhận dạng; σ 40 → 83%. Độ sáng ổn định 0.5×–1.6×;
       0.3× mất 16.5% (ngưỡng V ≥ 40).
-    - Hướng cải thiện (chưa làm, chờ người làm đồ án chọn): ước lượng riêng cho vật trong khay (dùng
-      mép trên/mặt trên thay vì tâm khối), cờ "bị che" khi diện tích nhìn thấy nhỏ hơn dự đoán, đưa
-      robot tránh tầm nhìn trước khi chụp.
+    - Bộ dữ liệu đã đẩy lên GitHub (commit f61fc7f) theo yêu cầu người làm đồ án.
+  - [x] 8.5 Ước lượng có xét che khuất (2026-09-18, người làm đồ án chọn cách a + b).
+    `vision_estimation.py` (thuần): **hình bóng dự đoán** = bao lồi ảnh các điểm bề mặt vật
+    (`SceneObject.shape` box/cylinder/sphere + `half_width`) qua mô hình camera. Kiểm chứng: vật không
+    bị che có tỉ lệ nhìn thấy ≈ 0.99.
+    - (b) Vật trong khay: nếu ước lượng thô gần khay (thành ngoài + 30 mm) → Newton 2 ẩn khớp **mép trên**
+      (`bbox y − 0.5`) + tâm ngang của hình bóng dự đoán, tâm ở `BIN_FLOOR_Z + h`; nhận nếu nằm trong lòng
+      khay. **Vật trong khay: TB 13.4 → 1.0 mm, max 19.7 → 1.9 mm**; 9/9 kích hoạt đúng, 0 nhầm.
+    - (a) Cờ tin cậy: tỉ lệ nhìn thấy ≥ 0.85 và không chạm mép ảnh (hoặc đã khớp mép trên). Bắt **97%**
+      ước lượng > 5 mm, báo nhầm 8%; ước lượng tin cậy: TB 0.90 mm, **max 5.65 mm**. Vật bị platform che
+      phía trên vẫn sai ~20 mm nhưng **score = 0** → Bước 9 nên đưa robot tránh tầm nhìn rồi đo lại.
+    - `vision` dùng bộ ước lượng này: `/vision/objects` `hypothesis.score` = tỉ lệ nhìn thấy (≤ 1) hoặc
+      **0 nếu không tin cậy**; ảnh chú thích ghi `%`, `[mep tren]`, `BI CHE?`. Xử lý ~16 ms/ảnh.
+      Chạy thật: hộp đỏ ở ô B lệch 1.0 mm (z −202); sau platform score 0.
+    - `vision_eval.evaluate(..., use_top_edge=False)` tái hiện cách cũ để so trước/sau; `flag_quality`.
+      `evaluate_vision.py` ghi thêm mục trước/sau + cờ tin cậy. Nhận xét viết tay tách riêng
+      `docs/results/vision_eval_nhan_xet.md` (script ghi đè `vision_eval.md` mỗi lần chạy).
+    - Test `test_vision_estimation.py` (ảnh thật `side_camera_red_in_bin.png`,
+      `side_camera_red_behind_platform.png`). Giới hạn: hình bóng giả định hộp không xoay (yaw 0).
 
   **Hiệu năng (đo 2026-09-17/18).** Máy: i5-10300H (4 nhân/8 luồng), Intel UHD + **GTX 1650**.
   Driver NVIDIA **595.91 (`nvidia-driver-595-open`) đã cài 2026-09-18** (Secure Boot bật → đã enroll MOK);
