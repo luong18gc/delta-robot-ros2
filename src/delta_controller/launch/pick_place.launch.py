@@ -64,7 +64,8 @@ def generate_launch_description():
         parameters=[{
             'objects': [o.name for o in OBJECTS],
             'object_half_heights': [o.half_height for o in OBJECTS],
-            'use_sim_time': True,
+            # KHÔNG bật use_sim_time: node sẽ nhận /clock (Gazebo phát mỗi bước mô phỏng,
+            # ~2000 Hz) và ăn trọn 1 nhân CPU (đã đo 103% -> 0.3%). Node chỉ dùng đồng hồ thật.
         }],
     )
 

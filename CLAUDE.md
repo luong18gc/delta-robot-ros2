@@ -325,18 +325,34 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
   - [ ] 8.3 Hiệu chuẩn + đổi pixel → tọa độ robot (homography mặt bàn); so với pose ground truth ở trên.
   - [ ] 8.4 Đo sai số so với ground truth.
 
-  **Hiệu năng camera (đã đo 2026-09-17):** máy chưa cài driver NVIDIA (đang `nouveau`) → Gazebo render
-  bằng GPU Intel UHD. **Cửa sổ Gazebo + camera cùng lúc: RTF ~0.35** (1280×720 hay 640×480 đều vậy).
-  Server không GUI + camera: **RTF ~0.9–1.0**, ảnh 9.4 Hz. ⇒ Khi dùng camera chạy
-  `ros2 launch delta_controller pick_place.launch.py gui:=false` (tham số `gui` mới thêm vào
-  `closed_loop_bringup/3dof_delta.launch.py`, mặc định `true`) và xem cảnh qua rqt_image_view.
-  Muốn vừa cửa sổ vừa camera: cần cài driver NVIDIA (GTX 1650) — việc của người dùng (sudo, khởi động lại).
-  `cartesian_control` phát quỹ đạo theo **đồng hồ thật** → RTF thấp làm quỹ đạo nhanh hơn trong thời gian
-  mô phỏng (vẫn tới đích, bám kém hơn); chưa chuyển sang sim time.
+  **Hiệu năng (đo 2026-09-17/18).** Máy: i5-10300H (4 nhân/8 luồng), Intel UHD + **GTX 1650**.
+  Driver NVIDIA **595.91 (`nvidia-driver-595-open`) đã cài 2026-09-18** (Secure Boot bật → đã enroll MOK);
+  PRIME **on-demand**, phiên đồ họa chuyển sang **X11**. Gazebo chỉ dùng card rời khi đặt:
+  `export __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia` (kiểm tra: `nvidia-smi` thấy `gz sim`).
 
-  **Tải CPU:** `JointStatePublisher` (gz-sim8, **không có tùy chọn update_rate**) phát `/joint_states`
-  **mỗi bước mô phỏng** (~2000 Hz ở RTF 1). `gripper_node` (MultiThreadedExecutor) ăn ~100% một nhân
-  chỉ để nhận topic này — **không** làm giảm RTF (đã đo) nhưng tốn CPU; chưa sửa.
+  | Cấu hình (world có camera) | RTF |
+  |---|---|
+  | Intel, có cửa sổ | ~0.35 |
+  | Intel, `gui:=false` | ~0.94 |
+  | NVIDIA offload, có cửa sổ, **trước khi sửa** (`gripper_node` ăn 103% CPU) | 0.56 |
+  | NVIDIA offload, có cửa sổ, **sau khi sửa** (2026-09-18), `balanced` | **0.77** |
+  | như trên, `powerprofilesctl set performance` | 0.76 – 0.99 (dao động giữa các lần, có lúc tụt 0.15–0.3) |
+
+  **Hai lỗi tải CPU đã sửa (2026-09-18):**
+  1. **`/clock` + `use_sim_time`:** Gazebo phát `/clock` **mỗi bước mô phỏng** (~2000 Hz). Launch từng
+     đặt `use_sim_time: True` cho `gripper_node` → nó nhận `/clock` và ăn **103% CPU** (chạy cô lập
+     không có tin nhắn: 0.3%). Đã bỏ → **21%**. ⚠️ Đừng bật `use_sim_time` cho node Python không cần.
+     (Chẩn đoán ban đầu đổ cho `/joint_states` là **sai** — đo lại mới thấy `/clock`.)
+  2. **`/joint_states` ~2000 Hz:** `JointStatePublisher` (gz-sim8) **không có tùy chọn update_rate**.
+     `3dof_delta.launch.py` giờ bridge ra `/joint_states_raw` rồi `topic_tools throttle` xuống
+     **100 Hz** thành `/joint_states` (đo 96 Hz). `cartesian_control`: **88% → 14% CPU**.
+     Cần gói `ros-jazzy-topic-tools` (đã cài 2026-09-18; khai báo `exec_depend` trong
+     `closed_loop_bringup`). ⚠️ `throttle` bản Jazzy **chỉ nhận tham số vị trí**
+     (`messages <in> <hz> <out>`); truyền qua tham số ROS → "Throttle type is missing" và tự thoát.
+  Kiểm chứng sau khi sửa: `nhat do` → `tha A` đúng, home z = -0.1406.
+
+  `cartesian_control` phát quỹ đạo theo **đồng hồ thật** → RTF < 1 làm quỹ đạo nhanh hơn trong thời
+  gian mô phỏng (vẫn tới đích, bám kém hơn); chưa chuyển sang sim time.
   Sau khi dừng launch (TaskStop/kill GUI) có thể **sót tiến trình** bridge/robot_state_publisher →
   kiểm tra `ps` và kill theo PID. `pgrep -f`/`pkill -f` trong Bash tool cũng khớp chính shell.
 - [ ] **Bước 9** — Đưa kết quả thị giác vào hệ điều khiển (chọn nguồn vị trí: ground truth / camera);
