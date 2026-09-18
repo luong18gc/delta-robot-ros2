@@ -95,8 +95,9 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
   kiểm tra **trước khi** nhặt; kiểm chứng: vật "tren ban", lệch ≤ 10 mm. `reset` = lay_ra mọi vật
   trong khay về `home_xy`. `_objects()` **chờ đủ vị trí mọi vật** (≤ 3 s): lệnh gõ ngay khi node
   vừa khởi động từng thấy danh sách rỗng → báo nhầm "Khong con vat nao tren ban".
+- `color_detector.py`, `vision_node.py` (entry `vision`) — nhận dạng vật theo màu (Bước 8.2).
 - `test/` — lint + `test_delta_kinematics.py`, `test_trajectory.py`, `test_gripper_logic.py`,
-  `test_task_planner.py`.
+  `test_task_planner.py`, `test_color_detector.py` (ảnh mẫu trong `test/data/`).
 
 ### Giác hút ảo (DetachableJoint) — những điều đã kiểm chứng
 - **4 DetachableJoint đóng mạch kín dùng topic mặc định chung**
@@ -296,7 +297,7 @@ bán kính với tới mọi hướng ≈ 0.128 tại z=-0.14, 0.096 tại z=-0.
       |---|---|---|---|
       | `red_box` | hộp 3 cm | (0.06, 0, -0.205) | z = -0.19 |
       | `green_cylinder` | trụ r=1.5 cm | (-0.03, 0.052, -0.205) | z = -0.19 |
-      | `blue_sphere` | cầu r=1.5 cm | (-0.03, -0.052, -0.205) | z = -0.19 |
+      | `blue_sphere` | cầu r=1.5 cm (+ đế chống lăn vô hình) | (-0.03, -0.052, -0.2045) | z = -0.1895 |
 
       Platform dày 6 mm (±3 mm quanh `tool0`) → chạm đỉnh vật khi `tool0` z ≈ -0.187.
 
@@ -321,7 +322,26 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
     Topic ROS: `/side_camera/image` (rgb8), `/side_camera/camera_info` (bridge trong
     `pick_place.launch.py`). Ảnh thấy trọn 3 vật + khay + platform; **có bóng đổ của robot** trên bàn
     (thử thách cho nhận dạng màu). Xem ảnh: `ros2 run rqt_image_view rqt_image_view /side_camera/image`.
-  - [ ] 8.2 Nhận dạng vật theo màu (OpenCV, HSV).
+  - [x] 8.2 Nhận dạng vật theo màu (2026-09-18). `color_detector.py` (thuần Python + OpenCV):
+    BGR→HSV → `inRange` → mở/đóng hình thái học → vùng liên thông ≥ 30 px → **gộp mọi mảnh cùng màu**
+    (mỗi màu = đúng 1 vật, bị che cắt đôi vẫn là 1) → tâm khối phần nhìn thấy + khung bao. Ngưỡng
+    (H 0–180): đỏ [0,8]∪[172,180], xanh lá [45,85], xanh dương [95,125]; S ≥ 90–100 (loại bàn S≈77,
+    đáy khay S≈20); V ≥ 40 (hộp đỏ trong bóng robot V≈95). Tách được khay cam (H 20), platform vàng
+    (H 29). `SceneObject.color` gắn màu ↔ vật. Node `vision` (có trong `pick_place.launch.py`):
+    `/vision/detections` (vision_msgs/Detection2DArray; `id` = tên vật, `bbox` = khung bao,
+    `results[0].pose.pose.position.x/y` = tâm khối **pixel**) + `/vision/debug_image` (chỉ vẽ khi có
+    người xem). Đo trên mô phỏng: xử lý **~12 ms/ảnh**; trong `don` + `reset` (607 khung) **99.5%**
+    khung thấy đủ 3 vật (0.5% thiếu trụ xanh khi platform che kín). Test: `test_color_detector.py`
+    (ảnh tổng hợp biết trước đáp án + 3 ảnh thật trong `test/data/`). ⚠️ Tâm khối là tâm **phần nhìn
+    thấy** (mặt trên + mặt bên), **không phải** hình chiếu tâm 3D — Bước 8.3 phải tính tới độ lệch này.
+    Sửa kèm: `cartesian_control` chờ `/gripper/held_object` (latched) trước khi nhận lệnh — trước đó
+    `tha` gõ ngay sau khi mở node báo nhầm "Khong giu vat nao".
+    **Quả cầu lăn — đã sửa (2026-09-18, người làm đồ án chọn "đế vô hình"):** DART không có cản lăn,
+    cầu từng lăn khỏi ô B và lăn 25–51 mm sau `reset` (kiểm chứng báo thất bại). `blue_sphere` giờ có
+    thêm collision `anti_roll_base` (đĩa r 7 mm dày 2 mm, nhô dưới đáy 0.5 mm; không có visual →
+    camera vẫn thấy quả cầu; phải nghiêng > 24° mới đổ). Tâm cầu cao hơn 0.5 mm (z -0.2045). Đo lại:
+    trong ô B đứng yên 20 s; `reset` lệch 2.7 mm rồi đứng yên 20 s; `don` + `reset` trọn vẹn.
+    Nhận dạng trong lượt này (1117 khung): 98.6% đủ 3 vật, 1.4% thiếu cầu (platform che).
   - [ ] 8.3 Hiệu chuẩn + đổi pixel → tọa độ robot (homography mặt bàn); so với pose ground truth ở trên.
   - [ ] 8.4 Đo sai số so với ground truth.
 
@@ -389,6 +409,7 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
     vật bên cạnh; điểm chồng khay / ngoài tầm với bị từ chối, robot không nhặt; `lay_ra xanhla -0.07 0`
     lệch 0.8 mm; `reset` 2 vật về chỗ cũ (trụ lệch 0.5 mm, **cầu 5.3 mm rồi tiếp tục lăn tới ~7 mm**).
     ⚠️ Quả cầu không có cản lăn: lăn chậm cả trong ô (trôi ~4 mm theo thời gian) lẫn trên bàn.
+    → Đã sửa bằng đế chống lăn vô hình ở Bước 8.2.
 
 ## Ghi chú về cách làm việc
 

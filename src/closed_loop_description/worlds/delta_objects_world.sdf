@@ -190,7 +190,8 @@
       </link>
     </model>
 
-    <!-- Cầu xanh dương — tâm robot: (-0.03, -0.052, -0.205); đỉnh: (-0.03, -0.052, -0.19) -->
+    <!-- Cầu xanh dương — tâm robot: (-0.03, -0.052, -0.2045); đỉnh: (-0.03, -0.052, -0.1895)
+         (cao hơn 0.5 mm so với hộp/trụ vì đứng trên đế chống lăn). -->
     <model name="blue_sphere">
       <!-- Phát pose THẾ GIỚI của vật (nav_msgs/Odometry qua bridge) cho gripper_node. -->
       <plugin filename="gz-sim-odometry-publisher-system"
@@ -202,7 +203,7 @@
         <tf_topic>/objects/blue_sphere/tf</tf_topic>
         <odom_publish_frequency>30</odom_publish_frequency>
       </plugin>
-      <pose>-0.03 -0.052 0.795 0 0 0</pose>
+      <pose>-0.03 -0.052 0.7955 0 0 0</pose>
       <link name="link">
         <inertial>
           <mass>0.05</mass>
@@ -213,6 +214,14 @@
         </inertial>
         <collision name="collision">
           <geometry><sphere><radius>0.015</radius></sphere></geometry>
+        </collision>
+        <!-- Đế phẳng VÔ HÌNH (chỉ va chạm, không có visual): DART không hỗ trợ cản lăn nên quả cầu
+             lăn mãi (đã đo: lăn khỏi ô khay, lăn 25–51 mm sau khi đặt ra bàn). Đĩa r 7 mm dày 2 mm,
+             nhô dưới đáy cầu 0.5 mm -> cầu đứng trên đĩa; phải nghiêng > atan(7/15.5) ≈ 24° mới đổ.
+             Camera vẫn chỉ thấy quả cầu. -->
+        <collision name="anti_roll_base">
+          <pose>0 0 -0.0145 0 0 0</pose>
+          <geometry><cylinder><radius>0.007</radius><length>0.002</length></cylinder></geometry>
         </collision>
         <visual name="visual">
           <geometry><sphere><radius>0.015</radius></sphere></geometry>
