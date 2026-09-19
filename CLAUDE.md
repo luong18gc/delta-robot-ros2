@@ -472,6 +472,14 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
     khỏi ô C, trụ xanh ở ô A bên cạnh **văng khỏi bàn (2.2 m)**. Chưa rõ nguyên nhân (nghi liên quan platform 5 cm đè cả vật bên cạnh + hiện tượng
     lún/xung lực ở 6.1) — **chưa kiểm chứng, chưa sửa**.
 - [ ] **Bước 10** — Camera thật + bản sao số (đặt/di chuyển vật ảo theo vật thật).
+  - Đã chuẩn bị (2026-09-19): `docs/calibration/aruco_markers_A4.pdf` (trang 1 hướng dẫn + sơ đồ bố
+    trí tỉ lệ 1:3 + bảng tọa độ; trang 2–4: 6 marker vector đúng 50 mm — đã kiểm chứng render 200 dpi:
+    nhận dạng đủ ID 0–5, cạnh đo 49.91 mm). Sinh bằng `scripts/make_marker_pdf.py` từ
+    `scene.CALIB_MARKERS` (cùng bố trí với marker trong mô phỏng → bàn thật = bản sao bàn ảo; 6 marker
+    trải ~34×36 cm nên in rời từng marker, người dùng đo và dán theo tọa độ).
+  - Còn chờ người làm đồ án: webcam USB nhìn xuống bàn (webcam laptop nhìn vào người, không dùng
+    được), 3 khối màu đỏ/xanh lá/xanh dương, in marker. Camera thật cần thêm hiệu chuẩn NỘI tham số
+    (bàn cờ, méo ống kính) — camera mô phỏng không có méo.
 - [ ] **Bước 11** — Chế độ bám theo tay/marker.
 - [ ] **Bước 12** — Đánh giá (độ chính xác, độ trễ, tỉ lệ gắp thành công) + báo cáo.
 
@@ -504,6 +512,19 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
     lệch 0.8 mm; `reset` 2 vật về chỗ cũ (trụ lệch 0.5 mm, **cầu 5.3 mm rồi tiếp tục lăn tới ~7 mm**).
     ⚠️ Quả cầu không có cản lăn: lăn chậm cả trong ô (trôi ~4 mm theo thời gian) lẫn trên bàn.
     → Đã sửa bằng đế chống lăn vô hình ở Bước 8.2.
+
+## Tài liệu cho người làm đồ án
+
+- `docs/Huong_dan_do_an_robot_delta.docx` (2026-09-19) — tài liệu Word giải thích toàn bộ Bước 1–9 để
+  người làm đồ án tự hiểu và báo cáo giảng viên (11 chương + phụ lục câu hỏi/đáp, thuật ngữ, bản đồ
+  file; 16 bảng, 7 hình). Sinh bằng `docs/tools/build_guide_docx.py` — cần `python-docx`, máy **không
+  có pip/LibreOffice/Node**: tải wheel `python_docx` (và `defusedxml` cho công cụ kiểm tra) từ PyPI,
+  giải nén vào thư mục tạm, chạy với `PYTHONPATH=<thư mục>`. Đã qua validate.py của skill docx (lỗi
+  thứ tự `<w:shd>`, `<w:updateFields>`, thiếu `w:percent` của zoom đã sửa trong script). **Chưa xem
+  được giao diện** (không có LibreOffice) — người dùng mở kiểm tra. Mục lục là trường TOC, Word tự
+  cập nhật khi mở. Khi số liệu thay đổi phải sửa nội dung trong script rồi sinh lại.
+- Hình sơ đồ: `docs/figures/system_architecture.png`, `ros_graph.png`, `delta_leg_diagram.png`.
+- `docs/bao_cao_kinematics.md` — phần động học dạng báo cáo.
 
 ## Ghi chú về cách làm việc
 
