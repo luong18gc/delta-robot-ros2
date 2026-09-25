@@ -523,6 +523,19 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
   thứ tự `<w:shd>`, `<w:updateFields>`, thiếu `w:percent` của zoom đã sửa trong script). **Chưa xem
   được giao diện** (không có LibreOffice) — người dùng mở kiểm tra. Mục lục là trường TOC, Word tự
   cập nhật khi mở. Khi số liệu thay đổi phải sửa nội dung trong script rồi sinh lại.
+- `docs/Khoa_luan_tot_nghiep.docx` (2026-09-25) — **bản thảo khóa luận** (Bước 1–9) để người làm đồ án
+  viết tiếp thành khóa luận nộp. Sinh bằng `docs/tools/build_thesis_docx.py` (cùng cách chạy như trên).
+  Định dạng theo *Quy định về trình bày ĐATN* của Trường ĐH Công nghệ ĐHQGHN (bản PDF trên uet.edu.vn):
+  A4, TNR 13pt, dãn dòng 1,3; lề trên 2,5 / dưới 3 / trái 3 / phải 2 cm; cách đoạn 6pt, thụt đầu dòng
+  1 cm; **số trang đánh lại từ 1 ở phần Mở đầu**, đặt giữa chân trang (2 section, `pgNumType start=1`);
+  tiêu đề **bảng đặt TRÊN**, **hình đặt DƯỚI**; TLTK tách theo ngôn ngữ, đánh số `[n]` (tiếng Việt [1]–[2],
+  tiếng Anh [3]–[16] → **đổi số trích dẫn phải sửa cả hai chỗ**). Thứ tự phần: bìa → phụ bìa → tóm tắt
+  (≈360 từ, 12pt) → abstract → cam đoan → cảm ơn → mục lục → danh mục viết tắt/hình/bảng → Mở đầu →
+  7 chương → Kết luận → Phụ lục A–D → TLTK. Số hiệu hình/bảng lấy từ 2 danh sách `FIGURES`/`TABLES` đầu
+  script (cuối script assert mọi mục đã dùng đúng 1 lần) → **thêm hình/bảng phải khai báo ở đó**.
+  Chỗ cần người làm đồ án điền: `STUDENT`, `MAJOR`, `SUPERVISOR`, `YEAR` ở đầu phần nội dung.
+  ~19 800 từ, 7 hình, 27 bảng, ước lượng ~55–60 trang; quy định yêu cầu 50–75 trang → còn phải viết thêm
+  (Bước 10–12). **Chưa xem được giao diện** (không có LibreOffice) — người dùng mở Word kiểm tra.
 - Hình sơ đồ: `docs/figures/system_architecture.png`, `ros_graph.png`, `delta_leg_diagram.png`.
 - `docs/bao_cao_kinematics.md` — phần động học dạng báo cáo.
 
