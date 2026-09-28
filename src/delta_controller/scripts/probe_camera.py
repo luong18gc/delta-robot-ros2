@@ -104,6 +104,16 @@ def grab(cap, warmup=10):
     return frame
 
 
+# C270 tra ve ~30 khung ĐEN ngay sau khi mo thiet bi (do 2026-09-30: khung 0–30 sang TB 2.0,
+# on dinh tu khung ~35). Moi phep do phai bo qua giai doan nay, neu khong se ket luan sai.
+WARMUP_FRAMES = 40
+
+
+def warm_up(cap):
+    frame = grab(cap, WARMUP_FRAMES)
+    return frame
+
+
 def measure_noise(cap):
     """Độ lệch chuẩn nhiễu cảm biến (mức xám), đo trên hai khung liên tiếp của cảnh tĩnh."""
     a = grab(cap, 5).astype(np.float64)
@@ -146,7 +156,7 @@ def main():
 
     cap = open_camera(args.device, width, height)
     print(f'  mo o {int(cap.get(3))}x{int(cap.get(4))} @ {cap.get(cv2.CAP_PROP_FPS):.0f} fps')
-    report_frame(grab(cap), 'tu dong')
+    report_frame(warm_up(cap), 'tu dong')
 
     if not args.no_lock and controls is not None:
         print('== Khoa che do thu cong')
@@ -156,8 +166,9 @@ def main():
             _, err = v4l2(args.device, ['-c', f'{name}={value}'])
             print(f'  {name}={value}' + (f'  LOI: {err}' if err else '  OK'))
         time.sleep(1.0)
-        report_frame(grab(cap), 'thu cong')
-        state, _ = v4l2(args.device, ['-C', ','.join(n for n, _ in MANUAL)])
+        report_frame(grab(cap, WARMUP_FRAMES), 'thu cong')
+        have = [n for n, _ in MANUAL if n in controls]
+        state, _ = v4l2(args.device, ['-C', ','.join(have)])
         print('  doc lai:', ' | '.join(state.splitlines()))
 
     noise = measure_noise(cap)
