@@ -18,9 +18,11 @@ kín trong Gazebo).
 lớp chọn nguồn), không sửa logic gắp–thả; giữ ground truth để **đo sai số nhận dạng**. Phát triển với
 camera mô phỏng trước (có ground truth), rồi mới sang camera thật.
 
-Phần cứng/phần mềm sẵn có trên máy (kiểm tra 2026-09-17): `/dev/video0`, `/dev/video1`; OpenCV 4.6
-(Python); `cv_bridge`, `image_transport` của ROS Jazzy. **Chưa có** `usb_cam`/`v4l2_camera`, chưa có
-thư viện ArUco/AprilTag cho ROS.
+Phần cứng/phần mềm sẵn có trên máy (cập nhật 2026-09-28): webcam tích hợp `/dev/video0`, `/dev/video1`
+(nhìn vào người, **không dùng được** cho đồ án); OpenCV 4.6 (Python); `cv_bridge`, `image_transport`
+của ROS Jazzy; **`v4l-utils`** (lệnh `v4l2-ctl`, cài 2026-09-28). **Chưa có** `usb_cam`/`v4l2_camera`,
+chưa có thư viện ArUco/AprilTag cho ROS (OpenCV tự có `cv2.aruco`, đang dùng cái này).
+Camera cho Bước 10: xem mục "Camera thật" ở phần Tiến độ.
 
 Người làm đồ án giao tiếp bằng **tiếng Việt**. Trả lời bằng tiếng Việt.
 
@@ -101,6 +103,7 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
 - `vision_eval.py` + `scripts/record_vision_dataset.py`, `scripts/evaluate_vision.py` — đánh giá sai số (Bước 8.4).
 - `vision_estimation.py` — ước lượng vị trí có xét che khuất: hình bóng dự đoán, khớp mép trên, cờ tin cậy (8.5).
 - `cartesian_control`: `object_source` camera (mặc định) | ground_truth, lệnh `nguon`; `scripts/run_pick_place_trials.py` (Bước 9).
+- `scripts/probe_camera.py`, `scripts/make_chessboard_pdf.py` — chuẩn bị camera thật (Bước 10).
 - `test/` — lint + `test_delta_kinematics.py`, `test_trajectory.py`, `test_gripper_logic.py`,
   `test_task_planner.py`, `test_color_detector.py`, `test_camera_model.py`, `test_vision_eval.py`,
   `test_vision_estimation.py`, `test_task_executor.py` (ảnh mẫu trong `test/data/`).
@@ -471,15 +474,73 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
   - ⚠️ Chế độ ground truth, 1/5 lượt ở lần chạy đầu (không lặp lại ở lần 10 lượt): khi lấy hộp đỏ
     khỏi ô C, trụ xanh ở ô A bên cạnh **văng khỏi bàn (2.2 m)**. Chưa rõ nguyên nhân (nghi liên quan platform 5 cm đè cả vật bên cạnh + hiện tượng
     lún/xung lực ở 6.1) — **chưa kiểm chứng, chưa sửa**.
-- [ ] **Bước 10** — Camera thật + bản sao số (đặt/di chuyển vật ảo theo vật thật).
-  - Đã chuẩn bị (2026-09-19): `docs/calibration/aruco_markers_A4.pdf` (trang 1 hướng dẫn + sơ đồ bố
+- [ ] **Bước 10** — Camera thật + bản sao số. **Quyết định 2026-09-28 (người làm đồ án):** vật thật là
+  **lon nước ngọt** (Coca đỏ / Sprite lục / Pepsi lam — khớp đúng 3 lớp màu đã có), bản sao số
+  **theo tỉ lệ k** (xem 10b), và về sau phân biệt thêm **theo chiều cao** (vd. 2 lon cùng màu cao–thấp).
+  Chia 3 chặng, chặng sau chỉ bắt đầu khi chặng trước chạy được:
+  - **10a — camera thật, vật nhỏ, tỉ lệ 1:1.** Hiệu chuẩn nội tham số (bàn cờ) + ngoại tham số
+    (marker), đo sai số thật, đối chiếu 1.13 mm của mô phỏng. Dùng được bản in marker hiện tại.
+  - **10b — lon thật + ánh xạ tỉ lệ.** Vị trí thật ÷ k → vị trí ảo; vật ảo giữ kích thước robot gắp
+    được. `k ≈ đường kính lon / 30 mm` (lon 330 ml Ø 66 → k ≈ 2.2). **Marker thật phải đặt ở tọa độ
+    k × tọa độ ảo** → sinh lại `aruco_markers_A4.pdf` với k, cần bàn ~60×65 cm. Chưa chốt k.
+  - **10c — đo chiều cao + nhiều vật cùng màu.** Bỏ được nếu thiếu thời gian, đồ án vẫn trọn vẹn.
+  - **Vì sao phải dùng tỉ lệ:** bàn z = −0.22, trần vùng làm việc ≈ −0.10 → chỉ ~120 mm chiều cao.
+    Lon 330 ml cao 115 mm: đỉnh ở −0.105 = đúng trần → **gắp tới nơi nhưng không nhấc lên được**;
+    khay lòng 70×70 mm cũng không chứa nổi lon Ø 66. Không phóng to robot được: đổi hình học trong
+    xacro làm **hỏng mối hàn mạch kín** (2 link phải trùng frame tại home pose) và mọi kiểm chứng
+    động học phải làm lại.
+  - **Tỉ lệ KHÔNG làm sai số ảo xấu đi:** camera phủ vùng rộng gấp k (mm/pixel xấu đi k lần) nhưng
+    sai số lại chia cho k khi quy về không gian ảo → triệt tiêu. Dung sai giác hút 12 mm ảo ≈ 26 mm
+    thật. C270 1280×720 (gấp đôi camera mô phỏng 640×480 mỗi chiều) là phần dư bù cho nhiễu + méo.
+  - **3 rủi ro đã nhận diện, đều xử lý được bằng code (chưa làm):**
+    1. **Logo Pepsi có mảng đỏ** → `color_detector` hiện **gộp mù mọi mảnh cùng màu** (giả định
+       1 màu = 1 vật) nên mảng đỏ trên lon Pepsi sẽ bị gộp với lon Coca, tâm khối rơi vào giữa.
+       Sửa: chỉ gộp mảnh gần nhau trong phạm vi kích thước vật dự kiến (tính được từ mô hình camera).
+    2. **Lóa kim loại**: `vision_estimation` tính `visible = detection.area / silhouette_area`, vệt
+       lóa (S tụt, V bão hòa) bị loại khỏi mặt nạ → tỉ lệ nhìn thấy tụt → `VISIBLE_MIN = 0.90` hiểu
+       nhầm là bị che → score 0 → **từ chối gắp**. Sửa: lấp lỗ trong vùng trước khi tính diện tích,
+       hoặc coi điểm "V cao + S thấp nằm trong hình bóng" là thuộc vật. Lóa gắt cắt đôi lon thì code
+       không cứu được → **chiếu sáng khuếch tán**.
+    3. **Nhiều vật cùng màu** (10c) phá giả định 1 màu = 1 vật ở **cả chuỗi**: `color_detector`,
+       `scene.OBJECTS` (danh sách cố định, mỗi vật 1 màu), `task_planner`/`task_executor` (gọi vật
+       **theo tên**), `gripper_node` (tra vị trí thật theo tên model), toàn bộ test tương ứng.
+       Chuyển từ "3 vật biết trước" sang "N thực thể phát hiện được" — việc lớn nhất còn lại.
+  - **Đo chiều cao bằng camera đơn (10c)** = bài toán **ngược** của `fit_top_edge` (ở 8.5 biết chiều
+    cao, giải x, y): đáy vật trên mặt bàn (z biết) → giao tia cho (x, y); mép trên cho chiều cao.
+  - Code không sửa được: camera xê dịch sau hiệu chuẩn (né được bằng cách giữ marker trong khung và
+    **hiệu chuẩn lại ngoại tham số mỗi khung**), thiếu sáng (σ > 20 là tụt nhận dạng), vật bị che kín.
+  - Nên làm trước khi mua lon: **chụp 3 lon bằng điện thoại** → đo mảng đỏ trên lon Pepsi, phần xanh
+    thật của lon Sprite, bề rộng vệt lóa.
+  - Đã chuẩn bị: `docs/calibration/aruco_markers_A4.pdf` (2026-09-19; trang 1 hướng dẫn + sơ đồ bố
     trí tỉ lệ 1:3 + bảng tọa độ; trang 2–4: 6 marker vector đúng 50 mm — đã kiểm chứng render 200 dpi:
     nhận dạng đủ ID 0–5, cạnh đo 49.91 mm). Sinh bằng `scripts/make_marker_pdf.py` từ
-    `scene.CALIB_MARKERS` (cùng bố trí với marker trong mô phỏng → bàn thật = bản sao bàn ảo; 6 marker
-    trải ~34×36 cm nên in rời từng marker, người dùng đo và dán theo tọa độ).
-  - Còn chờ người làm đồ án: webcam USB nhìn xuống bàn (webcam laptop nhìn vào người, không dùng
-    được), 3 khối màu đỏ/xanh lá/xanh dương, in marker. Camera thật cần thêm hiệu chuẩn NỘI tham số
-    (bàn cờ, méo ống kính) — camera mô phỏng không có méo.
+    `scene.CALIB_MARKERS` (6 marker trải ~34×36 cm nên in rời từng marker, đo và dán theo tọa độ).
+    `docs/calibration/chessboard_A4.pdf` (2026-09-28; 10×7 ô, cạnh 20 mm, 9×6 góc trong, có thước
+    100 mm) sinh bằng `scripts/make_chessboard_pdf.py` — camera thật có méo ống kính nên **phải hiệu
+    chuẩn nội tham số trước**; đã kiểm chứng render 200 dpi: `findChessboardCorners` ra 9×6, ô 20.00 mm.
+  - Còn chờ người làm đồ án: **mua Logitech C270** (chốt 2026-09-28), giá đỡ/chân máy, in marker +
+    bàn cờ ở tỉ lệ 100%, lon nước.
+
+### Camera thật — đo trên camera của lab (2026-09-28)
+Lab có **Thronmax Stream Go Pro** (`0bda:132d`, `/dev/video2`) — **không mượn về được**, người làm đồ án
+sẽ mua **Logitech C270** riêng. Buổi ở lab chỉ để khảo sát; mọi hiệu chuẩn phải làm lại trên camera mới
+(nội tham số gắn với từng máy cụ thể, kể cả cùng model).
+- `scripts/probe_camera.py` — kiểm tra một camera có dùng được không: liệt kê nút chỉnh bắt buộc, chọn
+  chế độ MJPG lớn nhất ≥ 15 fps, khóa chế độ thủ công rồi **đọc lại xác nhận**, đo nhiễu cảm biến, in
+  KẾT LUẬN. Có `--shots N --out DIR` để thu ảnh mẫu (dùng khi lên lab, mang dữ liệu về nhà làm offline).
+  Chạy: `python3 src/delta_controller/scripts/probe_camera.py --device /dev/videoN`.
+- Đo được trên Thronmax: 1920×1080 @ 30 fps MJPG; khóa được cả 3 (`focus_automatic_continuous`,
+  `auto_exposure=1`, `white_balance_automatic=0`), đọc lại đúng; **nhiễu σ ≈ 5 mức xám** → theo 8.4 là
+  vô hại (≤ 10). Đây là **mốc thực tế** đầu tiên cho phần đánh giá độ bền vốn chỉ dùng nhiễu nhân tạo.
+- ⚠️ Ở 1080p, **YUYV chỉ 2 fps** → bắt buộc dùng MJPG.
+- ⚠️ **Camera lấy nét cố định (C270) KHÔNG có nút focus nào** — đó là trường hợp **tốt nhất** (tiêu cự
+  không thể trôi), không phải thiếu tính năng. `probe_camera.py` xử lý đúng: không có nút focus = đạt;
+  có mô-tơ nhưng không tắt được tự động = loại.
+- ⚠️ **Ngưỡng HSV của mô phỏng KHÔNG bê thẳng sang ảnh thật được.** Chạy `color_detector` trên ảnh thật
+  ở lab: **tường phòng bị nhận nhầm là vật xanh lá** (15% diện tích ảnh, H ≈ 83, S ≈ 113 > ngưỡng
+  S ≥ 90; trong mô phỏng nền có S ≈ 77 nên bị loại). Đèn huỳnh quang + cân bằng trắng 4600 K làm ảnh
+  ngả xanh lơ. Bố trí thật camera chĩa xuống bàn nên tường không vào khung, nhưng **phải hiệu chỉnh lại
+  ngưỡng trên ảnh thật** — và đây là một ý đáng viết vào khóa luận.
 - [ ] **Bước 11** — Chế độ bám theo tay/marker.
 - [ ] **Bước 12** — Đánh giá (độ chính xác, độ trễ, tỉ lệ gắp thành công) + báo cáo.
 
