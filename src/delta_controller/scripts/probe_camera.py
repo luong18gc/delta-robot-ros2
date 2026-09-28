@@ -182,9 +182,9 @@ def main():
 
     ok = (controls is not None and all(n in controls for n in REQUIRED)
           and focus_verdict(controls)[0] == 'OK')
-    print('== KET LUAN: ' + ('camera DUNG DUOC cho do an'
-                            ' (khoa duoc net, phoi sang, can bang trang)' if ok else
-                            'THIEU nut chinh bat buoc -> can camera khac, xem danh sach o tren'))
+    verdict = ('camera DUNG DUOC cho do an (khoa duoc net, phoi sang, can bang trang)' if ok
+               else 'THIEU nut chinh bat buoc -> can camera khac, xem danh sach o tren')
+    print('== KET LUAN: ' + verdict)
 
 
 if __name__ == '__main__':

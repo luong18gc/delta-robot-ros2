@@ -521,6 +521,24 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
   - Còn chờ người làm đồ án: **mua Logitech C270** (chốt 2026-09-28), giá đỡ/chân máy, in marker +
     bàn cờ ở tỉ lệ 100%, lon nước.
 
+### Mặt bàn ảo đổi sang ĐEN NHÁM (2026-09-28)
+Bàn thật ở nhà người làm đồ án màu đen **nhám** (đã kiểm tra không bóng) → đổi `work_table` trong
+`delta_objects_world.sdf` cho khớp (bản sao số): ambient 0.03, diffuse 0.06, **specular 0.02** (nhám).
+Chỉ đổi visual, vật lý không đổi. Kiểm chứng sau khi đổi (sim chạy `gui:=false`):
+- `/vision/objects` thấy **đủ 3 vật**, score 0.98–1.00; lệch thật **0.5 / 0.6 / 1.2 mm**
+  (trước khi đổi: 0.5 / 0.7 / 1.1 mm) → **đổi màu bàn không ảnh hưởng độ chính xác**.
+- Mặt bàn trong ảnh: **H 0, S 0, V 80** → bị loại nhờ ngưỡng **S ≥ 90**, dư an toàn.
+- Nhận dạng ArUco: **đủ 6/6 marker** (texture marker có viền trắng nên nền đen không sao).
+- Lợi thêm: **bóng đổ của robot gần như vô hình** trên nền đen (trên bàn sáng cũ đây là thử thách
+  cho nhận dạng màu, xem 8.2).
+- ⚠️ **Điểm ảnh tối có S cao giả tạo** vì `S = (max−min)/max`: đo trên ảnh camera thật, trong vùng
+  V < 40 có **85% pixel S > 90**. Vậy với bàn đen, thứ loại được mặt bàn là **ngưỡng V ≥ 40** —
+  **không được hạ ngưỡng V**; phần tối của vật thì xử lý bằng cách thêm ánh sáng.
+- ⚠️ Bàn đen **bóng** sẽ phản chiếu vật (ảnh phản chiếu **cùng màu**, dính liền) → bị gộp vào vật,
+  kéo lệch tâm khối và làm chiều cao đo dôi lên (10c). Bàn thật phải NHÁM, hoặc phủ vải nỉ/giấy nhám.
+- ⚠️ Bộ dữ liệu 8.4 (172 ảnh) và các ảnh trong `test/data/` thu trên **bàn màu sáng cũ** — vẫn dùng
+  được như bản ghi, nhưng chạy lại trực tiếp trên sim bây giờ sẽ ra ảnh khác.
+
 ### Camera thật — đo trên camera của lab (2026-09-28)
 Lab có **Thronmax Stream Go Pro** (`0bda:132d`, `/dev/video2`) — **không mượn về được**, người làm đồ án
 sẽ mua **Logitech C270** riêng. Buổi ở lab chỉ để khảo sát; mọi hiệu chuẩn phải làm lại trên camera mới
@@ -536,6 +554,8 @@ sẽ mua **Logitech C270** riêng. Buổi ở lab chỉ để khảo sát; mọi
 - ⚠️ **Camera lấy nét cố định (C270) KHÔNG có nút focus nào** — đó là trường hợp **tốt nhất** (tiêu cự
   không thể trôi), không phải thiếu tính năng. `probe_camera.py` xử lý đúng: không có nút focus = đạt;
   có mô-tơ nhưng không tắt được tự động = loại.
+- ⚠️ OpenCV trên máy là **4.6**: phải dùng `cv2.aruco.DetectorParameters_create()`; gọi kiểu mới
+  `cv2.aruco.DetectorParameters()` **segfault** khi vào `detectMarkers` (đã gặp 2026-09-28).
 - ⚠️ **Ngưỡng HSV của mô phỏng KHÔNG bê thẳng sang ảnh thật được.** Chạy `color_detector` trên ảnh thật
   ở lab: **tường phòng bị nhận nhầm là vật xanh lá** (15% diện tích ảnh, H ≈ 83, S ≈ 113 > ngưỡng
   S ≥ 90; trong mô phỏng nền có S ≈ 77 nên bị loại). Đèn huỳnh quang + cân bằng trắng 4600 K làm ảnh

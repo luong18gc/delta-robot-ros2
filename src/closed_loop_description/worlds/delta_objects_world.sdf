@@ -88,12 +88,18 @@
           <pose>0 0 0.77 0 0 0</pose>
           <geometry><box><size>0.40 0.40 0.02</size></box></geometry>
         </collision>
+        <!-- Mặt bàn ĐEN NHÁM cho khớp bàn thật ở Bước 10 (bản sao số). Đen không có sắc màu nên
+             không lọt lớp màu nào; điểm ảnh tối lại có S cao giả tạo (S = (max-min)/max) nên
+             ngưỡng V >= 40 của color_detector chính là thứ loại mặt bàn — đừng hạ ngưỡng đó.
+             specular thấp = nhám, tránh phản chiếu vật (ảnh phản chiếu cùng màu sẽ bị gộp vào vật
+             và kéo lệch tâm khối). Đổi 2026-09-28; bộ dữ liệu 8.4 thu trên bàn màu sáng cũ. -->
         <visual name="top_visual">
           <pose>0 0 0.77 0 0 0</pose>
           <geometry><box><size>0.40 0.40 0.02</size></box></geometry>
           <material>
-            <ambient>0.55 0.40 0.25 1</ambient>
-            <diffuse>0.55 0.40 0.25 1</diffuse>
+            <ambient>0.03 0.03 0.03 1</ambient>
+            <diffuse>0.06 0.06 0.06 1</diffuse>
+            <specular>0.02 0.02 0.02 1</specular>
           </material>
         </visual>
         <visual name="leg1"><pose>0.18 0.18 0.38 0 0 0</pose>
