@@ -30,7 +30,20 @@ MANUAL = (
     ('backlight_compensation', 0),
     ('exposure_dynamic_framerate', 0),
 )
-REQUIRED = ('focus_automatic_continuous', 'auto_exposure', 'white_balance_automatic')
+REQUIRED = ('auto_exposure', 'white_balance_automatic')
+# Camera lấy nét cố định (vd. Logitech C270) KHÔNG có nút focus nào — như vậy còn tốt hơn: không
+# có gì để trôi. Chỉ camera CÓ mô-tơ lấy nét mới cần tắt được lấy nét tự động.
+FOCUS_CONTROLS = ('focus_automatic_continuous', 'focus_absolute')
+
+
+def focus_verdict(controls):
+    """('OK'|'LOI', mô tả) về khả năng giữ nguyên tiêu cự của camera."""
+    present = [c for c in FOCUS_CONTROLS if c in controls]
+    if not present:
+        return 'OK', 'lay net co dinh (khong co nut focus) -> tieu cu khong the troi'
+    if 'focus_automatic_continuous' in controls:
+        return 'OK', 'co lay net tu dong nhung tat duoc -> khoa net thu cong'
+    return 'LOI', 'co mo-to lay net nhung KHONG tat duoc tu dong -> hieu chuan se troi'
 
 
 def v4l2(device, args):
@@ -122,7 +135,9 @@ def main():
         print('  (chua cai v4l-utils -> khong kiem tra / khoa duoc che do)')
     else:
         for name in REQUIRED:
-            print(f'  {"CO " if name in controls else "KHONG"} {name}')
+            print(f'  {"CO   " if name in controls else "THIEU"} {name}')
+        verdict, why = focus_verdict(controls)
+        print(f'  {"OK   " if verdict == "OK" else "LOI  "} lay net: {why}')
 
     mode = best_mjpg_mode(args.device)
     if mode:
@@ -165,7 +180,8 @@ def main():
 
     cap.release()
 
-    ok = controls is not None and all(n in controls for n in REQUIRED)
+    ok = (controls is not None and all(n in controls for n in REQUIRED)
+          and focus_verdict(controls)[0] == 'OK')
     print('== KET LUAN: ' + ('camera DUNG DUOC cho do an'
                             ' (khoa duoc net, phoi sang, can bang trang)' if ok else
                             'THIEU nut chinh bat buoc -> can camera khac, xem danh sach o tren'))
