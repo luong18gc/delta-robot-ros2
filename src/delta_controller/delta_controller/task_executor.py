@@ -21,12 +21,11 @@ import time
 from delta_controller.scene import OBJECTS, OBSERVE_XYZ
 from delta_controller.task_planner import (
     check_reachable,
-    first_free_slot,
     Grip,
     home_xy_of,
+    in_own_bin,
     locate,
     Move,
-    occupied_slots,
     plan_goto,
     plan_pick,
     plan_place,
@@ -42,8 +41,11 @@ LIFT_CHECK = 0.01
 # Vật đặt ra bàn được coi là đúng chỗ nếu lệch không quá giá trị này (m).
 PLACE_TOLERANCE = 0.01
 OBJECTS_WAIT_SEC = 3.0
-# Sau khi tới tư thế quan sát, chờ thêm chừng này rồi mới nhận khung ảnh (robot hết rung).
-OBSERVE_SETTLE_SEC = 0.3
+# Sau khi tới tư thế quan sát, chờ thêm chừng này rồi mới nhận khung ảnh.
+# ⚠️ Quỹ đạo phát theo ĐỒNG HỒ THẬT còn mô phỏng chạy RTF < 1, nên khi vòng phát điểm kết thúc thì
+# robot trong mô phỏng VẪN CÒN ĐANG CHẠY. Đo 2026-09-30: chờ 0.3 s vẫn bắt được khung có platform
+# đang di chuyển -> ước lượng lệch tới 48 mm (trong khi đứng yên chỉ lệch 1.8 mm).
+OBSERVE_SETTLE_SEC = 1.2
 
 
 class TaskExecutor:
@@ -98,36 +100,36 @@ class TaskExecutor:
             raise TaskError(f'Kiem chung that bai: {name} chi nhac len {lifted_mm:.1f} mm')
         self._log(f'   ✓ {name} da duoc nhac len {lifted_mm:.0f} mm')
 
-    def place(self, slot=None):
+    def place(self):
+        """Thả vật đang giữ vào ĐÚNG khay của loại đó."""
         node = self._node
         held = node.held_object
         objects = self._objects()
         others = {n: o for n, o in objects.items() if n != held}
-        slot = slot or first_free_slot(others, held)
-        actions = plan_place(held, slot, others, node.safe_z)
+        actions = plan_place(held, others, node.safe_z)
         self._run(actions)
         time.sleep(SETTLE_SEC)
         after = self._objects()
         self._require_seen(held, after, 'khong kiem chung duoc: ')
         where = locate(held, after[held], '')
-        if where != f'o {slot}':
-            raise TaskError(f'Kiem chung that bai: {held} dang "{where}", khong phai o {slot}')
-        self._log(f'   ✓ {held} nam trong o {slot}')
+        if where != f'khay {held}':
+            raise TaskError(f'Kiem chung that bai: {held} dang "{where}", '
+                            f'khong phai khay {held}')
+        self._log(f'   ✓ {held} nam trong khay cua no')
 
-    def pick_place(self, name, slot=None):
+    def pick_place(self, name):
+        """Nhặt vật rồi thả vào đúng khay của loại đó."""
         objects = self._objects()
         if name in objects:
             where = locate(name, objects[name], self._node.held_object)
-            if where.startswith('o '):
+            if where.startswith('khay '):
                 raise TaskError(f'{name} da nam trong khay ({where})')
-        # Kiểm tra ô TRƯỚC khi nhặt, để không phải cầm vật mà không có chỗ thả.
-        others = {n: o for n, o in objects.items() if n != name}
-        if slot is None:
-            first_free_slot(others, '')
-        elif slot in occupied_slots(others, ''):
-            raise TaskError(f'O {slot} da co vat')
+        # Kiểm tra khay TRƯỚC khi nhặt, để không phải cầm vật mà không có chỗ thả.
+        for other, obj in objects.items():
+            if other != name and in_own_bin(name, obj):
+                raise TaskError(f'Khay {name} dang co {other}')
         self.pick(name)
-        self.place(slot)
+        self.place()
 
     def unload(self, name, xy=None):
         """Lấy vật từ khay ra, đặt lên bàn tại xy (mặc định vị trí ban đầu), rồi kiểm chứng."""
@@ -218,9 +220,20 @@ class TaskExecutor:
             time.sleep(0.05)
 
     def _observe(self):
-        """Đưa robot về tư thế quan sát, lấy vị trí vật từ khung ảnh chụp sau khi robot dừng."""
-        self._node.move(OBSERVE_XYZ, safe=True)
-        states, unclear = self._node.observe_camera(time.monotonic() + OBSERVE_SETTLE_SEC)
+        """
+        Đưa robot về tư thế quan sát rồi lấy vị trí vật từ khung ảnh chụp sau khi robot dừng.
+
+        Quan sát LẠI một lần nếu chưa thấy đủ vật: quỹ đạo phát theo đồng hồ thật còn mô phỏng
+        chạy chậm hơn, nên khung đầu tiên đôi khi vẫn bắt được platform đang di chuyển và che vật.
+        Giữ lần quan sát thấy được nhiều vật hơn.
+        """
+        node = self._node
+        node.move(OBSERVE_XYZ, safe=True)
+        states, unclear = node.observe_camera(time.monotonic() + OBSERVE_SETTLE_SEC)
+        if len(states) < len(OBJECTS) - bool(node.held_object):
+            again, unclear_again = node.observe_camera(time.monotonic() + OBSERVE_SETTLE_SEC)
+            if len(again) > len(states):
+                states, unclear = again, unclear_again
         self._last_seen, self._last_unclear = states, unclear
         return states
 

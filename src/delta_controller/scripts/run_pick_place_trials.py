@@ -30,7 +30,7 @@ import rclpy
 from rclpy.executors import SingleThreadedExecutor
 
 WS = os.path.expanduser('~/ros2_closed_loop_ws')
-REST_EXTRA = {'blue_sphere': 0.0005}
+REST_EXTRA = {}   # cảnh lon: không vật nào có đế nâng thêm
 MODES = ('camera', 'ground_truth')
 
 
@@ -80,11 +80,13 @@ def run_trial(node, mode, layout, logs):
         result['sort_error'] = str(e)
     result['sort_sec'] = time.monotonic() - t0
     gt = truth(node)
-    slots = {n: locate(n, o, '') for n, o in gt.items()}
-    in_slot = [n for n, w in slots.items() if w.startswith('o ')]
-    result['sorted'] = len(in_slot)
-    result['distinct_slots'] = len({slots[n] for n in in_slot}) == len(in_slot)
-    result['slots'] = slots
+    where = {n: locate(n, o, '') for n, o in gt.items()}
+    # Phân loại đúng = vật nằm trong ĐÚNG khay của loại đó ('khay <ten vat>').
+    correct = [n for n in where if where[n] == f'khay {n}']
+    result['sorted'] = len(correct)
+    result['distinct_slots'] = len(correct) == len([w for w in where.values()
+                                                    if w.startswith('khay ')])
+    result['slots'] = where
 
     held = node.held_object
     if held:   # gắp được nhưng hỏng giữa chừng: nhả ra để lượt reset chạy được

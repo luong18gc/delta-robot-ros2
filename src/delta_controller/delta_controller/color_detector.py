@@ -40,6 +40,8 @@ COLOR_CLASSES = {
 
 MIN_BLOB_AREA = 30      # px — mảnh nhỏ hơn coi là nhiễu
 MIN_OBJECT_AREA = 80    # px — tổng diện tích nhìn thấy tối thiểu để báo là thấy vật
+# Nới khung bao của mảnh lớn nhất bấy nhiêu lần mỗi phía khi quyết định mảnh nào cùng vật.
+MERGE_GROW = 0.35
 _OPEN_KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 _CLOSE_KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
 
@@ -64,6 +66,28 @@ def color_mask(hsv, color_class):
     return cv2.morphologyEx(mask, cv2.MORPH_CLOSE, _CLOSE_KERNEL)
 
 
+def _merge_near_largest(keep, stats, grow=MERGE_GROW):
+    """
+    Chỉ gộp các mảnh NẰM GẦN mảnh lớn nhất, thay vì gộp mọi mảnh cùng màu trên toàn ảnh.
+
+    Lý do (đo trên ảnh lon thật 2026-09-30): logo Pepsi và logo 7Up đều có mảng ĐỎ (683–893 px và
+    314–884 px, so với 7347–8651 px của lon Coca). Gộp mù mọi mảnh đỏ kéo tâm khối lệch 13–31 px
+    (8–19 mm thật), và khi trên bàn KHÔNG có lon Coca thì vẫn báo thấy một "vật đỏ" không tồn tại.
+    Khung bao của mảnh lớn nhất được nới rộng `grow` lần mỗi phía; mảnh nào cắt khung nới rộng đó
+    mới được coi là cùng một vật (vật bị che cắt đôi vẫn gộp đúng).
+    """
+    biggest = max(keep, key=lambda i: stats[i, cv2.CC_STAT_AREA])
+    bx, by, bw, bh = stats[biggest, :4]
+    x0, x1 = bx - grow * bw, bx + bw + grow * bw
+    y0, y1 = by - grow * bh, by + bh + grow * bh
+    near = []
+    for i in keep:
+        x, y, w, h = stats[i, :4]
+        if x + w >= x0 and x <= x1 and y + h >= y0 and y <= y1:
+            near.append(i)
+    return near
+
+
 def detect_color(hsv, color_class, min_blob_area=MIN_BLOB_AREA, min_object_area=MIN_OBJECT_AREA):
     """Trả về Detection của lớp màu, hoặc None nếu không thấy đủ pixel."""
     mask = color_mask(hsv, color_class)
@@ -71,6 +95,7 @@ def detect_color(hsv, color_class, min_blob_area=MIN_BLOB_AREA, min_object_area=
     keep = [i for i in range(1, count) if stats[i, cv2.CC_STAT_AREA] >= min_blob_area]
     if not keep:
         return None
+    keep = _merge_near_largest(keep, stats)
     selected = np.isin(labels, keep)
     area = int(selected.sum())
     if area < min_object_area:
@@ -108,7 +133,8 @@ def draw_detections(bgr, detections, labels=None, classes=COLOR_CLASSES):
         cv2.drawMarker(out, (u, v), (255, 255, 255), cv2.MARKER_CROSS, 10, 2)
         cv2.drawMarker(out, (u, v), bgr_color, cv2.MARKER_CROSS, 10, 1)
         text = (labels or {}).get(color, color)
-        text += f' ({u},{v})' + (f' x{det.pieces}' if det.pieces > 1 else '')
+        pieces = getattr(det, 'pieces', 1)   # object_detector.ObjectDetection không có trường này
+        text += f' ({u},{v})' + (f' x{pieces}' if pieces > 1 else '')
         cv2.putText(out, text, (x, max(12, y - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.4,
                     (0, 0, 0), 3, cv2.LINE_AA)
         cv2.putText(out, text, (x, max(12, y - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.4,

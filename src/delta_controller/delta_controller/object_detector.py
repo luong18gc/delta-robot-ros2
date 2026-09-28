@@ -122,6 +122,19 @@ def detect_objects(bgr, color_classes, roi=None, min_area=MIN_AREA,
     return sorted(found, key=lambda d: -d.area)
 
 
+def detect_by_color(bgr, color_classes, **kwargs):
+    """
+    Màu -> vật LỚN NHẤT của màu đó, để thay thẳng cho color_detector.detect_objects.
+
+    Khi cảnh có nhiều vật cùng màu (Bước 10c) thì dùng detect_objects và xử lý cả danh sách.
+    """
+    best = {}
+    for d in detect_objects(bgr, color_classes, **kwargs):
+        if d.color not in best:      # danh sách đã sắp theo diện tích giảm dần
+            best[d.color] = d
+    return best
+
+
 def draw_objects(bgr, detections, color_classes):
     """Vẽ khung và nhãn lên bản sao của ảnh, phục vụ chẩn đoán."""
     vis = bgr.copy()

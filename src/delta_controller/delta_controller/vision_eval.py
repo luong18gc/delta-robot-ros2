@@ -18,7 +18,7 @@ import os
 
 import cv2
 from delta_controller.color_detector import detect_objects
-from delta_controller.scene import OBJECTS
+from delta_controller.scene import BIN_LAYOUT, OBJECTS
 from delta_controller.vision_estimation import estimate_object
 import numpy as np
 
@@ -76,11 +76,16 @@ def perturb(bgr, noise_sigma=0.0, brightness=1.0, seed=0):
     return np.clip(img, 0, 255).astype(np.uint8)
 
 
-def estimate_positions(bgr, camera, use_top_edge=True):
-    """Tên vật -> ObjectEstimate trong hệ robot, cho các vật nhận dạng được."""
+def estimate_positions(bgr, camera, use_top_edge=True, objects=OBJECTS, bins=BIN_LAYOUT):
+    """
+    Tên vật -> ObjectEstimate trong hệ robot, cho các vật nhận dạng được.
+
+    `objects`/`bins` phải mô tả đúng cảnh đã chụp ảnh: bộ dữ liệu Bước 8.4 là thế giới khối vuông
+    nên truyền scene.LEGACY_OBJECTS và scene.LEGACY_BIN_LAYOUT.
+    """
     found = detect_objects(bgr)
-    return {o.name: estimate_object(found[o.color], camera, o, bgr.shape, use_top_edge)
-            for o in OBJECTS if o.color in found}
+    return {o.name: estimate_object(found[o.color], camera, o, bgr.shape, use_top_edge, bins=bins)
+            for o in objects if o.color in found}
 
 
 def evaluated_objects(sample):
@@ -89,14 +94,15 @@ def evaluated_objects(sample):
     return [name] if name else list(sample.ground_truth)
 
 
-def evaluate(samples, camera, noise_sigma=0.0, brightness=1.0, use_top_edge=True):
+def evaluate(samples, camera, noise_sigma=0.0, brightness=1.0, use_top_edge=True,
+             objects=OBJECTS, bins=BIN_LAYOUT):
     records = []
     for i, sample in enumerate(samples):
         bgr = cv2.imread(sample.image_path)
         if bgr is None:
             raise FileNotFoundError(sample.image_path)
         estimates = estimate_positions(perturb(bgr, noise_sigma, brightness, seed=i), camera,
-                                       use_top_edge)
+                                       use_top_edge, objects, bins)
         for name in evaluated_objects(sample):
             est = estimates.get(name)
             records.append(Record(

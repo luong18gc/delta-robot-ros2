@@ -25,13 +25,13 @@ from cv_bridge import CvBridge
 from delta_controller.delta_kinematics import inverse_kinematics
 from delta_controller.joint_commander import JointCommander
 from delta_controller.scene import (
-    BIN_CENTER,
     BIN_FLOOR_Z,
-    BIN_OUTER_HALF,
-    BIN_SLOTS,
     CALIB_MARKER_SIZE,
     CALIB_MARKERS,
-    OBJECTS,
+    LEGACY_BIN_CENTER,
+    LEGACY_BIN_OUTER_HALF,
+    LEGACY_BIN_SLOTS,
+    LEGACY_OBJECTS,
     TABLE_Z,
 )
 from nav_msgs.msg import Odometry
@@ -41,6 +41,7 @@ from sensor_msgs.msg import Image
 
 BASE_Z = 1.0                 # world = robot + (0, 0, 1)
 REST_EXTRA = {'blue_sphere': 0.0005}   # đế chống lăn nâng cầu 0.5 mm
+# ⚠️ Script này thu dữ liệu ở THẾ GIỚI CŨ (ba khối vuông, delta_objects_world.sdf).
 GRID_STEP = 0.03
 SETTLE_SEC = 0.8
 HOME = (0.0, 0.0, -0.1405)
@@ -60,8 +61,8 @@ def grid_points():
             x, y = i * GRID_STEP, j * GRID_STEP
             if abs(x) > 0.16 or abs(y) > 0.16:
                 continue
-            margin = BIN_OUTER_HALF + 0.02
-            if abs(x - BIN_CENTER[0]) < margin and abs(y - BIN_CENTER[1]) < margin:
+            margin = LEGACY_BIN_OUTER_HALF + 0.02
+            if abs(x - LEGACY_BIN_CENTER[0]) < margin and abs(y - LEGACY_BIN_CENTER[1]) < margin:
                 continue
             if any(math.hypot(x - mx, y - my) < CALIB_MARKER_SIZE * 0.7 + 0.02
                    for mx, my in CALIB_MARKERS.values()):
@@ -81,7 +82,7 @@ class Recorder:
         self.gt = {}
         self.node.create_subscription(Image, '/side_camera/image', self._on_image,
                                       qos_profile_sensor_data)
-        for obj in OBJECTS:
+        for obj in LEGACY_OBJECTS:
             self.node.create_subscription(
                 Odometry, f'/objects/{obj.name}/odometry',
                 lambda m, n=obj.name: self.gt.__setitem__(
@@ -108,7 +109,7 @@ class Recorder:
                        check=True, capture_output=True)
 
     def all_home(self):
-        for obj in OBJECTS:
+        for obj in LEGACY_OBJECTS:
             self.set_pose(obj.name, *obj.home_xy, rest_z(obj, TABLE_Z))
 
     def move_robot(self, xyz, wait=2.5):
@@ -146,9 +147,9 @@ def main():
     rec.all_home()
 
     points = grid_points()
-    print(f'grid: {len(points)} diem x {len(OBJECTS)} vat')
-    for obj in OBJECTS:
-        others = {o.name: o.home_xy for o in OBJECTS if o.name != obj.name}
+    print(f'grid: {len(points)} diem x {len(LEGACY_OBJECTS)} vat')
+    for obj in LEGACY_OBJECTS:
+        others = {o.name: o.home_xy for o in LEGACY_OBJECTS if o.name != obj.name}
         for x, y in points:
             if any(math.hypot(x - ox, y - oy) < 0.04 for ox, oy in others.values()):
                 continue
@@ -159,7 +160,7 @@ def main():
 
     print('occlusion: robot lo lung tren tung vat')
     rec.all_home()
-    for obj in OBJECTS:
+    for obj in LEGACY_OBJECTS:
         top = rest_z(obj, TABLE_Z) + obj.half_height
         for gap in OCCLUSION_HEIGHTS:
             rec.move_robot((obj.home_xy[0], obj.home_xy[1], top + 0.003 + gap))
@@ -167,8 +168,8 @@ def main():
         rec.move_robot(HOME)
 
     print('bin: tung vat vao tung o khay')
-    for obj in OBJECTS:
-        for slot, (x, y) in BIN_SLOTS.items():
+    for obj in LEGACY_OBJECTS:
+        for slot, (x, y) in LEGACY_BIN_SLOTS.items():
             rec.set_pose(obj.name, x, y, rest_z(obj, BIN_FLOOR_Z))
             rec.capture('bin', {'moved': obj.name, 'slot': slot})
         rec.set_pose(obj.name, *obj.home_xy, rest_z(obj, TABLE_Z))

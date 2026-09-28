@@ -1,4 +1,4 @@
-"""Test lập kế hoạch lệnh cấp cao."""
+"""Test lập kế hoạch lệnh cấp cao (cảnh ba lon, mỗi loại một khay riêng)."""
 
 from delta_controller.delta_kinematics import inverse_kinematics
 from delta_controller.gripper_logic import (
@@ -6,13 +6,14 @@ from delta_controller.gripper_logic import (
     PLATFORM_HALF_THICKNESS,
     select_graspable,
 )
-from delta_controller.scene import BIN_CENTER, BIN_FLOOR_Z, BIN_SLOTS, OBJECTS
+from delta_controller.scene import BIN_FLOOR_Z, BINS, CAN_HALF_HEIGHT, OBJECTS, TABLE_Z
 from delta_controller.task_planner import (
+    bin_of,
     check_reachable,
     check_table_spot,
-    first_free_slot,
     Grip,
     hover_point,
+    in_own_bin,
     is_lifted,
     locate,
     Move,
@@ -26,56 +27,56 @@ from delta_controller.task_planner import (
     Release,
     release_point,
     resolve_object,
-    resolve_slot,
     table_release_point,
     TaskError,
     touch_point,
 )
 import pytest
 
-LIFT_Z = -0.14
-RETREAT_Z = -0.16
-TABLE_Z = -0.22
+LIFT_Z = -0.13          # = cartesian_control safe_z_holding cho lon cao 58.8 mm
+RETREAT_Z = -0.16       # = safe_z
+H = CAN_HALF_HEIGHT     # 0.0294
+CENTER_Z = TABLE_Z + H  # -0.1906: tâm lon khi đứng trên bàn
+TOUCH_Z = TABLE_Z + 2 * H + PLATFORM_HALF_THICKNESS      # -0.1582
+DROP_Z = BIN_FLOOR_Z + 0.005 + 2 * H + PLATFORM_HALF_THICKNESS   # -0.1502
+TABLE_DROP_Z = TABLE_Z + 0.005 + 2 * H + PLATFORM_HALF_THICKNESS  # -0.1532
 
-ON_TABLE = {
-    'red_box': ObjectState((0.06, 0.0, -0.205), 0.015),
-    'green_cylinder': ObjectState((-0.03, 0.052, -0.205), 0.015),
-    'blue_sphere': ObjectState((-0.03, -0.052, -0.205), 0.015),
-}
+ON_TABLE = {o.name: ObjectState((o.home_xy[0], o.home_xy[1], CENTER_Z), H) for o in OBJECTS}
 
 
-def in_slot(slot):
-    x, y = BIN_SLOTS[slot]
-    return ObjectState((x, y, BIN_FLOOR_Z + 0.015), 0.015)
+def in_bin(name):
+    """Lon nằm trong khay của chính nó."""
+    x, y = BINS[name]
+    return ObjectState((x, y, BIN_FLOOR_Z + H), H)
 
 
 # ---------------------------------------------------------------- tra cứu
 
 @pytest.mark.parametrize('text, name', [
-    ('red_box', 'red_box'), ('RED', 'red_box'), ('do', 'red_box'),
-    ('xanhla', 'green_cylinder'), ('tru', 'green_cylinder'),
-    ('cau', 'blue_sphere'), (' Blue_Sphere ', 'blue_sphere'),
+    ('coca_can', 'coca_can'), ('COCA', 'coca_can'), ('do', 'coca_can'), ('coke', 'coca_can'),
+    ('pepsi', 'pepsi_can'), ('lam', 'pepsi_can'),
+    ('7up', 'sevenup_can'), (' SevenUp ', 'sevenup_can'), ('xanhla', 'sevenup_can'),
 ])
 def test_resolve_object(text, name):
     assert resolve_object(text) == name
 
 
 def test_resolve_unknown_object_lists_choices():
-    with pytest.raises(TaskError, match='red_box'):
+    with pytest.raises(TaskError, match='coca_can'):
         resolve_object('vang')
 
 
-def test_resolve_slot():
-    assert resolve_slot('b') == 'B'
+def test_bin_of_gives_each_can_its_own_bin():
+    assert bin_of('coca_can') == BINS['coca_can']
+    assert len({bin_of(o.name) for o in OBJECTS}) == 3
     with pytest.raises(TaskError):
-        resolve_slot('D')
+        bin_of('khong_co')
 
 
 # ---------------------------------------------------------------- điểm hình học
 
-def test_touch_point_matches_measured_grip_height():
-    """6.3 đã kiểm chứng trên Gazebo: chạm đỉnh vật cao 3 cm khi tool0 z = -0.187."""
-    assert touch_point(ON_TABLE['red_box']) == pytest.approx((0.06, 0.0, -0.187))
+def test_touch_point_is_top_of_can_plus_platform_half():
+    assert touch_point(ON_TABLE['coca_can']) == pytest.approx((-0.085, 0.0, TOUCH_Z))
 
 
 def test_touch_point_is_accepted_by_gripper_logic():
@@ -84,104 +85,112 @@ def test_touch_point_is_accepted_by_gripper_logic():
 
 
 def test_hover_point_is_above_touch_point():
-    assert hover_point(ON_TABLE['red_box'])[2] == pytest.approx(-0.187 + 0.02)
+    assert hover_point(ON_TABLE['coca_can'])[2] == pytest.approx(TOUCH_Z + 0.02)
 
 
-def test_release_point_matches_verified_slot_height():
-    """6.3: thả tại tool0 z = -0.179 thì đáy vật cách đáy khay ~5 mm."""
-    for slot, (x, y) in BIN_SLOTS.items():
-        assert release_point(slot, 0.015) == pytest.approx((x, y, -0.179))
+def test_release_point_is_own_bin_at_drop_height():
+    for name, (x, y) in BINS.items():
+        assert release_point(name, H) == pytest.approx((x, y, DROP_Z))
+
+
+def test_release_point_clears_bin_wall_when_carried_across():
+    """Đáy lon khi mang ngang ở LIFT_Z phải cao hơn đỉnh thành khay (-0.205)."""
+    bottom = LIFT_Z - PLATFORM_HALF_THICKNESS - 2 * H
+    assert bottom > -0.205
 
 
 # ---------------------------------------------------------------- trạng thái cảnh
 
-def test_locate():
-    assert locate('red_box', ON_TABLE['red_box'], '') == 'tren ban'
-    assert locate('red_box', in_slot('B'), '') == 'o B'
-    assert locate('red_box', ON_TABLE['red_box'], 'red_box') == 'dang giu'
+def test_locate_distinguishes_own_bin_from_wrong_bin():
+    assert locate('coca_can', ON_TABLE['coca_can'], '') == 'tren ban'
+    assert locate('coca_can', in_bin('coca_can'), '') == 'khay coca_can'
+    assert locate('coca_can', in_bin('pepsi_can'), '') == 'khay la pepsi_can'
+    assert locate('coca_can', ON_TABLE['coca_can'], 'coca_can') == 'dang giu'
 
 
-def test_first_free_slot_skips_occupied():
-    objects = dict(ON_TABLE, red_box=in_slot('A'))
-    assert first_free_slot(objects, '') == 'B'
-
-
-def test_full_bin_raises():
-    objects = {'red_box': in_slot('A'), 'green_cylinder': in_slot('B'),
-               'blue_sphere': in_slot('C')}
-    with pytest.raises(TaskError, match='day'):
-        first_free_slot(objects, '')
+def test_in_own_bin():
+    assert in_own_bin('coca_can', in_bin('coca_can'))
+    assert not in_own_bin('coca_can', in_bin('sevenup_can'))
+    assert not in_own_bin('coca_can', ON_TABLE['coca_can'])
 
 
 def test_is_lifted():
-    assert not is_lifted(ON_TABLE['red_box'], TABLE_Z)
-    lifted = ObjectState((0.06, 0.0, -0.205 + 0.047), 0.015)
+    assert not is_lifted(ON_TABLE['coca_can'], TABLE_Z)
+    lifted = ObjectState((-0.085, 0.0, CENTER_Z + 0.047), H)
     assert is_lifted(lifted, TABLE_Z)
 
 
 # ---------------------------------------------------------------- kế hoạch
 
 def test_goto_hovers_above_object():
-    [move] = plan_goto('green_cylinder', ON_TABLE)
-    assert move.safe and move.goal == pytest.approx(hover_point(ON_TABLE['green_cylinder']))
+    [move] = plan_goto('pepsi_can', ON_TABLE)
+    assert move.safe and move.goal == pytest.approx(hover_point(ON_TABLE['pepsi_can']))
 
 
 def test_pick_sequence():
-    actions = plan_pick('red_box', ON_TABLE, '', LIFT_Z)
+    actions = plan_pick('coca_can', ON_TABLE, '', LIFT_Z)
     assert [type(a) for a in actions] == [Move, Grip, Move]
     down, grip, up = actions
-    assert down.safe and down.goal == pytest.approx((0.06, 0.0, -0.187))
-    assert grip.expected == 'red_box'
-    assert not up.safe and up.goal == pytest.approx((0.06, 0.0, LIFT_Z))
+    assert down.safe and down.goal == pytest.approx((-0.085, 0.0, TOUCH_Z))
+    assert grip.expected == 'coca_can'
+    assert not up.safe and up.goal == pytest.approx((-0.085, 0.0, LIFT_Z))
 
 
 def test_pick_uses_actual_pushed_position():
-    pushed = dict(ON_TABLE, red_box=ObjectState((0.072, 0.004, -0.205), 0.015))
-    assert plan_pick('red_box', pushed, '', LIFT_Z)[0].goal[:2] == pytest.approx((0.072, 0.004))
+    pushed = dict(ON_TABLE, coca_can=ObjectState((-0.073, 0.004, CENTER_Z), H))
+    assert plan_pick('coca_can', pushed, '', LIFT_Z)[0].goal[:2] == pytest.approx((-0.073, 0.004))
 
 
 def test_pick_while_holding_is_rejected():
     with pytest.raises(TaskError, match='Dang giu'):
-        plan_pick('red_box', ON_TABLE, 'blue_sphere', LIFT_Z)
+        plan_pick('coca_can', ON_TABLE, 'pepsi_can', LIFT_Z)
 
 
 def test_pick_unknown_position_is_rejected():
     with pytest.raises(TaskError, match='Chua nhan'):
-        plan_pick('red_box', {}, '', LIFT_Z)
+        plan_pick('coca_can', {}, '', LIFT_Z)
 
 
-def test_place_sequence():
-    actions = plan_place('red_box', 'C', ON_TABLE, RETREAT_Z)
+def test_place_goes_to_own_bin():
+    actions = plan_place('coca_can', ON_TABLE, RETREAT_Z)
     assert [type(a) for a in actions] == [Move, Release, Move]
-    assert actions[0].safe and actions[0].goal == pytest.approx(release_point('C', 0.015))
-    assert not actions[2].safe and actions[2].goal[2] == pytest.approx(RETREAT_Z)
+    assert actions[0].safe and actions[0].goal == pytest.approx(release_point('coca_can', H))
+    # điểm nhả (-0.1502) đã cao hơn safe_z (-0.16) nên "lùi lên" giữ nguyên cao độ
+    assert not actions[2].safe
+    assert actions[2].goal[2] == pytest.approx(max(RETREAT_Z, DROP_Z))
 
 
-def test_place_rejects_occupied_slot_and_empty_gripper():
-    objects = dict(ON_TABLE, green_cylinder=in_slot('A'))
-    with pytest.raises(TaskError, match='da co vat'):
-        plan_place('red_box', 'A', objects, RETREAT_Z)
+def test_place_rejects_bin_taken_by_another_can_and_empty_gripper():
+    objects = dict(ON_TABLE, pepsi_can=in_bin('coca_can'))
+    with pytest.raises(TaskError, match='dang co pepsi_can'):
+        plan_place('coca_can', objects, RETREAT_Z)
     with pytest.raises(TaskError, match='Khong giu'):
-        plan_place('', 'A', ON_TABLE, RETREAT_Z)
+        plan_place('', ON_TABLE, RETREAT_Z)
 
 
 def test_pick_place_rejects_object_already_in_bin():
-    objects = dict(ON_TABLE, red_box=in_slot('A'))
+    objects = dict(ON_TABLE, coca_can=in_bin('coca_can'))
     with pytest.raises(TaskError, match='trong khay'):
-        plan_pick_place('red_box', 'B', objects, '', LIFT_Z, RETREAT_Z)
+        plan_pick_place('coca_can', objects, '', LIFT_Z, RETREAT_Z)
 
 
-def test_sort_moves_every_table_object_to_distinct_free_slots():
-    objects = dict(ON_TABLE, green_cylinder=in_slot('B'))
-    actions = plan_sort(objects, '', LIFT_Z, RETREAT_Z)
+def test_sort_sends_every_can_to_its_own_bin():
+    actions = plan_sort(ON_TABLE, '', LIFT_Z, RETREAT_Z)
     grips = [a.expected for a in actions if isinstance(a, Grip)]
-    assert grips == ['red_box', 'blue_sphere']
+    assert grips == [o.name for o in OBJECTS]
     drops = [a.goal[:2] for a in actions if isinstance(a, Move) and a.label.startswith('Mang')]
-    assert drops == [pytest.approx(BIN_SLOTS['A']), pytest.approx(BIN_SLOTS['C'])]
+    assert drops == [pytest.approx(BINS[o.name]) for o in OBJECTS]
+
+
+def test_sort_skips_cans_already_in_a_bin():
+    objects = dict(ON_TABLE, pepsi_can=in_bin('pepsi_can'))
+    grips = [a.expected for a in plan_sort(objects, '', LIFT_Z, RETREAT_Z)
+             if isinstance(a, Grip)]
+    assert grips == ['coca_can', 'sevenup_can']
 
 
 def test_sort_with_nothing_on_table():
-    objects = {'red_box': in_slot('A')}
+    objects = {'coca_can': in_bin('coca_can')}
     with pytest.raises(TaskError, match='Khong con'):
         plan_sort(objects, '', LIFT_Z, RETREAT_Z)
 
@@ -195,9 +204,9 @@ def test_full_sort_plan_is_reachable():
 
 
 def test_check_reachable_rejects_far_object():
-    far = {'red_box': ObjectState((0.2, 0.0, -0.205), 0.015)}
+    far = {'coca_can': ObjectState((0.2, 0.0, CENTER_Z), H)}
     with pytest.raises(TaskError, match='ngoai tam voi'):
-        check_reachable(plan_pick('red_box', far, '', LIFT_Z))
+        check_reachable(plan_pick('coca_can', far, '', LIFT_Z))
 
 
 def test_platform_half_thickness_consistent():
@@ -206,16 +215,12 @@ def test_platform_half_thickness_consistent():
 
 # ---------------------------------------------------------------- lấy ra / reset
 
-IN_BIN = {
-    'red_box': in_slot('B'),
-    'green_cylinder': in_slot('A'),
-    'blue_sphere': in_slot('C'),
-}
+IN_BIN = {o.name: in_bin(o.name) for o in OBJECTS}
 
 
 def test_table_release_point_height():
-    """Mặt bàn -0.22 + khe 5 mm + vật 3 cm + nửa platform 3 mm = -0.182."""
-    assert table_release_point(0.06, 0.0, 0.015) == pytest.approx((0.06, 0.0, -0.182))
+    """Mặt bàn -0.22 + khe 5 mm + lon 58.8 mm + nửa platform 3 mm."""
+    assert table_release_point(-0.085, 0.0, H) == pytest.approx((-0.085, 0.0, TABLE_DROP_Z))
 
 
 def test_home_positions_are_valid_table_spots():
@@ -224,61 +229,60 @@ def test_home_positions_are_valid_table_spots():
         inverse_kinematics(*table_release_point(*obj.home_xy, obj.half_height))
 
 
-@pytest.mark.parametrize('xy', [BIN_CENTER, BIN_SLOTS['A'], (0.0375, 0.065 - 0.05)])
+@pytest.mark.parametrize('xy', list(BINS.values()) + [(0.075 + 0.03, 0.0)])
 def test_table_spot_rejects_bin_footprint(xy):
     with pytest.raises(TaskError, match='khay'):
-        check_table_spot('red_box', xy, {})
+        check_table_spot('coca_can', xy, {})
 
 
 def test_table_spot_rejects_near_other_object_but_ignores_itself():
     objects = dict(ON_TABLE)
-    with pytest.raises(TaskError, match='qua gan green_cylinder'):
-        check_table_spot('red_box', (-0.03, 0.052 - 0.02), objects)
-    check_table_spot('red_box', (0.06, 0.0), objects)  # chính nó đang ở đó: không tính
+    with pytest.raises(TaskError, match='qua gan pepsi_can'):
+        check_table_spot('coca_can', (-0.045, 0.075 - 0.02), objects)
+    check_table_spot('coca_can', (-0.085, 0.0), objects)  # chính nó đang ở đó: không tính
 
 
 def test_unload_sequence_goes_to_home_by_default():
-    actions = plan_unload('red_box', IN_BIN, '', LIFT_Z, RETREAT_Z)
+    actions = plan_unload('coca_can', IN_BIN, '', LIFT_Z, RETREAT_Z)
     assert [type(a) for a in actions] == [Move, Grip, Move, Move, Release, Move]
-    touch = touch_point(IN_BIN['red_box'])
-    assert actions[0].goal == pytest.approx(touch)
-    assert actions[3].safe and actions[3].goal == pytest.approx((0.06, 0.0, -0.182))
+    assert actions[0].goal == pytest.approx(touch_point(IN_BIN['coca_can']))
+    assert actions[3].safe and actions[3].goal == pytest.approx((-0.085, 0.0, TABLE_DROP_Z))
 
 
 def test_unload_to_custom_spot():
-    actions = plan_unload('red_box', IN_BIN, '', LIFT_Z, RETREAT_Z, xy=(-0.06, 0.0))
-    assert actions[3].goal == pytest.approx((-0.06, 0.0, -0.182))
+    actions = plan_unload('coca_can', IN_BIN, '', LIFT_Z, RETREAT_Z, xy=(-0.06, -0.06))
+    assert actions[3].goal == pytest.approx((-0.06, -0.06, TABLE_DROP_Z))
 
 
 def test_unload_rejects_object_on_table():
     with pytest.raises(TaskError, match='tren ban'):
-        plan_unload('red_box', ON_TABLE, '', LIFT_Z, RETREAT_Z)
+        plan_unload('coca_can', ON_TABLE, '', LIFT_Z, RETREAT_Z)
 
 
 def test_unload_rejects_blocked_spot_before_picking():
-    objects = dict(IN_BIN, green_cylinder=ObjectState((0.065, 0.0, -0.205), 0.015))
-    with pytest.raises(TaskError, match='qua gan green_cylinder'):
-        plan_unload('red_box', objects, '', LIFT_Z, RETREAT_Z)
+    objects = dict(IN_BIN, pepsi_can=ObjectState((-0.080, 0.0, CENTER_Z), H))
+    with pytest.raises(TaskError, match='qua gan pepsi_can'):
+        plan_unload('coca_can', objects, '', LIFT_Z, RETREAT_Z)
 
 
 def test_reset_unloads_every_bin_object_to_its_home():
     actions = plan_reset(IN_BIN, '', LIFT_Z, RETREAT_Z)
     check_reachable(actions)
     grips = [a.expected for a in actions if isinstance(a, Grip)]
-    assert grips == ['red_box', 'green_cylinder', 'blue_sphere']
+    assert grips == [o.name for o in OBJECTS]
     drops = [a.goal for a in actions if isinstance(a, Move) and a.label.startswith('Mang')]
-    assert drops == [pytest.approx(table_release_point(*o.home_xy, 0.015)) for o in OBJECTS]
+    assert drops == [pytest.approx(table_release_point(*o.home_xy, H)) for o in OBJECTS]
 
 
 def test_reset_skips_objects_already_on_table():
-    objects = dict(IN_BIN, red_box=ON_TABLE['red_box'])
+    objects = dict(IN_BIN, coca_can=ON_TABLE['coca_can'])
     grips = [a.expected for a in plan_reset(objects, '', LIFT_Z, RETREAT_Z)
              if isinstance(a, Grip)]
-    assert grips == ['green_cylinder', 'blue_sphere']
+    assert grips == ['pepsi_can', 'sevenup_can']
 
 
 def test_reset_with_empty_bin_or_holding():
     with pytest.raises(TaskError, match='Khong co vat nao trong khay'):
         plan_reset(ON_TABLE, '', LIFT_Z, RETREAT_Z)
     with pytest.raises(TaskError, match='Dang giu'):
-        plan_reset(IN_BIN, 'red_box', LIFT_Z, RETREAT_Z)
+        plan_reset(IN_BIN, 'coca_can', LIFT_Z, RETREAT_Z)

@@ -18,11 +18,12 @@ from delta_controller.color_detector import detect_objects
 from delta_controller.delta_kinematics import inverse_kinematics, UnreachableError
 from delta_controller.gripper_logic import PLATFORM_HALF_THICKNESS
 from delta_controller.scene import (
-    BIN_CENTER,
-    BIN_OUTER_HALF,
     CALIB_MARKER_SIZE,
     CALIB_MARKERS,
-    OBJECTS,
+    LEGACY_BIN_CENTER,
+    LEGACY_BIN_LAYOUT,
+    LEGACY_BIN_OUTER_HALF,
+    LEGACY_OBJECTS,
 )
 from delta_controller.vision_estimation import VISIBLE_MIN
 from delta_controller.vision_eval import (
@@ -56,7 +57,7 @@ def touches_border(record, samples_by_image):
 
 def graspable(record):
     """Robot với tới điểm chạm đỉnh vật (theo vị trí thật) không."""
-    half = {o.name: o.half_height for o in OBJECTS}[record.name]
+    half = {o.name: o.half_height for o in LEGACY_OBJECTS}[record.name]
     x, y, z = record.ground_truth
     try:
         inverse_kinematics(x, y, z + half + PLATFORM_HALF_THICKNESS)
@@ -92,8 +93,10 @@ def main():
         camera = CameraModel.from_dict(yaml.safe_load(f)['camera'])
     samples = load_dataset(dataset)
     by_image = {os.path.basename(s.image_path): s.image_path for s in samples}
-    records = evaluate(samples, camera)
-    baseline = evaluate(samples, camera, use_top_edge=False)   # cách của Bước 8.3/8.4
+    # Bộ dữ liệu Bước 8.4 chụp ở THẾ GIỚI CŨ (ba khối vuông) -> phải mô tả hình học cũ.
+    records = evaluate(samples, camera, objects=LEGACY_OBJECTS, bins=LEGACY_BIN_LAYOUT)
+    baseline = evaluate(samples, camera, use_top_edge=False,
+                        objects=LEGACY_OBJECTS, bins=LEGACY_BIN_LAYOUT)
     cut = {id(r): touches_border(r, by_image) for r in records}
 
     lines = ['# Đánh giá sai số thị giác (Bước 8.4)', '',
@@ -111,7 +114,7 @@ def main():
     row('Lưới — vật **trọn trong ảnh**', grid_in)
     row('Lưới — vật **bị cắt mép ảnh**', [r for r in grid if cut[id(r)]])
     row('Lưới — **trong tầm với của robot**', [r for r in grid if graspable(r)])
-    for obj in OBJECTS:
+    for obj in LEGACY_OBJECTS:
         row(f'Lưới trọn trong ảnh — {LABEL[obj.name]}', [r for r in grid_in if r.name == obj.name])
     row('Vật trong khay (mặt đáy cao hơn bàn 3 mm)', [r for r in records if r.scenario == 'bin'])
     row('Chỉ các ước lượng **tin cậy** (mọi kịch bản)', [r for r in records if r.reliable])
@@ -160,9 +163,13 @@ def main():
     clean_samples = [s for s in grid_samples if os.path.basename(s.image_path) in in_images]
     noise_rows, bright_rows = [], []
     for sigma in NOISE_LEVELS:
-        noise_rows.append((sigma, summarize(evaluate(clean_samples, camera, noise_sigma=sigma))))
+        noise_rows.append((sigma, summarize(evaluate(clean_samples, camera, noise_sigma=sigma,
+                                            objects=LEGACY_OBJECTS,
+                                            bins=LEGACY_BIN_LAYOUT))))
     for scale in BRIGHTNESS_LEVELS:
-        bright_rows.append((scale, summarize(evaluate(clean_samples, camera, brightness=scale))))
+        bright_rows.append((scale, summarize(evaluate(clean_samples, camera, brightness=scale,
+                                             objects=LEGACY_OBJECTS,
+                                             bins=LEGACY_BIN_LAYOUT))))
     lines += ['', '## 5. Độ bền với nhiễu Gauss (lưới, vật trọn trong ảnh)', '',
               *header('σ (mức xám)')]
     lines += [f'| {s} ' + fmt(st) for s, st in noise_rows]
@@ -186,7 +193,7 @@ def main():
     # ---------------------------------------------------------------- hình
     fig, axes = plt.subplots(1, 3, figsize=(15, 5), constrained_layout=True)
     vmax = max(3.0, max((r.error_xy * 1000 for r in grid_in if r.detected), default=3.0))
-    for ax, obj in zip(axes, OBJECTS):
+    for ax, obj in zip(axes, LEGACY_OBJECTS):
         recs = [r for r in grid if r.name == obj.name]
         ok = [r for r in recs if r.detected and not cut[id(r)]]
         sc = ax.scatter([1000 * r.ground_truth[1] for r in ok],
@@ -196,9 +203,9 @@ def main():
         ax.scatter([1000 * r.ground_truth[1] for r in bad],
                    [1000 * r.ground_truth[0] for r in bad],
                    marker='x', color='crimson', s=60, label='bị cắt mép / không thấy')
-        ax.add_patch(plt.Rectangle((1000 * (BIN_CENTER[1] - BIN_OUTER_HALF),
-                                    1000 * (BIN_CENTER[0] - BIN_OUTER_HALF)),
-                                   2000 * BIN_OUTER_HALF, 2000 * BIN_OUTER_HALF,
+        ax.add_patch(plt.Rectangle((1000 * (LEGACY_BIN_CENTER[1] - LEGACY_BIN_OUTER_HALF),
+                                    1000 * (LEGACY_BIN_CENTER[0] - LEGACY_BIN_OUTER_HALF)),
+                                   2000 * LEGACY_BIN_OUTER_HALF, 2000 * LEGACY_BIN_OUTER_HALF,
                                    fill=False, ec='darkorange', lw=1.5))
         for mx, my in CALIB_MARKERS.values():
             s = 1000 * CALIB_MARKER_SIZE

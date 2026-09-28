@@ -6,6 +6,7 @@ JointCommander. Điểm xuất phát lấy từ FK của góc khớp đo trên /
 """
 
 import math
+import statistics
 import threading
 import time
 
@@ -20,7 +21,6 @@ from delta_controller.task_executor import TaskExecutor
 from delta_controller.task_planner import (
     object_states,
     resolve_object,
-    resolve_slot,
     TaskError,
 )
 from delta_controller.trajectory import plan_path, safe_waypoints
@@ -53,13 +53,13 @@ Giac hut (can: ros2 launch delta_controller pick_place.launch.py):
   release         -> nha vat dang giu
   Khi dang giu vat, duong 'safe' tu nang len safe_z_holding de vat khong quet trung vat khac.
 
-Lenh cap cao (vat: red_box/do, green_cylinder/xanhla, blue_sphere/cau; o khay: A, B, C):
-  objects | vat               -> vi tri va trang thai tung vat (tren ban / o A / dang giu)
+Lenh cap cao (vat: coca_can/coca, pepsi_can/pepsi, sevenup_can/7up; moi loai mot khay rieng):
+  objects | vat               -> vi tri va trang thai tung vat (tren ban / khay X / dang giu)
   goto <vat> | den <vat>      -> di toi phia tren vat
   pick <vat> | nhat <vat>     -> ha xuong, hut, nhac vat len (kiem chung vat da roi ban)
-  place [o] | tha [o]         -> mang vat dang giu toi o (mac dinh o trong dau tien), nha
-  pickplace <vat> [o] | chuyen <vat> [o]
-  sort | don                  -> don het vat tren ban vao khay
+  place | tha                 -> mang vat dang giu toi DUNG KHAY cua loai do, nha
+  pickplace <vat> | chuyen <vat>
+  sort | don                  -> PHAN LOAI: moi lon tren ban vao dung khay cua no
   lay_ra <vat> [x y] | unload -> lay vat tu khay ra, dat len ban tai (x, y)
                                  (mac dinh: vi tri ban dau cua vat)
   reset                       -> lay het vat trong khay ra, dat ve vi tri ban dau
@@ -74,7 +74,7 @@ Lenh khac:
   help            -> hien lai huong dan nay
   q / quit / exit -> thoat (Ctrl+C khi dang chay -> dung quy dao)
 
-Vi du: 0 0 -0.15    safe 0.06 0 -0.185    pick do    place A    sort
+Vi du: 0 0 -0.15    safe -0.085 0 -0.158    nhat coca    tha    don
 """
 
 TASK_ALIASES = {
@@ -112,7 +112,7 @@ class CartesianController(Node):
         self.safe_z = self.declare_parameter('safe_z', -0.16).value
         # Khi mang vật cao 3 cm: đáy vật = tool0 - 0.033 phải cao hơn đỉnh vật khác (-0.19)
         # và thành khay (-0.20) -> tool0 >= -0.147; chọn -0.14 để dư ~7 mm.
-        self.safe_z_holding = self.declare_parameter('safe_z_holding', -0.14).value
+        self.safe_z_holding = self.declare_parameter('safe_z_holding', -0.13).value
 
         self._commander = JointCommander(self)
         self._lock = threading.Lock()
@@ -135,8 +135,10 @@ class CartesianController(Node):
 
         # Nguồn vị trí vật cho lệnh cấp cao: 'camera' (thị giác, Bước 9) | 'ground_truth'.
         self.object_source = self.declare_parameter('object_source', 'camera').value
-        self._vision = {}            # lần nhận /vision/objects gần nhất: tên -> ((x, y, z), score)
-        self._vision_stamps = []     # thời điểm (đồng hồ thật) nhận các khung gần đây
+        # Lịch sử vài khung /vision/objects gần nhất: [(thời điểm, {tên: ((x,y,z), score)})].
+        # Giữ nhiều khung để lấy TRUNG VỊ thay vì tin vào đúng một khung — khung lẻ chụp trúng
+        # lúc platform còn đang di chuyển từng cho vị trí lệch tới 48 mm (đo 2026-09-30).
+        self._vision_frames = []
         self.create_subscription(Detection3DArray, '/vision/objects', self._on_vision, 10)
         # Một executor cho cả phiên: giữ lần quan sát camera trước khi nhặt, để lệnh 'tha' gõ
         # riêng sau 'nhat' vẫn biết ô nào đã có vật.
@@ -149,29 +151,40 @@ class CartesianController(Node):
             score = d.results[0].hypothesis.score if d.results else 0.0
             estimates[d.id] = ((p.x, p.y, p.z), score)
         with self._lock:
-            self._vision = estimates
-            self._vision_stamps = (self._vision_stamps + [time.monotonic()])[-20:]
+            self._vision_frames = (self._vision_frames + [(time.monotonic(), estimates)])[-30:]
 
-    def observe_camera(self, after, frames=2, timeout_sec=5.0):
+    def observe_camera(self, after, frames=5, timeout_sec=6.0):
         """
-        Chờ khung /vision/objects nhận SAU thời điểm `after` (đồng hồ thật).
+        Chờ `frames` khung /vision/objects nhận SAU thời điểm `after`, lấy TRUNG VỊ của chúng.
+
+        Một khung lẻ có thể chụp trúng lúc platform còn đang di chuyển (quỹ đạo phát theo đồng hồ
+        thật, mô phỏng chạy chậm hơn) và cho vị trí lệch hàng chục mm. Vật chỉ được coi là thấy rõ
+        khi ĐA SỐ khung cho điểm tin cậy; vị trí trả về là trung vị theo từng trục.
 
         Trả về (vật thấy rõ: tên -> ObjectState, vật thấy nhưng không tin cậy: tên -> score).
         """
         deadline = max(after, time.monotonic()) + timeout_sec
         while True:
             with self._lock:
-                fresh = sum(t > after for t in self._vision_stamps)
-                estimates = dict(self._vision)
-            if fresh >= frames:
+                fresh = [e for t, e in self._vision_frames if t > after]
+            if len(fresh) >= frames:
                 break
             if time.monotonic() > deadline:
+                if fresh:
+                    break      # nhận được ít khung hơn mong muốn: vẫn dùng những gì đang có
                 raise RuntimeError('Chua nhan duoc /vision/objects moi — node vision co chay '
                                    'va da hieu chuan camera chua? (hoac dung: nguon that)')
             time.sleep(0.03)
-        reliable = {n: xyz for n, (xyz, score) in estimates.items() if score > 0.0}
-        unclear = {n: score for n, (_, score) in estimates.items() if score <= 0.0}
-        return object_states(reliable), unclear
+
+        good, scores = {}, {}
+        for name in {n for e in fresh for n in e}:
+            seen = [e[name] for e in fresh if name in e]
+            ok = [xyz for xyz, score in seen if score > 0.0]
+            scores[name] = max((score for _, score in seen), default=0.0)
+            if len(ok) * 2 > len(fresh):      # đa số khung cho điểm tin cậy
+                good[name] = tuple(statistics.median(v[k] for v in ok) for k in range(3))
+        unclear = {n: scores[n] for n in scores if n not in good}
+        return object_states(good), unclear
 
     def _on_odometry(self, name, msg):
         p = msg.pose.pose.position
@@ -279,7 +292,26 @@ class CartesianController(Node):
             self._send(thetas)
             next_time += period
             time.sleep(max(0.0, next_time - time.monotonic()))
+        self.wait_until_arrived(goal)
         return waypoints, len(plan), len(plan) * period
+
+    def wait_until_arrived(self, goal, tolerance=0.002, timeout_sec=3.0):
+        """
+        Chờ vị trí ĐO ĐƯỢC (động học thuận từ /joint_states) tới gần goal.
+
+        Vòng phát điểm chạy theo ĐỒNG HỒ THẬT, còn mô phỏng chạy với RTF < 1, nên khi phát xong
+        điểm cuối thì robot trong mô phỏng VẪN CÒN ĐANG ĐI. Trả về ngay mà không chờ thì lệnh hút
+        gọi lúc platform chưa tới nơi: đo 2026-09-30 thấy lệch 46–48 mm so với vật, trong khi ước
+        lượng của camera chỉ lệch 1.8 mm — tức lỗi nằm ở phần chấp hành, không phải phần nhận thức.
+        Trả về True nếu đã tới trong dung sai, False nếu hết thời gian chờ.
+        """
+        deadline = time.monotonic() + timeout_sec
+        while time.monotonic() < deadline:
+            here = self.current_position()
+            if here is not None and math.dist(here, goal) <= tolerance:
+                return True
+            time.sleep(0.02)
+        return False
 
 
 def _format_angles(thetas):
@@ -304,7 +336,7 @@ def _handle_task(node, command, args):
         executor.reset()
         return
     if task == 'place':
-        executor.place(resolve_slot(args[0]) if args else None)
+        executor.place()
         return
     if not args:
         raise TaskError(f'Can ten vat, vd: {command} do')
@@ -314,7 +346,7 @@ def _handle_task(node, command, args):
     elif task == 'pick':
         executor.pick(name)
     elif task == 'pickplace':
-        executor.pick_place(name, resolve_slot(args[1]) if len(args) > 1 else None)
+        executor.pick_place(name)
     elif task == 'unload':
         if len(args) not in (1, 3):
             raise TaskError(f'Dung: {command} <vat>  hoac  {command} <vat> x y')

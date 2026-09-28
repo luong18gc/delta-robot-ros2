@@ -8,7 +8,8 @@ from delta_controller.camera_model import camera_model_from_gazebo_pose
 from delta_controller.color_detector import detect_objects
 from delta_controller.scene import (
     BIN_FLOOR_Z,
-    OBJECTS,
+    LEGACY_BIN_LAYOUT,
+    LEGACY_OBJECTS,
     SIDE_CAMERA_GT_RPY,
     SIDE_CAMERA_GT_XYZ,
     TABLE_Z,
@@ -25,20 +26,22 @@ import pytest
 K = np.array([[772.548, 0.0, 320.0], [0.0, 772.548, 240.0], [0.0, 0.0, 1.0]])
 CAMERA = camera_model_from_gazebo_pose(K, SIDE_CAMERA_GT_XYZ, SIDE_CAMERA_GT_RPY)
 DATA = os.path.join(os.path.dirname(__file__), 'data')
-BY_NAME = {o.name: o for o in OBJECTS}
+# Ảnh mẫu trong test/data/ chụp ở THẾ GIỚI CŨ (ba khối vuông), nên phải mô tả hình học cũ.
+BY_NAME = {o.name: o for o in LEGACY_OBJECTS}
 
 
 def estimate_in(image_name, object_name):
     img = cv2.imread(os.path.join(DATA, image_name))
     obj = BY_NAME[object_name]
-    return estimate_object(detect_objects(img)[obj.color], CAMERA, obj, img.shape)
+    return estimate_object(detect_objects(img)[obj.color], CAMERA, obj, img.shape,
+                           bins=LEGACY_BIN_LAYOUT)
 
 
 def error_mm(est, truth_xy):
     return 1000 * math.hypot(est.position[0] - truth_xy[0], est.position[1] - truth_xy[1])
 
 
-@pytest.mark.parametrize('obj', OBJECTS, ids=lambda o: o.name)
+@pytest.mark.parametrize('obj', LEGACY_OBJECTS, ids=lambda o: o.name)
 def test_surface_points_span_object_size(obj):
     pts = surface_points(obj, (0.0, 0.0, 0.0))
     assert pts[:, 2].max() == pytest.approx(obj.half_height, abs=1e-3)
@@ -62,7 +65,7 @@ def test_fit_top_edge_recovers_position_from_exact_features():
 
 def test_unoccluded_object_is_fully_visible_and_reliable():
     """Ảnh lúc khởi động: 3 vật không bị che -> tỉ lệ nhìn thấy ~1, tin cậy, sai số < 2 mm."""
-    for obj in OBJECTS:
+    for obj in LEGACY_OBJECTS:
         est = estimate_in('side_camera_home.png', obj.name)
         assert est.method == 'centroid'
         assert est.visible_fraction == pytest.approx(1.0, abs=0.1)

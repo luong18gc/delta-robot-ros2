@@ -317,6 +317,28 @@
         <color rgba="0.95 0.75 0.10 1.0"/>
       </material>
     </visual>
+    <!-- ĐẦU HÚT (đồ án): hai khối CHỈ HIỂN THỊ, không va chạm, không đổi vật lý — để nhìn rõ đầu
+         công tác đang ở đâu trong mô phỏng và trên ảnh camera.
+         Màu hồng cánh sen (H ≈ 157 trong HSV) nằm NGOÀI cả ba lớp màu đỏ [0,8]∪[172,180],
+         lục [45,85], lam [95,125] nên bộ nhận dạng không coi đầu hút là vật.
+         Mặt hút nằm ÂM trong bề dày platform (z -0.003..0), không thò xuống dưới mặt dưới, để
+         không đâm vào vật khi hạ tới điểm chạm (tool0 z = đỉnh vật + 0.003). -->
+    <visual name="suction_face">
+      <origin xyz="0 0 -0.0015" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.009" length="0.003"/>
+      </geometry>
+      <material name="mat_suction">
+        <color rgba="1.0 0.10 0.80 1.0"/>
+      </material>
+    </visual>
+    <visual name="suction_turret">
+      <origin xyz="0 0 0.007" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.010" length="0.008"/>
+      </geometry>
+      <material name="mat_suction"/>
+    </visual>
     <!-- Collision (đồ án): chỉ platform có va chạm để đẩy/chạm vật; cánh tay vẫn không có.
          Xấp xỉ tấm Werkzeugtraeger (bbox ~0.059 x 0.051 x 0.006 m) bằng hộp dẹt.
          Hạn chế đã đo: ép platform XUỐNG vật động đang nằm trên bàn thì platform lún dần vào vật

@@ -9,8 +9,9 @@
      Plugin (gz-sim8) tự ATTACH ngay khi tìm thấy vật -> gripper_node phải gửi detach cho tất cả
      vật lúc khởi động. World không có vật (delta_world.sdf) thì plugin chỉ chờ, không cảnh báo.
 
-     Danh sách vật phải khớp với: worlds/delta_objects_world.sdf và
-     delta_controller/launch/pick_place.launch.py (OBJECTS). -->
+     Khai báo vật của CẢ HAI thế giới: ba lon (delta_cans_world.sdf, dùng từ Bước 10b) và ba
+     khối vuông cũ (delta_objects_world.sdf, giữ để tái lập Bước 6–9). Plugin chỉ chờ chứ không
+     cảnh báo khi world không có vật đó (suppress_child_warning), nên khai cả 6 là an toàn. -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <xacro:macro name="vacuum_target" params="object">
@@ -28,6 +29,12 @@
     </gazebo>
   </xacro:macro>
 
+  <!-- Ba lon (cảnh hiện tại, scene.OBJECTS) -->
+  <xacro:vacuum_target object="coca_can"/>
+  <xacro:vacuum_target object="pepsi_can"/>
+  <xacro:vacuum_target object="sevenup_can"/>
+
+  <!-- Ba khối vuông của thế giới cũ (scene.LEGACY_OBJECTS) -->
   <xacro:vacuum_target object="red_box"/>
   <xacro:vacuum_target object="green_cylinder"/>
   <xacro:vacuum_target object="blue_sphere"/>

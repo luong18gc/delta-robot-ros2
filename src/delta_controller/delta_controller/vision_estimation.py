@@ -18,7 +18,7 @@ from dataclasses import dataclass
 import math
 
 import cv2
-from delta_controller.scene import BIN_CENTER, BIN_FLOOR_Z, BIN_INNER_HALF, BIN_OUTER_HALF, TABLE_Z
+from delta_controller.scene import BIN_LAYOUT, TABLE_Z
 import numpy as np
 
 # Tỉ lệ nhìn thấy tối thiểu để tin vị trí tâm khối. Trên bộ dữ liệu 8.4: 0.85 bỏ sót 1/29 ước lượng
@@ -77,25 +77,30 @@ def silhouette_features(camera, obj, center):
     return m['m00'], m['m10'] / m['m00'], float(hull[:, 1].min())
 
 
+def silhouette_bottom(camera, obj, center):
+    """(u trọng tâm, v mép DƯỚI) của hình bóng dự đoán."""
+    hull = silhouette(camera, obj, center)
+    m = cv2.moments(hull)
+    return m['m10'] / m['m00'], float(hull[:, 1].max())
+
+
 # ---------------------------------------------------------------- ước lượng
 
-def near_bin(x, y, margin=BIN_SEARCH_MARGIN):
-    reach = BIN_OUTER_HALF + margin
-    return abs(x - BIN_CENTER[0]) < reach and abs(y - BIN_CENTER[1]) < reach
+def near_bin(x, y, margin=BIN_SEARCH_MARGIN, bins=BIN_LAYOUT):
+    """Gần BẤT KỲ khay nào (từ Bước 10b mỗi loại vật có một khay riêng)."""
+    reach = bins.outer_half + margin
+    return any(abs(x - bx) < reach and abs(y - by) < reach for bx, by in bins.centers)
 
 
-def inside_bin(x, y):
-    return abs(x - BIN_CENTER[0]) < BIN_INNER_HALF and abs(y - BIN_CENTER[1]) < BIN_INNER_HALF
+def inside_bin(x, y, bins=BIN_LAYOUT):
+    """Nằm trong lòng BẤT KỲ khay nào."""
+    return any(abs(x - bx) < bins.inner_half and abs(y - by) < bins.inner_half
+               for bx, by in bins.centers)
 
 
-def fit_top_edge(camera, obj, u_obs, v_top_obs, z_center, start_xy, iterations=20):
-    """Newton: tìm (x, y) để (u trọng tâm, v mép trên) dự đoán khớp quan sát; None nếu phân kỳ."""
+def _newton_fit(residual, start_xy, iterations=20):
+    """Newton 2 ẩn cho hàm dư 2 chiều; None nếu phân kỳ."""
     p = np.array(start_xy, float)
-
-    def residual(q):
-        _, u, v_top = silhouette_features(camera, obj, (q[0], q[1], z_center))
-        return np.array([u - u_obs, v_top - v_top_obs])
-
     for _ in range(iterations):
         f = residual(p)
         J = np.empty((2, 2))
@@ -113,13 +118,39 @@ def fit_top_edge(camera, obj, u_obs, v_top_obs, z_center, start_xy, iterations=2
     return None
 
 
+def fit_bottom_edge(camera, obj, u_obs, v_bottom_obs, z_center, start_xy, iterations=20):
+    """
+    Newton: tìm (x, y) để (u trọng tâm, v mép DƯỚI) của hình bóng khớp quan sát.
+
+    Dùng cho vật đứng trên bàn có bề mặt NHIỀU MÀU (lon: nắp bạc, vành chữ trắng): tâm khối của
+    vùng MÀU nằm lệch xuống dưới so với tâm hình bóng — đo trên mô phỏng 2026-09-30 là 32 px,
+    tương đương 28 mm, quá lớn so với dung sai. Mép dưới thì không bị lệch vì thân lon có màu
+    xuống tới tận đáy, và đáy lon tì trên mặt bàn nên là đặc trưng hình học chắc chắn.
+    """
+    def residual(q):
+        u, v_bottom = silhouette_bottom(camera, obj, (q[0], q[1], z_center))
+        return np.array([u - u_obs, v_bottom - v_bottom_obs])
+
+    return _newton_fit(residual, start_xy, iterations)
+
+
+def fit_top_edge(camera, obj, u_obs, v_top_obs, z_center, start_xy, iterations=20):
+    """Newton: tìm (x, y) để (u trọng tâm, v mép trên) dự đoán khớp quan sát; None nếu phân kỳ."""
+    def residual(q):
+        _, u, v_top = silhouette_features(camera, obj, (q[0], q[1], z_center))
+        return np.array([u - u_obs, v_top - v_top_obs])
+
+    return _newton_fit(residual, start_xy, iterations)
+
+
 def touches_border(detection, image_shape):
     x, y, w, h = detection.bbox
     height, width = image_shape[:2]
     return x <= 0 or y <= 0 or x + w >= width or y + h >= height
 
 
-def estimate_object(detection, camera, obj, image_shape, use_top_edge=True):
+def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
+                    bins=BIN_LAYOUT):
     """
     Vị trí tâm vật từ một Detection.
 
@@ -133,16 +164,37 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True):
     x, y, _ = camera.pixel_to_plane(u, v, table_center_z)
     position, method = (x, y, table_center_z), 'centroid'
 
-    if use_top_edge and near_bin(x, y):
-        bin_center_z = BIN_FLOOR_Z + obj.half_height
+    if use_top_edge and near_bin(x, y, bins=bins):
+        # TRONG KHAY: thành khay che nửa dưới -> mép dưới không tin được, khớp MÉP TRÊN (mặt trên
+        # luôn lộ vì camera nhìn chếch xuống), tâm vật ở cao độ đáy khay.
+        bin_center_z = bins.floor_z + obj.half_height
         # Pixel trên cùng của mặt nạ có tâm ở hàng bbox y -> mép thật nằm ở khoảng y - 0.5.
         v_top_obs = detection.bbox[1] - 0.5
         fit = fit_top_edge(camera, obj, u, v_top_obs, bin_center_z, (x, y))
-        if fit is not None and inside_bin(*fit):
+        if fit is not None and inside_bin(*fit, bins=bins):
             position, method = (fit[0], fit[1], bin_center_z), 'top_edge'
+    elif getattr(obj, 'color_fraction', 1.0) < 0.9:
+        # TRÊN BÀN, vật nhiều màu (lon: nắp bạc, vành chữ trắng): tâm khối vùng MÀU lệch xuống
+        # dưới so với tâm hình bóng (đo được 32 px ≈ 28 mm). Khớp MÉP DƯỚI thay vì tâm khối —
+        # thân lon có màu xuống tận đáy và đáy tì trên mặt bàn nên đặc trưng này không bị lệch.
+        bx, by, bw, bh = detection.bbox
+        fit = fit_bottom_edge(camera, obj, u, by + bh - 0.5, table_center_z, (x, y))
+        if fit is not None:
+            position, method = (fit[0], fit[1], table_center_z), 'bottom_edge'
+            # Ước lượng thô có thể rơi ngoài vùng dò khay trong khi vật THẬT nằm trong khay
+            # (mép dưới bị thành khay che nên phép khớp đáy kéo lệch). Nếu kết quả rơi vào lòng
+            # khay thì đó là dấu hiệu đã đoán nhầm -> thử lại bằng mép trên ở cao độ đáy khay.
+            if use_top_edge and inside_bin(fit[0], fit[1], bins=bins):
+                bin_center_z = bins.floor_z + obj.half_height
+                retry = fit_top_edge(camera, obj, u, by - 0.5, bin_center_z, fit)
+                if retry is not None and inside_bin(*retry, bins=bins):
+                    position, method = (retry[0], retry[1], bin_center_z), 'top_edge'
 
     area, _, _ = silhouette_features(camera, obj, position)
-    visible = detection.area / area if area > 0 else 0.0
+    # Chia cho tỉ lệ màu danh nghĩa: vật nhiều màu (lon có nắp bạc, chữ trắng) chỉ mang màu trên
+    # một phần hình bóng, nên phải so với phần ĐÁNG LẼ thấy được chứ không so với cả hình bóng.
+    expected = area * getattr(obj, 'color_fraction', 1.0)
+    visible = detection.area / expected if expected > 0 else 0.0
     cut = touches_border(detection, image_shape)
     reliable = not cut and (method == 'top_edge' or visible >= VISIBLE_MIN)
     return ObjectEstimate(position=tuple(float(c) for c in position), method=method,

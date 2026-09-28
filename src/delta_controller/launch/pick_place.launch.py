@@ -31,7 +31,7 @@ def generate_launch_description():
     simulation = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(bringup, 'launch', '3dof_delta.launch.py')),
         launch_arguments={
-            'world_name': 'delta_objects_world',
+            'world_name': 'delta_cans_world',
             'gui': LaunchConfiguration('gui'),
         }.items(),
     )

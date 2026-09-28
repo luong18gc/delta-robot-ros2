@@ -12,12 +12,11 @@ import math
 from delta_controller.delta_kinematics import inverse_kinematics, UnreachableError
 from delta_controller.gripper_logic import ObjectState, PLATFORM_HALF_THICKNESS
 from delta_controller.scene import (
-    BIN_CENTER,
     BIN_CLEARANCE,
     BIN_FLOOR_Z,
     BIN_INNER_HALF,
     BIN_OUTER_HALF,
-    BIN_SLOTS,
+    BINS,
     DROP_GAP,
     MIN_SEPARATION,
     OBJECT_HALF_WIDTH,
@@ -27,8 +26,6 @@ from delta_controller.scene import (
 
 # Độ cao lơ lửng trên đỉnh vật cho lệnh goto (m).
 HOVER_CLEARANCE = 0.02
-# Vật nằm trong ô nếu tâm cách tâm ô không quá giá trị này (m).
-SLOT_RADIUS = 0.015
 # Vật được coi là đã nhấc lên nếu cao hơn mặt khay/bàn thêm giá trị này (m).
 LIFTED_MARGIN = 0.01
 
@@ -67,11 +64,11 @@ def resolve_object(text):
     raise TaskError(f'Khong biet vat "{text}". Cac vat: {names}')
 
 
-def resolve_slot(text):
-    key = text.strip().upper()
-    if key not in BIN_SLOTS:
-        raise TaskError(f'Khong co o "{text}". Cac o: {", ".join(BIN_SLOTS)}')
-    return key
+def bin_of(name):
+    """Khay dành riêng cho loại vật này. Mỗi loại một khay -> không phải chọn ô."""
+    if name not in BINS:
+        raise TaskError(f'Khong co khay cho {name}')
+    return BINS[name]
 
 
 def half_height_of(name):
@@ -92,9 +89,9 @@ def _release_z(surface_z, half_height):
     return surface_z + DROP_GAP + 2.0 * half_height + PLATFORM_HALF_THICKNESS
 
 
-def release_point(slot, half_height):
-    """Tâm tool0 để đáy vật đang giữ cách đáy khay DROP_GAP tại ô slot."""
-    x, y = BIN_SLOTS[slot]
+def release_point(name, half_height):
+    """Tâm tool0 để đáy vật đang giữ cách đáy KHAY CỦA NÓ một khoảng DROP_GAP."""
+    x, y = bin_of(name)
     return (x, y, _release_z(BIN_FLOOR_Z, half_height))
 
 
@@ -115,8 +112,9 @@ def check_table_spot(name, xy, objects):
     """
     x, y = xy
     reach = BIN_OUTER_HALF + OBJECT_HALF_WIDTH + BIN_CLEARANCE
-    if abs(x - BIN_CENTER[0]) < reach and abs(y - BIN_CENTER[1]) < reach:
-        raise TaskError(f'Diem ({x:.4f}, {y:.4f}) chong len khay')
+    for bin_name, (bx, by) in BINS.items():
+        if abs(x - bx) < reach and abs(y - by) < reach:
+            raise TaskError(f'Diem ({x:.4f}, {y:.4f}) chong len khay {bin_name}')
     for other, obj in objects.items():
         if other == name:
             continue
@@ -130,40 +128,34 @@ def check_table_spot(name, xy, objects):
 # ---------------------------------------------------------------- trạng thái cảnh
 
 def locate(name, obj, held):
-    """Mô tả vị trí vật: 'dang giu', 'o A' / 'trong khay', hoặc 'tren ban'."""
+    """
+    Mô tả vị trí vật.
+
+    Trả về 'dang giu', 'khay <loại>' (đúng khay của nó), 'khay la <loại>' (nằm nhầm khay),
+    hoặc 'tren ban'.
+    """
     if name == held:
         return 'dang giu'
-    for slot, (sx, sy) in BIN_SLOTS.items():
-        if math.hypot(obj.center[0] - sx, obj.center[1] - sy) <= SLOT_RADIUS:
-            return f'o {slot}'
-    if in_bin(obj):
-        return 'trong khay'
+    for bin_name, (bx, by) in BINS.items():
+        if inside_bin_region(obj.center[0], obj.center[1], bin_name):
+            return f'khay {bin_name}' if bin_name == name else f'khay la {bin_name}'
     return 'tren ban'
 
 
-def inside_bin_region(x, y):
-    """Điểm (x, y) nằm trong lòng khay."""
-    return abs(x - BIN_CENTER[0]) < BIN_INNER_HALF and abs(y - BIN_CENTER[1]) < BIN_INNER_HALF
+def inside_bin_region(x, y, bin_name=None):
+    """Điểm (x, y) nằm trong lòng một khay (hoặc đúng khay bin_name nếu có chỉ định)."""
+    targets = [BINS[bin_name]] if bin_name else list(BINS.values())
+    return any(abs(x - bx) < BIN_INNER_HALF and abs(y - by) < BIN_INNER_HALF
+               for bx, by in targets)
 
 
 def in_bin(obj):
     return inside_bin_region(obj.center[0], obj.center[1])
 
 
-def occupied_slots(objects, held):
-    occupied = set()
-    for name, obj in objects.items():
-        where = locate(name, obj, held)
-        if where.startswith('o '):
-            occupied.add(where[2:])
-    return occupied
-
-
-def first_free_slot(objects, held):
-    for slot in BIN_SLOTS:
-        if slot not in occupied_slots(objects, held):
-            return slot
-    raise TaskError('Khay da day (ca 3 o deu co vat)')
+def in_own_bin(name, obj):
+    """Vật đã nằm đúng khay dành cho nó chưa."""
+    return inside_bin_region(obj.center[0], obj.center[1], name)
 
 
 def is_lifted(obj, surface_z):
@@ -199,13 +191,14 @@ def plan_pick(name, objects, held, lift_z):
     ]
 
 
-def plan_place(held, slot, objects, retreat_z):
-    """Mang vật tới ô slot -> nhả -> lùi thẳng lên độ cao retreat_z."""
+def plan_place(held, objects, retreat_z):
+    """Mang vật tới ĐÚNG KHAY CỦA NÓ -> nhả -> lùi thẳng lên độ cao retreat_z."""
     if not held:
         raise TaskError('Khong giu vat nao de tha')
-    if slot in occupied_slots(objects, held):
-        raise TaskError(f'O {slot} da co vat')
-    return _drop(held, release_point(slot, half_height_of(held)), retreat_z, f'o {slot}')
+    for other, obj in objects.items():
+        if other != held and in_own_bin(held, obj):
+            raise TaskError(f'Khay {held} dang co {other}')
+    return _drop(held, release_point(held, half_height_of(held)), retreat_z, f'khay {held}')
 
 
 def plan_place_on_table(held, xy, objects, retreat_z):
@@ -259,29 +252,26 @@ def plan_reset(objects, held, lift_z, retreat_z):
     return actions
 
 
-def plan_pick_place(name, slot, objects, held, lift_z, retreat_z):
-    if name in objects and locate(name, objects[name], held).startswith('o '):
+def plan_pick_place(name, objects, held, lift_z, retreat_z):
+    """Nhặt vật rồi thả vào đúng khay của loại đó."""
+    if name in objects and locate(name, objects[name], held).startswith('khay '):
         raise TaskError(f'{name} da nam trong khay ({locate(name, objects[name], held)})')
     return (plan_pick(name, objects, held, lift_z)
-            + plan_place(name, slot, _without(objects, name), retreat_z))
+            + plan_place(name, _without(objects, name), retreat_z))
 
 
 def plan_sort(objects, held, lift_z, retreat_z):
-    """Dọn mọi vật còn trên bàn vào các ô trống, theo thứ tự trong scene.OBJECTS."""
+    """Phân loại: mọi vật còn trên bàn về ĐÚNG khay của loại đó, theo thứ tự scene.OBJECTS."""
     if held:
         raise TaskError(f'Dang giu {held}, hay place/release truoc')
     actions = []
-    occupied = occupied_slots(objects, held)
-    free = [s for s in BIN_SLOTS if s not in occupied]
     todo = [o.name for o in OBJECTS
             if o.name in objects and locate(o.name, objects[o.name], held) == 'tren ban']
     if not todo:
         raise TaskError('Khong con vat nao tren ban')
-    if len(todo) > len(free):
-        raise TaskError(f'Chi con {len(free)} o trong cho {len(todo)} vat')
-    for name, slot in zip(todo, free):
+    for name in todo:
         actions += plan_pick(name, objects, '', lift_z)
-        actions += plan_place(name, slot, _without(objects, name), retreat_z)
+        actions += plan_place(name, _without(objects, name), retreat_z)
     return actions
 
 

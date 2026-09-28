@@ -5,7 +5,12 @@ import os
 import shutil
 
 from delta_controller.camera_model import camera_model_from_gazebo_pose
-from delta_controller.scene import OBJECTS, SIDE_CAMERA_GT_RPY, SIDE_CAMERA_GT_XYZ
+from delta_controller.scene import (
+    LEGACY_BIN_LAYOUT,
+    LEGACY_OBJECTS,
+    SIDE_CAMERA_GT_RPY,
+    SIDE_CAMERA_GT_XYZ,
+)
 from delta_controller.vision_eval import (
     bias,
     evaluate,
@@ -24,15 +29,16 @@ DATA = os.path.join(os.path.dirname(__file__), 'data')
 
 def make_dataset(tmp_path):
     shutil.copy(os.path.join(DATA, 'side_camera_home.png'), tmp_path / 'home.png')
-    truth = {o.name: [o.home_xy[0], o.home_xy[1], -0.205] for o in OBJECTS}
+    truth = {o.name: [o.home_xy[0], o.home_xy[1], -0.205] for o in LEGACY_OBJECTS}
     labels = {'samples': [{'image': 'home.png', 'scenario': 'home', 'ground_truth': truth}]}
     (tmp_path / 'labels.json').write_text(json.dumps(labels))
     return load_dataset(str(tmp_path))
 
 
 def test_real_frame_error_below_two_mm(tmp_path):
-    records = evaluate(make_dataset(tmp_path), GT_CAMERA)
-    assert {r.name for r in records} == {o.name for o in OBJECTS}
+    records = evaluate(make_dataset(tmp_path), GT_CAMERA,
+                       objects=LEGACY_OBJECTS, bins=LEGACY_BIN_LAYOUT)
+    assert {r.name for r in records} == {o.name for o in LEGACY_OBJECTS}
     stats = summarize(records)
     assert stats['detection_rate'] == 1.0
     assert stats['max_mm'] < 2.0

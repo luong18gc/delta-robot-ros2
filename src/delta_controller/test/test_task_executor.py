@@ -16,7 +16,7 @@ class FakeRobot:
         self.object_source = source
         self.held_object = ''
         self.safe_z = -0.16
-        self.safe_z_holding = -0.14
+        self.safe_z_holding = -0.13
         self.moves = []
         self.observations = 0
         self.hidden = set(hidden)      # vật camera thấy nhưng không tin cậy
@@ -62,49 +62,50 @@ def no_sleep(monkeypatch):
 def test_camera_pick_observes_first_and_trusts_gripper():
     robot = FakeRobot()
     logs = []
-    te.TaskExecutor(robot, log=logs.append).pick('red_box')
+    te.TaskExecutor(robot, log=logs.append).pick('coca_can')
     assert robot.moves[0] == OBSERVE_XYZ
-    assert robot.held_object == 'red_box'
+    assert robot.held_object == 'coca_can'
     assert any('giac hut xac nhan' in line for line in logs)
 
 
 def test_place_while_holding_reuses_pre_pick_observation():
     robot = FakeRobot()
     ex = te.TaskExecutor(robot, log=lambda s: None)
-    ex.pick('red_box')
+    ex.pick('coca_can')
     before = robot.observations
-    ex.place('A')
+    ex.place()
     # Không đi quan sát khi đang giữ vật; chỉ quan sát 1 lần sau khi thả để kiểm chứng.
     assert robot.observations == before + 1
     assert robot.held_object == ''
 
 
-def test_sort_in_camera_mode_fills_three_slots():
+def test_sort_in_camera_mode_puts_each_can_in_its_own_bin():
     robot = FakeRobot()
     logs = []
     te.TaskExecutor(robot, log=logs.append).sort()
-    assert all(inside_bin_region(x, y) for x, y, _ in robot.world.values())
+    for name, (x, y, _) in robot.world.items():
+        assert inside_bin_region(x, y, name), f'{name} khong nam trong khay cua no'
     assert any('Da don xong' in line for line in logs)
 
 
 def test_unclear_target_is_refused_before_moving_to_it():
-    robot = FakeRobot(hidden={'red_box'})
+    robot = FakeRobot(hidden={'coca_can'})
     with pytest.raises(TaskError, match='khong tin cay'):
-        te.TaskExecutor(robot, log=lambda s: None).pick('red_box')
+        te.TaskExecutor(robot, log=lambda s: None).pick('coca_can')
     assert robot.moves == [OBSERVE_XYZ]
     assert robot.held_object == ''
 
 
 def test_sort_skips_unclear_object_and_says_so():
-    robot = FakeRobot(hidden={'blue_sphere'})
+    robot = FakeRobot(hidden={'sevenup_can'})
     logs = []
     te.TaskExecutor(robot, log=logs.append).sort()
-    assert not inside_bin_region(*robot.world['blue_sphere'][:2])
-    assert any('camera chua thay ro: blue_sphere' in line for line in logs)
+    assert not inside_bin_region(*robot.world['sevenup_can'][:2])
+    assert any('camera chua thay ro: sevenup_can' in line for line in logs)
 
 
 def test_ground_truth_mode_never_observes():
     robot = FakeRobot(source='ground_truth')
-    te.TaskExecutor(robot, log=lambda s: None).pick_place('green_cylinder', 'B')
+    te.TaskExecutor(robot, log=lambda s: None).pick_place('pepsi_can')
     assert robot.observations == 0
     assert OBSERVE_XYZ not in robot.moves
