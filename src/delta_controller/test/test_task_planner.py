@@ -33,7 +33,8 @@ from delta_controller.task_planner import (
 )
 import pytest
 
-LIFT_Z = -0.13          # = cartesian_control safe_z_holding cho lon cao 58.8 mm
+# = cartesian_control safe_z_holding: đủ cao để lon đang mang vượt qua đầu lon đang đứng.
+LIFT_Z = -0.112
 RETREAT_Z = -0.16       # = safe_z
 H = CAN_HALF_HEIGHT     # 0.0294
 CENTER_Z = TABLE_Z + H  # -0.1906: tâm lon khi đứng trên bàn
@@ -94,10 +95,15 @@ def test_release_point_is_own_bin_at_drop_height():
         assert release_point(name, H) == pytest.approx((x, y, DROP_Z))
 
 
-def test_release_point_clears_bin_wall_when_carried_across():
-    """Đáy lon khi mang ngang ở LIFT_Z phải cao hơn đỉnh thành khay (-0.205)."""
+def test_carried_can_clears_bin_wall_and_standing_cans():
+    """
+    Lon đang mang phải vượt qua cả thành khay LẪN đầu lon đang đứng trên bàn.
+
+    Bỏ điều kiện thứ hai thì lon mang qua sẽ húc đổ lon đứng — đã gặp với k = 2.5 (đo 2026-09-29).
+    """
     bottom = LIFT_Z - PLATFORM_HALF_THICKNESS - 2 * H
-    assert bottom > -0.205
+    assert bottom > -0.205, 'khong vuot duoc thanh khay'
+    assert bottom > TABLE_Z + 2 * H, 'khong vuot duoc dau lon dang dung'
 
 
 # ---------------------------------------------------------------- trạng thái cảnh

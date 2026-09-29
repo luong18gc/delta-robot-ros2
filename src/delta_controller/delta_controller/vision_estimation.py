@@ -118,6 +118,19 @@ def inside_bin(x, y, bins=BIN_LAYOUT):
                for bx, by in bins.centers)
 
 
+def clamp_into_bin(x, y, obj, bins=BIN_LAYOUT):
+    """
+    Kéo (x, y) về vùng mà tâm vật CÓ THỂ nằm khi vật ở trong khay.
+
+    Vật đứng trong khay thì tâm nó cách tâm khay không quá (nửa lòng khay − nửa bề rộng vật) —
+    với khay 45 mm và lon Ø 23 mm là 11 mm. Đây là ràng buộc hình học cứng, dùng để chặn nghiệm
+    Newton đi lạc thay vì vứt bỏ nghiệm rồi rơi về tâm khối thô (sai 22 mm).
+    """
+    cx, cy = nearest_bin(x, y, bins)
+    reach = max(0.0, bins.inner_half - obj.half_width)
+    return (min(max(x, cx - reach), cx + reach), min(max(y, cy - reach), cy + reach))
+
+
 def _newton_fit(residual, start_xy, iterations=8):
     """Newton 2 ẩn cho hàm dư 2 chiều; None nếu phân kỳ."""
     p = np.array(start_xy, float)
@@ -174,49 +187,49 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
     """
     Vị trí tâm vật từ một Detection.
 
-    1. Tâm khối -> tia nhìn giao mặt phẳng tâm vật trên BÀN (cách của Bước 8.3).
-    2. Nếu ước lượng đó gần khay: thử giả thuyết "trong khay" = khớp mép trên với tâm vật ở độ cao
-       đáy khay; nhận nếu kết quả nằm trong lòng khay.
+    1. Giả thuyết "đứng trên bàn": tâm khối -> tia nhìn giao mặt phẳng tâm vật; với vật nhiều màu
+       thì khớp MÉP DƯỚI thay cho tâm khối.
+    2. Nếu vị trí đó rơi vào LÒNG KHAY thì vật không thể đứng trên bàn ở đó -> giả thuyết "trong
+       khay": khớp MÉP TRÊN ở cao độ đáy khay, kéo về vùng khả thi.
     3. Tỉ lệ nhìn thấy so với hình bóng dự đoán tại vị trí cuối -> cờ tin cậy.
     """
     u, v = detection.centroid
     table_center_z = TABLE_Z + obj.half_height
     x, y, _ = camera.pixel_to_plane(u, v, table_center_z)
-    position, method = (x, y, table_center_z), 'centroid'
 
-    if use_top_edge and near_bin(x, y, bins=bins):
-        # TRONG KHAY: thành khay che nửa dưới -> mép dưới không tin được, khớp MÉP TRÊN (mặt trên
-        # luôn lộ vì camera nhìn chếch xuống), tâm vật ở cao độ đáy khay.
-        bin_center_z = bins.floor_z + obj.half_height
-        # Pixel trên cùng của mặt nạ có tâm ở hàng bbox y -> mép thật nằm ở khoảng y - 0.5.
-        v_top_obs = detection.bbox[1] - 0.5
-        # Xuất phát từ TÂM KHAY chứ không phải ước lượng thô: vật chắc chắn nằm trong lòng khay,
-        # còn ước lượng thô của vật nhiều màu lệch hàng chục mm nên Newton hay ra nghiệm ngoài
-        # khay rồi bị loại (đo 2026-09-29: 10/15 lần khớp hỏng -> rơi về tâm khối, sai 18–33 mm).
-        cobj, dz = color_shape(obj)      # mép trên quan sát được là của phần MANG MÀU
-        for start in (nearest_bin(x, y, bins), (x, y)):
-            fit = fit_top_edge(camera, cobj, u, v_top_obs, bin_center_z + dz, start)
-            if fit is not None and inside_bin(*fit, bins=bins):
-                position, method = (fit[0], fit[1], bin_center_z), 'top_edge'
-                break
-    elif getattr(obj, 'color_fraction', 1.0) < 0.9:
-        # TRÊN BÀN, vật nhiều màu (lon: nắp bạc, vành chữ trắng): tâm khối vùng MÀU lệch xuống
-        # dưới so với tâm hình bóng (đo được 32 px ≈ 28 mm). Khớp MÉP DƯỚI thay vì tâm khối —
-        # thân lon có màu xuống tận đáy và đáy tì trên mặt bàn nên đặc trưng này không bị lệch.
+    # --- Giả thuyết 1: vật ĐỨNG TRÊN BÀN ---------------------------------------------------
+    position, method = (x, y, table_center_z), 'centroid'
+    if getattr(obj, 'color_fraction', 1.0) < 0.9:
+        # Vật nhiều màu (lon: nắp bạc, vành chữ trắng): tâm khối vùng MÀU nằm thấp hơn tâm hình
+        # bóng (đo được 32 px ≈ 28 mm). Khớp MÉP DƯỚI — thân lon có màu xuống tận đáy và đáy tì
+        # trên mặt bàn nên đặc trưng này không bị lệch.
         bx, by, bw, bh = detection.bbox
         fit = fit_bottom_edge(camera, obj, u, by + bh - 0.5, table_center_z, (x, y))
         if fit is not None:
             position, method = (fit[0], fit[1], table_center_z), 'bottom_edge'
-            # Ước lượng thô có thể rơi ngoài vùng dò khay trong khi vật THẬT nằm trong khay
-            # (mép dưới bị thành khay che nên phép khớp đáy kéo lệch). Nếu kết quả rơi vào lòng
-            # khay thì đó là dấu hiệu đã đoán nhầm -> thử lại bằng mép trên ở cao độ đáy khay.
-            if use_top_edge and inside_bin(fit[0], fit[1], bins=bins):
-                bin_center_z = bins.floor_z + obj.half_height
-                cobj, dz = color_shape(obj)
-                retry = fit_top_edge(camera, cobj, u, by - 0.5, bin_center_z + dz,
-                                     nearest_bin(fit[0], fit[1], bins))
-                if retry is not None and inside_bin(*retry, bins=bins):
-                    position, method = (retry[0], retry[1], bin_center_z), 'top_edge'
+
+    # --- Giả thuyết 2: vật NẰM TRONG KHAY --------------------------------------------------
+    # Chọn giả thuyết theo TÍNH KHẢ THI VẬT LÝ: không vật nào đứng được trên mặt bàn ở chỗ đang bị
+    # khay chiếm chỗ. Nếu giả thuyết "trên bàn" rơi vào lòng khay thì vật phải đang ở TRONG khay.
+    # (Đừng dùng "gần khay" làm điều kiện: vật đứng trên bàn CẠNH khay cũng gần khay.)
+    if use_top_edge and inside_bin(position[0], position[1], bins=bins):
+        # Thành khay che nửa dưới -> mép dưới không tin được. Khớp MÉP TRÊN (mặt trên luôn lộ vì
+        # camera nhìn chếch xuống), tâm vật ở cao độ đáy khay. Xuất phát từ TÂM KHAY vì vật chắc
+        # chắn nằm trong đó, còn ước lượng thô lệch hàng chục mm.
+        bin_center_z = bins.floor_z + obj.half_height
+        v_top_obs = detection.bbox[1] - 0.5       # pixel trên cùng có tâm ở hàng bbox y
+        cobj, dz = color_shape(obj)               # mép trên thấy được là của phần MANG MÀU
+        cx, cy = nearest_bin(position[0], position[1], bins)
+        fit = fit_top_edge(camera, cobj, u, v_top_obs, bin_center_z + dz, (cx, cy))
+        if fit is not None:
+            # Kéo về vùng khả thi thay vì vứt bỏ: tâm vật trong khay cách tâm khay không quá
+            # (nửa lòng khay − nửa bề rộng vật).
+            fx, fy = clamp_into_bin(fit[0], fit[1], obj, bins)
+            position, method = (fx, fy, bin_center_z), 'top_edge'
+        else:
+            # Không khớp được: lấy TÂM KHAY (sai số bị chặn bởi kích thước khay, vẫn tốt hơn tâm
+            # khối thô ~22 mm) nhưng đánh dấu KHÔNG tin cậy để hệ điều khiển quan sát lại.
+            position, method = (cx, cy, bin_center_z), 'bin_center'
 
     area, _, _ = silhouette_features(camera, obj, position)
     # Chia cho tỉ lệ màu danh nghĩa: vật nhiều màu (lon có nắp bạc, chữ trắng) chỉ mang màu trên
@@ -224,6 +237,7 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
     expected = area * getattr(obj, 'color_fraction', 1.0)
     visible = detection.area / expected if expected > 0 else 0.0
     cut = touches_border(detection, image_shape)
-    reliable = not cut and (method == 'top_edge' or visible >= VISIBLE_MIN)
+    reliable = (not cut and method != 'bin_center'
+                and (method == 'top_edge' or visible >= VISIBLE_MIN))
     return ObjectEstimate(position=tuple(float(c) for c in position), method=method,
                           visible_fraction=float(visible), cut_by_border=cut, reliable=reliable)

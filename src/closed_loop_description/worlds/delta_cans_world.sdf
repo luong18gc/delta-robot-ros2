@@ -8,15 +8,15 @@
        ⚠️ KHÔNG thay thế delta_objects_world.sdf — world khối vuông đó vẫn giữ để tái lập mọi kết
        quả đã đo ở Bước 6–9.
 
-       BẢN SAO SỐ THEO TỈ LỆ k = 2.5 (chốt 2026-09-30):
-         lon thật Ø 57.5 mm, cao 147 mm  ->  lon ảo Ø 23 mm, cao 58.8 mm
-         vùng làm việc thật Ø 48 cm      ->  vùng làm việc ảo Ø 19.2 cm
+       BẢN SAO SỐ THEO TỈ LỆ k = 3.0 (chốt 2026-09-30):
+         lon thật Ø 57.5 mm, cao 147 mm  ->  lon ảo Ø 19.2 mm, cao 49.0 mm
+         vùng làm việc thật Ø 58 cm      ->  vùng làm việc ảo Ø 19.2 cm
          dung sai giác hút thật 30 mm    ->  12 mm trong không gian ảo
        Giữ nguyên TỈ LỆ HÌNH DẠNG của lon (cao/đường kính = 2.56) nên lon ảo trông đúng như lon
        thật — đó là điểm làm hình minh họa bản sao số thuyết phục.
 
        Quy đổi tọa độ: base_link tại world (0, 0, 1.0)  =>  (x, y, z)_robot = (x, y, z - 1.0)_world
-       Mặt bàn robot z = -0.22 (world 0.78). Tâm lon robot z = -0.2206 (world 0.8094).
+       Mặt bàn robot z = -0.22 (world 0.78). Tâm lon robot z = -0.2206 (world 0.8045).
 
        LON ẢO GHÉP TỪ 4 KHỐI để tái tạo đúng ba vấn đề đo được trên ảnh lon thật (2026-09-30):
          1. thân trụ màu chính
@@ -137,7 +137,7 @@
     </model>
 
     <!-- ===================== Ba lon ===================== -->
-    <!-- Lon ảo: bán kính 0.0115, cao 0.0588. Tâm world z = 0.78 + 0.0294 = 0.8094.
+    <!-- Lon ảo: bán kính 0.00958, cao 0.0490. Tâm world z = 0.78 + 0.0294 = 0.8045.
          Vị trí xuất phát nằm phía -X (gần camera), đều trong tầm với ở độ cao gắp:
            coca     ( 0.060, -0.075)  r = 0.096
            pepsi    ( 0.090,  0.000)  r = 0.090
@@ -155,20 +155,20 @@
         <tf_topic>/objects/coca_can/tf</tf_topic>
         <odom_publish_frequency>30</odom_publish_frequency>
       </plugin>
-      <pose>0.06 -0.075 0.8094 0 0 0</pose>
+      <pose>0.06 -0.075 0.8045 0 0 0</pose>
       <link name="link">
         <inertial>
           <mass>0.05</mass>
           <inertia>
-            <ixx>1.6e-5</ixx><iyy>1.6e-5</iyy><izz>3.3e-6</izz>
+            <ixx>1.12e-5</ixx><iyy>1.12e-5</iyy><izz>2.3e-6</izz>
             <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
           </inertia>
         </inertial>
         <collision name="collision">
-          <geometry><cylinder><radius>0.0115</radius><length>0.0588</length></cylinder></geometry>
+          <geometry><cylinder><radius>0.00958</radius><length>0.0490</length></cylinder></geometry>
         </collision>
         <visual name="body">
-          <geometry><cylinder><radius>0.0115</radius><length>0.0588</length></cylinder></geometry>
+          <geometry><cylinder><radius>0.00958</radius><length>0.0490</length></cylinder></geometry>
           <material>
             <ambient>0.80 0.05 0.07 1</ambient>
             <diffuse>0.85 0.06 0.08 1</diffuse>
@@ -176,8 +176,8 @@
         </visual>
         <!-- nắp nhôm bạc: không thuộc lớp màu nào -->
         <visual name="lid">
-          <pose>0 0 0.0284 0 0 0</pose>
-          <geometry><cylinder><radius>0.0116</radius><length>0.002</length></cylinder></geometry>
+          <pose>0 0 0.02365 0 0 0</pose>
+          <geometry><cylinder><radius>0.00968</radius><length>0.0017</length></cylinder></geometry>
           <material>
             <ambient>0.70 0.70 0.72 1</ambient>
             <diffuse>0.78 0.78 0.80 1</diffuse>
@@ -186,8 +186,8 @@
         </visual>
         <!-- vành trắng: mảng chữ/nhãn trắng -->
         <visual name="label_band">
-          <pose>0 0 -0.002 0 0 0</pose>
-          <geometry><cylinder><radius>0.0117</radius><length>0.007</length></cylinder></geometry>
+          <pose>0 0 -0.00167 0 0 0</pose>
+          <geometry><cylinder><radius>0.00978</radius><length>0.00583</length></cylinder></geometry>
           <material>
             <ambient>0.90 0.90 0.90 1</ambient>
             <diffuse>0.94 0.94 0.94 1</diffuse>
@@ -207,28 +207,28 @@
         <tf_topic>/objects/pepsi_can/tf</tf_topic>
         <odom_publish_frequency>30</odom_publish_frequency>
       </plugin>
-      <pose>0.09 0 0.8094 0 0 0</pose>
+      <pose>0.09 0 0.8045 0 0 0</pose>
       <link name="link">
         <inertial>
           <mass>0.05</mass>
           <inertia>
-            <ixx>1.6e-5</ixx><iyy>1.6e-5</iyy><izz>3.3e-6</izz>
+            <ixx>1.12e-5</ixx><iyy>1.12e-5</iyy><izz>2.3e-6</izz>
             <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
           </inertia>
         </inertial>
         <collision name="collision">
-          <geometry><cylinder><radius>0.0115</radius><length>0.0588</length></cylinder></geometry>
+          <geometry><cylinder><radius>0.00958</radius><length>0.0490</length></cylinder></geometry>
         </collision>
         <visual name="body">
-          <geometry><cylinder><radius>0.0115</radius><length>0.0588</length></cylinder></geometry>
+          <geometry><cylinder><radius>0.00958</radius><length>0.0490</length></cylinder></geometry>
           <material>
             <ambient>0.04 0.12 0.62 1</ambient>
             <diffuse>0.05 0.15 0.70 1</diffuse>
           </material>
         </visual>
         <visual name="lid">
-          <pose>0 0 0.0284 0 0 0</pose>
-          <geometry><cylinder><radius>0.0116</radius><length>0.002</length></cylinder></geometry>
+          <pose>0 0 0.02365 0 0 0</pose>
+          <geometry><cylinder><radius>0.00968</radius><length>0.0017</length></cylinder></geometry>
           <material>
             <ambient>0.70 0.70 0.72 1</ambient>
             <diffuse>0.78 0.78 0.80 1</diffuse>
@@ -236,8 +236,8 @@
           </material>
         </visual>
         <visual name="label_band">
-          <pose>0 0 -0.002 0 0 0</pose>
-          <geometry><cylinder><radius>0.0117</radius><length>0.007</length></cylinder></geometry>
+          <pose>0 0 -0.00167 0 0 0</pose>
+          <geometry><cylinder><radius>0.00978</radius><length>0.00583</length></cylinder></geometry>
           <material>
             <ambient>0.90 0.90 0.90 1</ambient>
             <diffuse>0.94 0.94 0.94 1</diffuse>
@@ -246,8 +246,8 @@
         <!-- VÀNH ĐỎ: logo đỏ trên lon không phải màu đỏ — cái bẫy của cách lọc màu toàn ảnh.
              Cao 5 mm ≈ 8.5% diện tích mặt bên, khớp tỉ lệ đo được trên lon thật. -->
         <visual name="logo_ring">
-          <pose>0 0 0.010 0 0 0</pose>
-          <geometry><cylinder><radius>0.0118</radius><length>0.005</length></cylinder></geometry>
+          <pose>0 0 0.00833 0 0 0</pose>
+          <geometry><cylinder><radius>0.00988</radius><length>0.00417</length></cylinder></geometry>
           <material>
             <ambient>0.80 0.05 0.07 1</ambient>
             <diffuse>0.85 0.06 0.08 1</diffuse>
@@ -267,28 +267,28 @@
         <tf_topic>/objects/sevenup_can/tf</tf_topic>
         <odom_publish_frequency>30</odom_publish_frequency>
       </plugin>
-      <pose>0.06 0.075 0.8094 0 0 0</pose>
+      <pose>0.06 0.075 0.8045 0 0 0</pose>
       <link name="link">
         <inertial>
           <mass>0.05</mass>
           <inertia>
-            <ixx>1.6e-5</ixx><iyy>1.6e-5</iyy><izz>3.3e-6</izz>
+            <ixx>1.12e-5</ixx><iyy>1.12e-5</iyy><izz>2.3e-6</izz>
             <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
           </inertia>
         </inertial>
         <collision name="collision">
-          <geometry><cylinder><radius>0.0115</radius><length>0.0588</length></cylinder></geometry>
+          <geometry><cylinder><radius>0.00958</radius><length>0.0490</length></cylinder></geometry>
         </collision>
         <visual name="body">
-          <geometry><cylinder><radius>0.0115</radius><length>0.0588</length></cylinder></geometry>
+          <geometry><cylinder><radius>0.00958</radius><length>0.0490</length></cylinder></geometry>
           <material>
             <ambient>0.04 0.52 0.20 1</ambient>
             <diffuse>0.05 0.60 0.25 1</diffuse>
           </material>
         </visual>
         <visual name="lid">
-          <pose>0 0 0.0284 0 0 0</pose>
-          <geometry><cylinder><radius>0.0116</radius><length>0.002</length></cylinder></geometry>
+          <pose>0 0 0.02365 0 0 0</pose>
+          <geometry><cylinder><radius>0.00968</radius><length>0.0017</length></cylinder></geometry>
           <material>
             <ambient>0.70 0.70 0.72 1</ambient>
             <diffuse>0.78 0.78 0.80 1</diffuse>
@@ -296,16 +296,16 @@
           </material>
         </visual>
         <visual name="label_band">
-          <pose>0 0 -0.002 0 0 0</pose>
-          <geometry><cylinder><radius>0.0117</radius><length>0.007</length></cylinder></geometry>
+          <pose>0 0 -0.00167 0 0 0</pose>
+          <geometry><cylinder><radius>0.00978</radius><length>0.00583</length></cylinder></geometry>
           <material>
             <ambient>0.90 0.90 0.90 1</ambient>
             <diffuse>0.94 0.94 0.94 1</diffuse>
           </material>
         </visual>
         <visual name="logo_ring">
-          <pose>0 0 0.010 0 0 0</pose>
-          <geometry><cylinder><radius>0.0118</radius><length>0.005</length></cylinder></geometry>
+          <pose>0 0 0.00833 0 0 0</pose>
+          <geometry><cylinder><radius>0.00988</radius><length>0.00417</length></cylinder></geometry>
           <material>
             <ambient>0.80 0.05 0.07 1</ambient>
             <diffuse>0.85 0.06 0.08 1</diffuse>

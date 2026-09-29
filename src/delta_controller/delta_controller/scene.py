@@ -8,13 +8,19 @@ BẢN SAO SỐ THEO TỈ LỆ (Bước 10b, chốt 2026-09-30)
 -------------------------------------------------
 Vật thật là lon nước ngọt 320 ml: **Ø 57.5 mm, cao 147 mm**. Lon thật KHÔNG gắp được: vùng làm
 việc của robot chỉ cao ~120 mm (bàn z = -0.22, trần ≈ -0.10) nên đỉnh lon rơi đúng vào trần, gắp
-tới nơi cũng không nhấc lên được. Vì vậy cảnh ảo là bản thu nhỏ theo **SCALE = 2.5**, giữ nguyên
+tới nơi cũng không nhấc lên được. Vì vậy cảnh ảo là bản thu nhỏ theo **SCALE = 3.0**, giữ nguyên
 tỉ lệ hình dạng:
 
     kích thước ảo = kích thước thật / SCALE      vị trí ảo = vị trí thật / SCALE
 
-Hệ quả (đã kiểm tra tầm với): lon ảo Ø 23 mm cao 58.8 mm; vùng làm việc thật Ø 48 cm (vừa bàn
-60x120 cm); dung sai giác hút 12 mm ảo <=> 30 mm thật.
+Hệ quả (đã kiểm tra tầm với): lon ảo Ø 19.2 mm cao 49 mm; vùng làm việc thật Ø 58 cm (vừa bàn
+60x120 cm); dung sai giác hút 12 mm ảo <=> 36 mm thật.
+
+⚠️ Vì sao 3.0 chứ không phải 2.5 (đo 2026-09-29): robot phải NHẤC LON QUA ĐẦU lon khác khi mang
+tới khay. Điều kiện: tool0 >= đỉnh lon đứng + nửa bề dày platform + chiều cao lon. Với k = 2.5
+(lon cao 58.8 mm) cần tool0 >= -0.0994, VƯỢT trần vùng làm việc (-0.10) -> không thể, lon đang
+mang chồng 30.6 mm vào lon đang đứng và ĐÁNH ĐỔ nó. Với k = 3.0 (lon cao 49 mm) chỉ cần
+tool0 >= -0.119, khả thi.
 
 Tỉ lệ KHÔNG làm sai số ảo xấu đi: camera phủ vùng rộng gấp SCALE lần (mm/pixel xấu đi bấy nhiêu)
 nhưng sai số lại chia cho SCALE khi quy về không gian ảo -> hai hiệu ứng triệt tiêu.
@@ -23,7 +29,7 @@ nhưng sai số lại chia cho SCALE khi quy về không gian ảo -> hai hiệu
 from dataclasses import dataclass
 
 # Tỉ lệ bản sao số: kích thước/vị trí THẬT chia cho giá trị này ra kích thước/vị trí ẢO.
-SCALE = 2.5
+SCALE = 3.0
 
 # Kích thước lon THẬT (m) — dùng cho khối thị giác khi chạy với camera thật ở Bước 10b.
 REAL_CAN_DIAMETER = 0.0575
@@ -78,11 +84,11 @@ CAN_HALF_WIDTH = REAL_CAN_DIAMETER / 2 / SCALE     # 0.0115
 
 OBJECTS = (
     SceneObject('coca_can', CAN_HALF_HEIGHT, ('coca', 'cocacola', 'coke', 'do', 'red'),
-                (0.06, -0.075), 'red', 'cylinder', CAN_HALF_WIDTH, 0.43, 0.002),
+                (0.06, -0.075), 'red', 'cylinder', CAN_HALF_WIDTH, 0.43, 0.0017),
     SceneObject('pepsi_can', CAN_HALF_HEIGHT, ('pepsi', 'lam', 'xanhduong', 'blue'),
-                (0.09, 0.0), 'blue', 'cylinder', CAN_HALF_WIDTH, 0.39, 0.002),
+                (0.09, 0.0), 'blue', 'cylinder', CAN_HALF_WIDTH, 0.39, 0.0017),
     SceneObject('sevenup_can', CAN_HALF_HEIGHT, ('7up', 'sevenup', 'luc', 'xanhla', 'green'),
-                (0.06, 0.075), 'green', 'cylinder', CAN_HALF_WIDTH, 0.39, 0.002),
+                (0.06, 0.075), 'green', 'cylinder', CAN_HALF_WIDTH, 0.39, 0.0017),
 )
 
 # Mặt bàn (hệ robot).

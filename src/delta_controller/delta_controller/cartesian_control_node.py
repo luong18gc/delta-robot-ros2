@@ -112,7 +112,7 @@ class CartesianController(Node):
         self.safe_z = self.declare_parameter('safe_z', -0.16).value
         # Khi mang vật cao 3 cm: đáy vật = tool0 - 0.033 phải cao hơn đỉnh vật khác (-0.19)
         # và thành khay (-0.20) -> tool0 >= -0.147; chọn -0.14 để dư ~7 mm.
-        self.safe_z_holding = self.declare_parameter('safe_z_holding', -0.13).value
+        self.safe_z_holding = self.declare_parameter('safe_z_holding', -0.112).value
 
         self._commander = JointCommander(self)
         self._lock = threading.Lock()
