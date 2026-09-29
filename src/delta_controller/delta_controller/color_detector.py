@@ -40,8 +40,11 @@ COLOR_CLASSES = {
 
 MIN_BLOB_AREA = 30      # px — mảnh nhỏ hơn coi là nhiễu
 MIN_OBJECT_AREA = 80    # px — tổng diện tích nhìn thấy tối thiểu để báo là thấy vật
-# Nới khung bao của mảnh lớn nhất bấy nhiêu lần mỗi phía khi quyết định mảnh nào cùng vật.
-MERGE_GROW = 0.35
+# Gộp mảnh: chồng cột theo phương ngang trong phạm vi này (lần bề rộng mảnh lớn nhất) ...
+COLUMN_OVERLAP = 0.35
+# ... và cách nhau theo phương dọc không quá bấy nhiêu lần BỀ RỘNG vật (vật cao bị vành nhãn cắt
+# thành nhiều đoạn xếp thẳng cột, nên phải cho phép khoảng dọc lớn hơn khoảng ngang).
+VERTICAL_GAP = 1.5
 _OPEN_KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 _CLOSE_KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
 
@@ -66,20 +69,25 @@ def color_mask(hsv, color_class):
     return cv2.morphologyEx(mask, cv2.MORPH_CLOSE, _CLOSE_KERNEL)
 
 
-def _merge_near_largest(keep, stats, grow=MERGE_GROW):
+def _merge_near_largest(keep, stats, column=COLUMN_OVERLAP, gap=VERTICAL_GAP):
     """
-    Chỉ gộp các mảnh NẰM GẦN mảnh lớn nhất, thay vì gộp mọi mảnh cùng màu trên toàn ảnh.
+    Gộp các mảnh thuộc CÙNG MỘT vật với mảnh lớn nhất, thay vì gộp mọi mảnh cùng màu toàn ảnh.
 
-    Lý do (đo trên ảnh lon thật 2026-09-30): logo Pepsi và logo 7Up đều có mảng ĐỎ (683–893 px và
-    314–884 px, so với 7347–8651 px của lon Coca). Gộp mù mọi mảnh đỏ kéo tâm khối lệch 13–31 px
-    (8–19 mm thật), và khi trên bàn KHÔNG có lon Coca thì vẫn báo thấy một "vật đỏ" không tồn tại.
-    Khung bao của mảnh lớn nhất được nới rộng `grow` lần mỗi phía; mảnh nào cắt khung nới rộng đó
-    mới được coi là cùng một vật (vật bị che cắt đôi vẫn gộp đúng).
+    Quy tắc: mảnh phải nằm trong CÙNG CỘT với mảnh lớn nhất (khung bao chồng nhau theo phương
+    ngang) và cách nó theo phương dọc không quá `gap` lần bề rộng vật. Vật đứng bị vành nhãn cắt
+    thành nhiều đoạn thì các đoạn xếp thẳng cột nên gộp đúng; còn mảng màu lạ trên một vật KHÁC
+    (logo đỏ của lon Pepsi/7Up so với lon Coca) nằm lệch cột nên bị loại.
+
+    Vì sao cần: đo trên ảnh lon thật 2026-09-30, logo Pepsi và 7Up đều có mảng ĐỎ (683–893 px và
+    314–884 px so với 7347–8651 px của lon Coca); gộp mù làm tâm khối lệch 13–31 px và khi trên bàn
+    không có lon Coca thì vẫn báo thấy một "vật đỏ" không tồn tại. Nhưng gộp theo khoảng cách đơn
+    thuần thì lại BỎ MẤT đoạn trên của lon (đo 2026-09-29: mặt nạ chỉ lấy đoạn dưới, mép trên lệch
+    49 px, ước lượng sai 22 mm).
     """
     biggest = max(keep, key=lambda i: stats[i, cv2.CC_STAT_AREA])
     bx, by, bw, bh = stats[biggest, :4]
-    x0, x1 = bx - grow * bw, bx + bw + grow * bw
-    y0, y1 = by - grow * bh, by + bh + grow * bh
+    x0, x1 = bx - column * bw, bx + bw + column * bw
+    y0, y1 = by - gap * bw, by + bh + gap * bw
     near = []
     for i in keep:
         x, y, w, h = stats[i, :4]

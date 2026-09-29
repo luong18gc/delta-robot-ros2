@@ -49,7 +49,9 @@ def surface_points(obj, center):
     if obj.shape == 'box':
         pts = [(sx * w, sy * w, sz * h) for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]
     elif obj.shape == 'cylinder':
-        a = np.linspace(0, 2 * math.pi, 48, endpoint=False)
+        # 16 điểm/vành là đủ cho BAO LỒI của hình trụ (48 điểm chỉ tốn thời gian:
+        # mỗi lần khớp Newton phải dựng hình bóng vài chục lần).
+        a = np.linspace(0, 2 * math.pi, 16, endpoint=False)
         ring = np.stack([w * np.cos(a), w * np.sin(a)], axis=1)
         pts = [(x, y, z) for z in (-h, h) for x, y in ring]
     elif obj.shape == 'sphere':
@@ -116,7 +118,7 @@ def inside_bin(x, y, bins=BIN_LAYOUT):
                for bx, by in bins.centers)
 
 
-def _newton_fit(residual, start_xy, iterations=20):
+def _newton_fit(residual, start_xy, iterations=8):
     """Newton 2 ẩn cho hàm dư 2 chiều; None nếu phân kỳ."""
     p = np.array(start_xy, float)
     for _ in range(iterations):
@@ -131,12 +133,12 @@ def _newton_fit(residual, start_xy, iterations=20):
         except np.linalg.LinAlgError:
             return None
         p += step
-        if np.linalg.norm(step) < 1e-7:
+        if np.linalg.norm(step) < 1e-6:      # 1 µm — chặt hơn mức cần thiết rồi
             return tuple(p)
     return None
 
 
-def fit_bottom_edge(camera, obj, u_obs, v_bottom_obs, z_center, start_xy, iterations=20):
+def fit_bottom_edge(camera, obj, u_obs, v_bottom_obs, z_center, start_xy, iterations=8):
     """
     Newton: tìm (x, y) để (u trọng tâm, v mép DƯỚI) của hình bóng khớp quan sát.
 
@@ -152,7 +154,7 @@ def fit_bottom_edge(camera, obj, u_obs, v_bottom_obs, z_center, start_xy, iterat
     return _newton_fit(residual, start_xy, iterations)
 
 
-def fit_top_edge(camera, obj, u_obs, v_top_obs, z_center, start_xy, iterations=20):
+def fit_top_edge(camera, obj, u_obs, v_top_obs, z_center, start_xy, iterations=8):
     """Newton: tìm (x, y) để (u trọng tâm, v mép trên) dự đoán khớp quan sát; None nếu phân kỳ."""
     def residual(q):
         _, u, v_top = silhouette_features(camera, obj, (q[0], q[1], z_center))
@@ -210,7 +212,9 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
             # khay thì đó là dấu hiệu đã đoán nhầm -> thử lại bằng mép trên ở cao độ đáy khay.
             if use_top_edge and inside_bin(fit[0], fit[1], bins=bins):
                 bin_center_z = bins.floor_z + obj.half_height
-                retry = fit_top_edge(camera, obj, u, by - 0.5, bin_center_z, fit)
+                cobj, dz = color_shape(obj)
+                retry = fit_top_edge(camera, cobj, u, by - 0.5, bin_center_z + dz,
+                                     nearest_bin(fit[0], fit[1], bins))
                 if retry is not None and inside_bin(*retry, bins=bins):
                     position, method = (retry[0], retry[1], bin_center_z), 'top_edge'
 

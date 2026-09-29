@@ -42,10 +42,14 @@ LIFT_CHECK = 0.01
 PLACE_TOLERANCE = 0.01
 OBJECTS_WAIT_SEC = 3.0
 # Sau khi tới tư thế quan sát, chờ thêm chừng này rồi mới nhận khung ảnh.
-# ⚠️ Quỹ đạo phát theo ĐỒNG HỒ THẬT còn mô phỏng chạy RTF < 1, nên khi vòng phát điểm kết thúc thì
-# robot trong mô phỏng VẪN CÒN ĐANG CHẠY. Đo 2026-09-30: chờ 0.3 s vẫn bắt được khung có platform
-# đang di chuyển -> ước lượng lệch tới 48 mm (trong khi đứng yên chỉ lệch 1.8 mm).
-OBSERVE_SETTLE_SEC = 1.2
+# ⚠️ Phải chờ LÂU vì hai độ trễ cộng lại:
+#   1. quỹ đạo phát theo ĐỒNG HỒ THẬT còn mô phỏng chạy RTF < 1 -> `move()` trả về khi robot trong
+#      mô phỏng vẫn còn đang chạy (đã khắc phục bằng `wait_until_arrived` trong node điều khiển);
+#   2. camera mô phỏng chỉ dựng được ~2.4 hình/s nên khung ảnh ĐẾN sau khi robot dừng vẫn có thể
+#      CHỤP lúc robot đang đi — thời điểm nhận tin nhắn KHÁC thời điểm chụp.
+# Đo 2026-09-29: chờ 1.2 s vẫn bắt được khung cũ -> ước lượng lệch 63 mm, trong khi đứng yên hẳn
+# thì chỉ lệch 0.1–1.4 mm.
+OBSERVE_SETTLE_SEC = 2.5
 
 
 class TaskExecutor:
