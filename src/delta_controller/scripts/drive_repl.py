@@ -24,19 +24,35 @@ DEFAULT_WAIT = 60.0
 START_WAIT = 10.0
 
 
-def drain(proc, seconds):
-    """Đọc mọi thứ tiến trình con in ra trong `seconds` giây và chuyển tiếp ra stdout."""
+PROMPT = 'Nhap lenh > '
+QUIET_SEC = 2.0
+
+
+def drain(proc, seconds, until_prompt=True):
+    """
+    Đọc mọi thứ tiến trình con in ra và chuyển tiếp ra stdout.
+
+    Dừng sớm khi node in lại dấu nhắc và im lặng `QUIET_SEC` giây — nhờ vậy không phải chờ cứng
+    hết `seconds` cho mỗi lệnh. Hết `seconds` thì cũng dừng (lệnh treo hoặc node chết).
+    """
     os.set_blocking(proc.stdout.fileno(), False)
     end = time.time() + seconds
+    tail, last_output = '', time.time()
     while time.time() < end:
         try:
             chunk = os.read(proc.stdout.fileno(), 65536)
         except BlockingIOError:
             chunk = b''
         if chunk:
-            sys.stdout.write(chunk.decode('utf-8', 'replace'))
+            text = chunk.decode('utf-8', 'replace')
+            sys.stdout.write(text)
             sys.stdout.flush()
+            tail = (tail + text)[-200:]
+            last_output = time.time()
         else:
+            if (until_prompt and tail.endswith(PROMPT)
+                    and time.time() - last_output > QUIET_SEC):
+                return
             time.sleep(0.2)
 
 

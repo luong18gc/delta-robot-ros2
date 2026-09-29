@@ -572,14 +572,31 @@ sang world này. World cũ `delta_objects_world.sdf` và `scene.LEGACY_OBJECTS` 
   **+X** tại (0.06, −0.075), (0.09, 0), (0.06, 0.075). Tia nhìn tới khay chỉ quét x từ −0.40 tới
   −0.06 nên **không bao giờ đi qua robot**; lon ở phía xa vẫn thấy rõ khi robot lên tư thế quan sát.
 
-**Kiểm chứng:** `don` chế độ camera phân loại **3/3 lon vào đúng ba khay** (lệch 3.2–4.5 mm so với
-tâm khay); chế độ vị trí thật cũng vậy. Ước lượng lon trên bàn lệch **2.1–2.9 mm** (thật ≈ 5–7 mm,
-dung sai thật 30 mm). Lon trong khay: khi phép khớp mép trên chạy, lệch **3–5 mm**.
-⚠️ **`reset` (lấy lon từ khay ra) CHƯA chạy trọn vẹn ở chế độ camera** — phép khớp mép trên đôi khi
-không ra nghiệm hợp lệ và hệ rơi về tâm khối thô (sai 22–25 mm). Việc tiếp theo cần làm.
+**Lỗi thứ 5 — gộp mảnh màu làm MẤT phần trên của lon (2026-09-29).** `color_detector` gộp mảnh
+theo khoảng cách so với khung bao của mảnh lớn nhất (0.35 lần mỗi phía). Lon bị vành trắng và vành
+logo cắt thành nhiều đoạn xếp chồng; đoạn trên nằm ngoài phạm vi đó nên **bị bỏ** -> mặt nạ bắt đầu
+thấp hơn đỉnh lon **49 px**, ước lượng sai 22 mm, lon trong khay bị gắn cờ không tin cậy và `don`
+dừng giữa chừng. Sửa: gộp theo **CÙNG CỘT** — mảnh phải chồng theo phương ngang với mảnh lớn nhất và
+cách nó theo phương dọc ≤ 1.5 lần BỀ RỘNG vật. Đoạn của cùng một lon xếp thẳng cột nên gộp đúng, còn
+mảng logo đỏ nằm trên lon KHÁC thì lệch cột nên vẫn bị loại.
+
+**Kiểm chứng cuối (2026-09-29, chế độ camera, chấm bằng odometry):**
+- `don`: **3/3 lon vào đúng khay của nó**, lệch tâm khay **0.3 / 0.5 / 1.8 mm**.
+- `reset`: **3/3 lon về đúng chỗ cũ**, lệch **4.9 / 7.0 / 7.4 mm** (ngưỡng 10 mm).
+- Ước lượng lon đứng trên bàn: lệch **0.1–1.4 mm**. Camera 8.3–8.5 hình/s, xử lý 12.3 ms/ảnh.
+
+⚠️ **Phải dọn HẾT tiến trình cũ trước khi đo.** Lệnh dọn chỉ giết `gz sim` và bridge sẽ để sót node
+`vision`/`gripper` của lần chạy trước; chúng chạy MÃ CŨ và cùng phát lên `/vision/objects`, làm kết
+quả lẫn lộn và camera tụt còn 1–2 hình/s. Dọn đúng: lọc cả
+`delta_controller/lib/delta_controller/(vision|gripper)`, `ros2 launch`, `throttle`,
+`robot_state_publisher` rồi kill theo PID (đừng dùng `pkill -f`, nó khớp chính shell đang chạy).
 
 ⚠️ Đo hiệu năng phải xem `uptime` trước: `unattended-upgrade` của Ubuntu chạy nền từng kéo camera
 mô phỏng từ 10 xuống **1 hình/giây** (load 10.5), làm mọi phép đo vô nghĩa.
+
+**Công cụ mới:** `scripts/drive_repl.py` (gửi chuỗi lệnh vào REPL `cartesian_control`, tự nhận biết
+dấu nhắc; dùng để chạy thử tự động) và `scripts/sweep_observe_pose.py` (quét tư thế quan sát, đo sai
+số từng vật để chọn `OBSERVE_XYZ`).
 
 ### Mặt bàn ảo đổi sang ĐEN NHÁM (2026-09-28)
 Bàn thật ở nhà người làm đồ án màu đen **nhám** (đã kiểm tra không bóng) → đổi `work_table` trong
