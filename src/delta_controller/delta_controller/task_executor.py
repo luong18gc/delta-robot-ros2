@@ -33,6 +33,7 @@ from delta_controller.task_planner import (
     plan_reset,
     plan_unload,
     Release,
+    sort_order,
     TaskError,
 )
 
@@ -60,6 +61,8 @@ class TaskExecutor:
         self._log = log
         self._last_seen = {}      # lần quan sát camera gần nhất (dùng khi đang giữ vật)
         self._last_unclear = {}   # vật camera thấy nhưng không tin cậy: tên -> score
+        self._memory = {}         # vị trí lần gần nhất thấy RÕ, theo tên vật
+        self._remembered = set()  # vật lấy từ trí nhớ ở lần quan sát vừa rồi
 
     @property
     def camera_mode(self):
@@ -189,7 +192,8 @@ class TaskExecutor:
             todo = [n for n, o in objects.items() if locate(n, o, held) == 'tren ban']
             if not todo:
                 break
-            name = todo[0]
+            # Thứ tự có xét tầm nhìn: lon nào sắp bị khay của lon khác che thì gắp trước.
+            name = sort_order(todo, objects)[0]
             self._log(f'== Don {name} ({len(done) + 1}/{len(done) + len(todo)})')
             self.pick_place(name)
             done.append(name)
@@ -238,8 +242,33 @@ class TaskExecutor:
             again, unclear_again = node.observe_camera(time.monotonic() + OBSERVE_SETTLE_SEC)
             if len(again) > len(states):
                 states, unclear = again, unclear_again
-        self._last_seen, self._last_unclear = states, unclear
-        return states
+        self._last_unclear = unclear
+        self._last_seen = self._with_memory(states)
+        return self._last_seen
+
+    def _with_memory(self, states):
+        """
+        Bù vật đang bị che bằng vị trí ĐÃ ĐO RÕ ở lần quan sát trước.
+
+        Vì sao cần: ba khay nằm phía camera, nên có bố trí mà lon A bị khay của lon B che VÀ lon B
+        bị khay của lon A che — một VÒNG LẶP mà không thứ tự gắp nào gỡ được (gặp ở 1/5 bố trí
+        ngẫu nhiên, seed 2026). Nhưng lúc mọi khay còn trống thì cả ba lon đều nhìn rõ (đo
+        2026-09-29: lệch 0.3 / 0.8 / 0.6 mm). Lon không tự di chuyển, nên vị trí đo được lúc nhìn
+        rõ vẫn còn đúng khi nó bị che về sau.
+
+        Trí nhớ bị XÓA ngay khi giác hút chạm vào vật (vị trí đổi) -> sau khi thả, vật phải được
+        nhìn thấy THẬT mới kiểm chứng được, không có chuyện lấy trí nhớ ra xác nhận việc mình vừa
+        làm. Rủi ro còn lại: robot vô tình đẩy một lon mà camera đang không thấy — giác hút sẽ báo
+        hút trượt ở bước sau.
+        """
+        self._memory.update(states)
+        self._remembered = set()
+        filled = dict(states)
+        for name in self._missing(states):
+            if name != self._node.held_object and name in self._memory:
+                filled[name] = self._memory[name]
+                self._remembered.add(name)
+        return filled
 
     def _missing(self, objects, held=''):
         return [o.name for o in OBJECTS if o.name not in objects]
@@ -257,8 +286,13 @@ class TaskExecutor:
     def _unclear_note(self):
         if not self.camera_mode:
             return ''
+        notes = []
         missing = self._missing(self._last_seen)
-        return f' (camera chua thay ro: {", ".join(missing)})' if missing else ''
+        if missing:
+            notes.append('camera chua thay ro: ' + ', '.join(missing))
+        if self._remembered:
+            notes.append('dung vi tri nho: ' + ', '.join(sorted(self._remembered)))
+        return f' ({"; ".join(notes)})' if notes else ''
 
     def _run(self, actions):
         check_reachable(actions)
@@ -268,6 +302,9 @@ class TaskExecutor:
             if isinstance(action, Move):
                 node.move(action.goal, safe=action.safe)
             elif isinstance(action, Grip):
+                # Vật sắp bị nhấc đi -> vị trí trong trí nhớ hết hiệu lực.
+                self._memory.pop(action.expected, None)
+                self._remembered.discard(action.expected)
                 success, message = node.call_gripper(release=False)
                 if not success:
                     raise TaskError(f'Hut that bai: {message}')

@@ -27,6 +27,8 @@ from delta_controller.task_planner import (
     Release,
     release_point,
     resolve_object,
+    sight_blocked_by_bin,
+    sort_order,
     table_release_point,
     TaskError,
     touch_point,
@@ -299,3 +301,44 @@ def test_reset_with_empty_bin_or_holding():
         plan_reset(ON_TABLE, '', LIFT_Z, RETREAT_Z)
     with pytest.raises(TaskError, match='Dang giu'):
         plan_reset(IN_BIN, 'coca_can', LIFT_Z, RETREAT_Z)
+
+
+# ---------------------------------------------------------------- thứ tự có xét tầm nhìn
+
+def _on_table(**spots):
+    return {name: ObjectState((x, y, CENTER_Z), H) for name, (x, y) in spots.items()}
+
+
+def test_sight_blocked_by_bin():
+    """Khay nằm giữa camera và vật thì che; khay lệch sang bên thì không."""
+    # khay sevenup ở (-0.06, 0.075); camera ở (-0.40, 0) -> tia tới (0.007, 0.072) quét qua nó
+    assert sight_blocked_by_bin((0.0072, 0.072), 'sevenup_can')
+    assert not sight_blocked_by_bin((0.0072, 0.072), 'coca_can')   # khay ở y = -0.075
+    # vật nằm ngay trước khay (phía camera) thì tia chưa tới khay
+    assert not sight_blocked_by_bin((-0.12, 0.075), 'sevenup_can')
+
+
+def test_sort_order_picks_threatened_object_first():
+    """Bố trí lượt 0 của thí nghiệm: khay 7up sẽ che lon coca -> coca phải đứng TRƯỚC 7up."""
+    objects = _on_table(coca_can=(0.0072, 0.072), pepsi_can=(0.0242, 0.0113),
+                        sevenup_can=(0.0488, 0.0536))
+    for names in (['pepsi_can', 'sevenup_can', 'coca_can'],
+                  ['sevenup_can', 'pepsi_can', 'coca_can'],
+                  ['coca_can', 'pepsi_can', 'sevenup_can']):
+        order = sort_order(names, objects)
+        assert sorted(order) == sorted(names)
+        assert order.index('coca_can') < order.index('sevenup_can'), order
+
+
+def test_sort_order_keeps_input_order_when_nothing_is_threatened():
+    objects = _on_table(coca_can=(0.09, -0.06), pepsi_can=(0.09, 0.0), sevenup_can=(0.09, 0.06))
+    names = ['sevenup_can', 'coca_can', 'pepsi_can']
+    assert sort_order(names, objects) == names
+
+
+def test_plan_sort_follows_visibility_order():
+    objects = _on_table(coca_can=(0.0072, 0.072), pepsi_can=(0.0242, 0.0113),
+                        sevenup_can=(0.0488, 0.0536))
+    grips = [a.expected for a in plan_sort(objects, '', LIFT_Z, RETREAT_Z)
+             if isinstance(a, Grip)]
+    assert grips.index('coca_can') < grips.index('sevenup_can')

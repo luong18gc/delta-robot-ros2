@@ -83,11 +83,11 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
   + bridge riêng cho gripper/odometry + `gripper`. Danh sách vật đọc từ `scene.py`.
 - `cartesian_control` có thêm `grip`/`release`; khi đang giữ vật, `safe` dùng `safe_z_holding` -0.14.
 - `scene.py` — **nguồn duy nhất phía ROS** cho vật (tên model, nửa kích thước, tên tắt, `home_xy`,
-  `color`, `shape`, `color_fraction`, `color_top_margin`), `SCALE` = 2.5, bàn `TABLE_Z`, ba khay
+  `color`, `shape`, `color_fraction`, `color_top_margin`), `SCALE` = 3.0, bàn `TABLE_Z`, ba khay
   `BINS` (mỗi loại một khay) + `BIN_LAYOUT`, và cảnh cũ `LEGACY_OBJECTS` / `LEGACY_BIN_LAYOUT`.
   Launch, `gripper_node`, planner, khối thị giác đều đọc. Xem mục "Bước 10b" ở phần Tiến độ.
 - `task_planner.py` — thuần Python: lệnh cấp cao → chuỗi `Move`/`Grip`/`Release` từ vị trí **thật**
-  của vật; `touch_point` = đỉnh vật + 0.003, `release_point` = đáy khay + 5 mm + cao vật + 0.003;
+  của vật; `sort_order` = thứ tự phân loại **có xét tầm nhìn** (xem Bước 10b); `touch_point` = đỉnh vật + 0.003, `release_point` = đáy khay + 5 mm + cao vật + 0.003;
   `locate` (tren ban / o A / trong khay / dang giu), `check_reachable` kiểm IK mọi đích trước khi chạy.
 - `task_executor.py` — chạy kế hoạch trên node + **kiểm chứng bằng odometry vật** (pick: vật phải
   nhấc lên ≥ 10 mm; place: vật phải nằm trong ô). `pickplace` kiểm ô trống **trước khi** nhặt;
@@ -109,7 +109,10 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
   `vision`: trong mô phỏng, ba khay xám cũng là "không phải mặt bàn" nên lon trong khay dính liền
   với khay thành một vùng và bị loại. Để dành cho camera THẬT (nền bàn đen trơn, có thể giới hạn ROI).
 - `cartesian_control`: `object_source` camera (mặc định) | ground_truth, lệnh `nguon`; `scripts/run_pick_place_trials.py` (Bước 9).
-- `scripts/probe_camera.py`, `scripts/make_chessboard_pdf.py` — chuẩn bị camera thật (Bước 10).
+- `scripts/probe_camera.py`, `scripts/make_chessboard_pdf.py`, `scripts/make_marker_pdf.py`
+  (`--sim` cho bố trí ảo, mặc định là bố trí BÀN THẬT) — chuẩn bị camera thật (Bước 10).
+- `scripts/measure_color_fraction.py` — đo `SceneObject.color_fraction` (dời vật qua 9 vị trí);
+  `scripts/measure_occlusion.py` — đo độ nhạy của cờ tin cậy khi lon che lon.
 - `test/` — lint + `test_delta_kinematics.py`, `test_trajectory.py`, `test_gripper_logic.py`,
   `test_task_planner.py`, `test_color_detector.py`, `test_camera_model.py`, `test_vision_eval.py`,
   `test_vision_estimation.py`, `test_task_executor.py` (ảnh mẫu trong `test/data/`).
@@ -535,22 +538,36 @@ sang world này. World cũ `delta_objects_world.sdf` và `scene.LEGACY_OBJECTS` 
 **giữ lại** vì mọi ảnh trong `test/data/` và bộ dữ liệu `datasets/vision_eval/` chụp ở cảnh cũ;
 `scripts/evaluate_vision.py` và `record_vision_dataset.py` truyền LEGACY_* vào.
 
-- **Tỉ lệ k = 2.5** (`scene.SCALE`): lon thật Ø 57.5 × 147 mm -> lon ảo Ø 23 × 58.8 mm. Giữ nguyên
-  tỉ lệ hình dạng nên lon ảo trông đúng như lon thật. Lon ảo ghép từ 4 khối để tái tạo đúng ba vấn
+- **Tỉ lệ k = 3.0** (`scene.SCALE`): lon thật Ø 57.5 × 147 mm -> lon ảo Ø 19.2 × 49 mm. Giữ nguyên
+  tỉ lệ hình dạng nên lon ảo trông đúng như lon thật.
+  ⚠️ **Vì sao 3.0 chứ không phải 2.5** (đo 2026-09-29): robot phải nhấc lon QUA ĐẦU lon khác khi
+  mang tới khay, tức tool0 ≥ đỉnh lon đứng + nửa bề dày platform + chiều cao lon. Với k = 2.5 (lon
+  cao 58.8 mm) cần tool0 ≥ −0.0994 — VƯỢT trần vùng làm việc (−0.10) nên không thể: lon đang mang
+  chồng 30.6 mm vào lon đang đứng và ĐÁNH ĐỔ nó (thấy trong thí nghiệm bố trí ngẫu nhiên: lệch
+  ngang chỉ 1.6 mm nhưng khe +17.7 mm ⇒ lon đã nằm). Với k = 3.0 chỉ cần tool0 ≥ −0.119. Lon ảo ghép từ 4 khối để tái tạo đúng ba vấn
   đề đo được trên ảnh thật: thân màu + **đĩa bạc** (nắp) + **vành trắng** (nhãn) + **vành đỏ**
   (logo, chỉ Pepsi và 7Up).
 - **Ba khay riêng theo chủng loại** (`scene.BINS`), `don` = PHÂN LOẠI chứ không xếp vào ô trống.
   `tha` không còn tham số ô. Bỏ hẳn `BIN_SLOTS`, `resolve_slot`, `first_free_slot`, `occupied_slots`.
-- **`safe_z_holding` −0.14 -> −0.13**: lon cao 58.8 mm thò xuống dưới tool0 nhiều hơn khối 30 mm.
+- **`safe_z_holding` −0.14 -> −0.112**: lon thò xuống dưới tool0 nhiều hơn khối 30 mm, phải nâng
+  đủ cao để lon đang mang đi qua phía trên lon đang đứng.
 - **Đầu hút được làm nổi bật**: 2 khối CHỈ HIỂN THỊ màu hồng cánh sen trong `3dof_delta.urdf.xacro`
   (mặt hút nằm âm trong bề dày platform + chóp trên đỉnh). H ≈ 157 nằm ngoài cả ba lớp màu.
 - `3dof_delta.gripper.xacro` khai cả 6 vật (3 lon + 3 khối cũ); plugin có `suppress_child_warning`
   nên world thiếu vật nào cũng không sao.
 
 **Bốn lỗi đã tìm ra khi chuyển sang lon (mỗi lỗi đều đáng viết vào khóa luận):**
-1. **Tỉ lệ màu danh nghĩa.** Lon chỉ có **39–43%** hình bóng mang màu (nắp bạc + vành trắng + vành
+1. **Tỉ lệ màu danh nghĩa.** Lon chỉ có một phần hình bóng mang màu (nắp bạc + vành trắng + vành
    logo), nên `visible = diện tích màu / hình bóng` luôn < 0.9 -> MỌI lon bị coi là bị che, robot từ
    chối gắp. Sửa: thêm `SceneObject.color_fraction`, chia cho phần *đáng lẽ* thấy được.
+   **Đo lại 2026-09-29** bằng `scripts/measure_color_fraction.py` (dời vật qua 9 vị trí trong tầm
+   với bằng `gz service set_pose`, robot ở tư thế quan sát): coca **0.67–0.80**, pepsi 0.56–0.71,
+   7up 0.55–0.71 — KHÔNG phải hằng số, vì phép đóng hình thái học (kernel 5 px) lấp một phần vành
+   nhãn: lon càng XA camera, ảnh càng nhỏ, vành càng bị lấp -> tỉ lệ màu càng cao (hồi quy theo
+   diện tích hình bóng: R² ≈ 0.75). Chọn giá trị **nhỏ nhất** đo được (0.66 / 0.55 / 0.55) để lon
+   lành lặn không bao giờ bị từ chối; đổi lại cờ tin cậy chỉ bắt được mức che > ~25%.
+   ⚠️ Ba hằng số cũ 0.43/0.39/0.39 đo trước khi sửa lỗi gộp mảnh (lỗi 5) và trước khi nắp lon đổi
+   sang **trắng nhám**, nên đã lỗi thời: `visible` phồng lên ~1.87, cờ che khuất mất tác dụng.
 2. **Tâm khối vùng màu lệch xuống dưới** tâm hình bóng **32 px ≈ 28 mm** (phần trên là nắp bạc).
    Sửa: `fit_bottom_edge` — khớp **mép đáy** (thân lon có màu xuống tận đáy, đáy tì trên bàn) ->
    sai số còn **1.8 mm**. Dùng cho vật trên bàn có `color_fraction < 0.9`.
@@ -580,10 +597,48 @@ dừng giữa chừng. Sửa: gộp theo **CÙNG CỘT** — mảnh phải chồ
 cách nó theo phương dọc ≤ 1.5 lần BỀ RỘNG vật. Đoạn của cùng một lon xếp thẳng cột nên gộp đúng, còn
 mảng logo đỏ nằm trên lon KHÁC thì lệch cột nên vẫn bị loại.
 
+**Lỗi thứ 6 — quy tắc gộp mảnh quá lỏng, và ba lớp phòng vệ chống che khuất (2026-09-29).**
+Sau khi sửa lỗi 5, quy tắc "cùng cột" vẫn cho gộp nhầm vì chỉ đòi khung bao **chạm** cửa sổ. Tìm ra
+bằng `scripts/measure_occlusion.py` (cho lon Pepsi đứng chắn trước lon Coca rồi dịch dần sang ngang):
+- **chạm nhau là gộp**: vành logo đỏ của Pepsi chỉ cần chạm mép cửa sổ 1 px -> khung bao nở
+  30 -> 73 px, sai 5–6 mm mà cờ vẫn OK (diện tích màu TĂNG nên tỉ lệ nhìn thấy không tụt);
+- đổi sang xét **tâm ngang** thì vẫn sót: lon 7Up nằm TRONG KHAY, gần camera hơn và gần thẳng hàng
+  với lon Coca phía sau -> vành đỏ của nó rộng 62 px (Coca chỉ 35 px) nên tâm vẫn rơi vào cột ->
+  sai **15.3 mm**, cờ vẫn OK. Đây đúng là lượt hỏng duy nhất trong 5 bố trí ngẫu nhiên.
+- **đang dùng**: mảnh phải **NẰM GỌN** trong cột (khung bao nằm trọn trong cửa sổ). Cơ sở vật lý:
+  hình trụ đứng có bề rộng ảnh gần như không đổi theo chiều cao, nên mảnh RỘNG HƠN HẲN chắc chắn
+  thuộc vật khác (ở gần camera hơn). Tính chất thu được: **hễ cờ báo tin cậy thì sai số ≤ 5.8 mm**
+  (dung sai giác hút 12 mm); mọi cấu hình che nặng đều bị cờ bắt.
+- ⚠️ Khi hai vùng đỏ **dính liền pixel** thành một vùng liên thông (hai lon cách nhau 12–18 mm theo
+  phương ngang) thì không quy tắc gộp nào tách được; sai số 5.8 mm, vẫn trong dung sai.
+
+**Ba lớp phòng vệ chống che khuất, mỗi lớp bắt thứ lớp trước bỏ sót:**
+1. **Cờ tin cậy** (`vision_estimation`) — không tin thứ nhìn không rõ.
+2. **Thứ tự có xét tầm nhìn** (`task_planner.sort_order`) — ba khay nằm phía camera, nên lon đã vào
+   khay che mất nửa dưới của lon còn đứng trên bàn ngay sau nó. Ràng buộc: nếu đường nhìn từ camera
+   tới lon A quét qua mặt bằng khay của lon B thì **A phải gắp trước B**; sắp xếp tô-pô theo đó.
+   Lúc mọi khay còn trống thì lon nào cũng nhìn rõ, nên chỉ cần gắp đúng thứ tự là xong.
+   Dùng `scene.SIDE_CAMERA_GT_XYZ[:2]` làm vị trí camera. ⚠️ Với camera THẬT phải lấy vị trí camera
+   từ file hiệu chuẩn, chưa nối.
+3. **Trí nhớ quan sát** (`task_executor._with_memory`) — có bố trí mà A bị khay của B che VÀ B bị
+   khay của A che: **vòng lặp**, không thứ tự nào gỡ được (gặp 1/5 bố trí). Nhưng lon không tự di
+   chuyển, nên lấy vị trí của lần gần nhất thấy RÕ. Trí nhớ bị **xóa ngay khi giác hút chạm vào
+   vật** -> sau khi thả phải nhìn thấy THẬT mới kiểm chứng được, không có chuyện lấy trí nhớ ra tự
+   xác nhận việc mình vừa làm.
+- ⚠️ **Phép khớp MÉP TRÊN không dùng được cho lon trên bàn** (đã thử rồi gỡ bỏ): đo trên 6 vị trí,
+  mép trên cho **5–12 mm** trong khi mép dưới cho 0.1–0.7 mm. Lý do: mép trên của vùng MÀU không
+  phải đặc trưng hình học rõ ràng — nắp trắng, vành nhãn và phép đóng hình thái học làm nó nhòe
+  khác nhau tùy khoảng cách tới camera. 12 mm bằng đúng dung sai giác hút nên tin vào đó còn nguy
+  hiểm hơn là từ chối. (Với lon TRONG KHAY thì mép trên vẫn tốt: 1.0 mm — xem 8.5.)
+
 **Kiểm chứng cuối (2026-09-29, chế độ camera, chấm bằng odometry):**
 - `don`: **3/3 lon vào đúng khay của nó**, lệch tâm khay **0.3 / 0.5 / 1.8 mm**.
 - `reset`: **3/3 lon về đúng chỗ cũ**, lệch **4.9 / 7.0 / 7.4 mm** (ngưỡng 10 mm).
 - Ước lượng lon đứng trên bàn: lệch **0.1–1.4 mm**. Camera 8.3–8.5 hình/s, xử lý 12.3 ms/ảnh.
+- **Thí nghiệm 5 bố trí ngẫu nhiên (seed 2026), sau khi sửa lỗi 6 + ba lớp phòng vệ: 15/15 lon vào
+  đúng khay, 5/5 lượt `don`; 15/15 về chỗ cũ (TB 5.5 mm, max 7.1 mm), 5/5 lượt `reset` — KHÔNG lỗi
+  nào.** Thời gian 106 + 111 s mỗi lượt. Nhận xét chi tiết: `docs/results/pick_place_nhan_xet.md`
+  (mục "Cảnh LON").
 
 ⚠️ **Phải dọn HẾT tiến trình cũ trước khi đo.** Lệnh dọn chỉ giết `gz sim` và bridge sẽ để sót node
 `vision`/`gripper` của lần chạy trước; chúng chạy MÃ CŨ và cùng phát lên `/vision/objects`, làm kết
@@ -638,6 +693,38 @@ sẽ mua **Logitech C270** riêng. Buổi ở lab chỉ để khảo sát; mọi
   S ≥ 90; trong mô phỏng nền có S ≈ 77 nên bị loại). Đèn huỳnh quang + cân bằng trắng 4600 K làm ảnh
   ngả xanh lơ. Bố trí thật camera chĩa xuống bàn nên tường không vào khung, nhưng **phải hiệu chỉnh lại
   ngưỡng trên ảnh thật** — và đây là một ý đáng viết vào khóa luận.
+### Camera THẬT Logitech C270 — đã mua và kiểm tra (2026-09-29)
+`046d:0825`, `/dev/video2`. Chạy `probe_camera.py`: **ĐẠT toàn bộ**.
+- **1280x720 @ 30 fps MJPG** (gấp đôi camera mô phỏng 640x480 mỗi chiều).
+- Khóa được `auto_exposure=1` (Manual), `white_balance_automatic=0`, `backlight_compensation=0`,
+  `exposure_dynamic_framerate=0` — đọc lại xác nhận đúng.
+- **Không có nút focus** = lấy nét cố định -> tiêu cự KHÔNG THỂ trôi sau khi hiệu chuẩn (tốt nhất).
+- **Nhiễu σ ≈ 2.2 mức xám** (Thronmax ở lab: 5.0; ngưỡng 8.4: ≤ 10 là vô hại).
+- Ảnh thử: sáng TB 141, cháy sáng 6.2%, không có vùng tối.
+
+### Bố trí marker cho BÀN THẬT (2026-09-29)
+`docs/calibration/aruco_markers_real_A4.pdf` — sinh bằng `scripts/make_marker_pdf.py` (không tham số;
+`--sim` mới ra bố trí ảo cũ). Marker **ô đen 60 mm** (to hơn bản ảo 50 mm vì camera thật đặt xa hơn;
+kích thước marker KHÔNG đi vào phép tính — `calibrate_camera_node` chỉ dùng **tâm** marker qua
+`marker_center` — nên phóng to là lợi thuần túy cho độ tin cậy nhận dạng).
+Đã kiểm chứng render 200 dpi: nhận đủ ID 0–5, cạnh đo **59.88 mm**.
+
+⚠️ **Bố trí thật KHÔNG phải bố trí ảo nhân SCALE**: nhân 3 thì trải 810x870 mm, không vừa bàn rộng
+600 mm. `scene.REAL_CALIB_MARKERS` là bố trí riêng (chiếm 560 mm trên bàn 600 mm), cùng
+`REAL_OBJECT_AREA_X/Y` (vùng đặt lon thật x 0…280, y ±190 mm -> quy về ảo r = 113 mm, dư so với tầm
+với 119 mm).
+
+**Quy ước tỉ lệ khi hiệu chuẩn** (`scene.real_calib_markers_virtual()`): đưa vào PnP **tọa độ ẢO**
+(= thật ÷ SCALE) ngay từ khâu hiệu chuẩn, KHÔNG hiệu chuẩn theo mm thật rồi chia kết quả về sau.
+Thu nhỏ toàn bộ thế giới k lần chỉ làm **vectơ tịnh tiến của camera chia cho k**; ma trận nội tham
+số, hệ số méo và phép chiếu đều không đổi. Nhờ vậy cả khối thị giác sẵn có (`pixel_to_plane`, hình
+bóng dự đoán, khay, mặt bàn z = TABLE_Z) chạy nguyên trong hệ ảo, **không phải sửa dòng nào**. Đổi
+lại vị trí camera in ra nhỏ hơn thật k lần — chỉ ảnh hưởng lúc báo cáo.
+
+Ba file phải in ở **100% / "Actual size"** (mỗi trang có thước 100 mm để kiểm tra):
+`chessboard_A4.pdf` (nội tham số, làm TRƯỚC), `aruco_markers_real_A4.pdf` (ngoại tham số).
+`aruco_markers_A4.pdf` là bố trí mô phỏng — **không in**.
+
 - [ ] **Bước 11** — Chế độ bám theo tay/marker.
 - [ ] **Bước 12** — Đánh giá (độ chính xác, độ trễ, tỉ lệ gắp thành công) + báo cáo.
 

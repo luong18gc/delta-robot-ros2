@@ -21,8 +21,12 @@ from delta_controller.scene import (
     MIN_SEPARATION,
     OBJECT_HALF_WIDTH,
     OBJECTS,
+    SIDE_CAMERA_GT_XYZ,
     TABLE_Z,
 )
+
+# Vị trí camera trong hệ robot — chỉ cần (x, y) để biết đường nhìn quét qua chỗ nào trên bàn.
+CAMERA_XY = SIDE_CAMERA_GT_XYZ[:2]
 
 # Độ cao lơ lửng trên đỉnh vật cho lệnh goto (m).
 HOVER_CLEARANCE = 0.02
@@ -260,8 +264,61 @@ def plan_pick_place(name, objects, held, lift_z, retreat_z):
             + plan_place(name, _without(objects, name), retreat_z))
 
 
+def _segment_hits_square(p0, p1, center, half):
+    """Đoạn p0 -> p1 (nhìn từ trên) có cắt hình vuông tâm `center` nửa cạnh `half` hay khong."""
+    dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+    t0, t1 = 0.0, 1.0
+    for d, lo, hi in ((dx, center[0] - half - p0[0], center[0] + half - p0[0]),
+                      (dy, center[1] - half - p0[1], center[1] + half - p0[1])):
+        if abs(d) < 1e-12:            # đoạn song song với cặp cạnh này
+            if lo > 0.0 or hi < 0.0:
+                return False
+            continue
+        a, b = lo / d, hi / d
+        if a > b:
+            a, b = b, a
+        t0, t1 = max(t0, a), min(t1, b)
+        if t0 > t1:
+            return False
+    return True
+
+
+def sight_blocked_by_bin(xy, bin_name, camera_xy=CAMERA_XY):
+    """Đường nhìn từ camera tới điểm (x, y) có đi qua mặt bằng khay `bin_name` hay khong."""
+    if bin_name not in BINS:
+        return False
+    return _segment_hits_square(camera_xy, xy, BINS[bin_name], BIN_OUTER_HALF)
+
+
+def sort_order(names, objects, camera_xy=CAMERA_XY):
+    """
+    Thứ tự phân loại CÓ XÉT TẦM NHÌN: vật nào sắp bị khay của vật khác che thì gắp trước.
+
+    Ba khay đặt ở phía camera (xem scene.BINS), nên khi một lon đã nằm trong khay, nó che mất nửa
+    dưới của lon còn đứng trên bàn ngay sau nó. Lon bị che như vậy không ước lượng được (đo
+    2026-09-29: mép dưới sai 46 mm, mà khớp mép trên cũng chỉ còn 5–12 mm nên không cứu được) ->
+    hệ thống phải từ chối gắp và nhiệm vụ dở dang. Nhưng lúc mọi khay còn TRỐNG thì lon đó nhìn
+    rõ; chỉ cần gắp nó TRƯỚC là xong.
+
+    Ràng buộc: nếu đường nhìn tới lon A quét qua khay của lon B thì A phải được gắp trước B. Sắp
+    xếp tô-pô theo ràng buộc đó; gặp vòng lặp (không thứ tự nào thỏa) thì giữ nguyên thứ tự cũ.
+    Đo trên 5 bố trí ngẫu nhiên (seed 2026): 2 bố trí rơi đúng vào cảnh này.
+    """
+    remaining, order = list(names), []
+    while remaining:
+        # Chọn vật mà việc đặt nó vào khay KHÔNG che vật nào còn lại.
+        free = [x for x in remaining
+                if not any(a != x
+                           and sight_blocked_by_bin(objects[a].center[:2], x, camera_xy)
+                           for a in remaining)]
+        nxt = free[0] if free else remaining[0]
+        order.append(nxt)
+        remaining.remove(nxt)
+    return order
+
+
 def plan_sort(objects, held, lift_z, retreat_z):
-    """Phân loại: mọi vật còn trên bàn về ĐÚNG khay của loại đó, theo thứ tự scene.OBJECTS."""
+    """Phân loại: mọi vật còn trên bàn về ĐÚNG khay của loại đó, theo thứ tự có xét tầm nhìn."""
     if held:
         raise TaskError(f'Dang giu {held}, hay place/release truoc')
     actions = []
@@ -269,6 +326,7 @@ def plan_sort(objects, held, lift_z, retreat_z):
             if o.name in objects and locate(o.name, objects[o.name], held) == 'tren ban']
     if not todo:
         raise TaskError('Khong con vat nao tren ban')
+    todo = sort_order(todo, objects)
     for name in todo:
         actions += plan_pick(name, objects, '', lift_z)
         actions += plan_place(name, _without(objects, name), retreat_z)

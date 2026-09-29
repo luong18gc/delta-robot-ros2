@@ -73,10 +73,20 @@ def _merge_near_largest(keep, stats, column=COLUMN_OVERLAP, gap=VERTICAL_GAP):
     """
     Gộp các mảnh thuộc CÙNG MỘT vật với mảnh lớn nhất, thay vì gộp mọi mảnh cùng màu toàn ảnh.
 
-    Quy tắc: mảnh phải nằm trong CÙNG CỘT với mảnh lớn nhất (khung bao chồng nhau theo phương
-    ngang) và cách nó theo phương dọc không quá `gap` lần bề rộng vật. Vật đứng bị vành nhãn cắt
-    thành nhiều đoạn thì các đoạn xếp thẳng cột nên gộp đúng; còn mảng màu lạ trên một vật KHÁC
-    (logo đỏ của lon Pepsi/7Up so với lon Coca) nằm lệch cột nên bị loại.
+    Quy tắc: mảnh phải NẰM GỌN trong cùng cột với mảnh lớn nhất (khung bao của mảnh nằm trọn trong
+    khung bao mảnh lớn nhất đã nới `column` lần bề rộng mỗi phía) và cách nó theo phương dọc không
+    quá `gap` lần bề rộng vật. Vật đứng bị vành nhãn cắt thành nhiều đoạn thì các đoạn xếp thẳng
+    cột và RỘNG BẰNG NHAU (hình trụ đứng nhìn từ xa có bề rộng gần như không đổi theo chiều cao)
+    nên gộp đúng; còn mảng màu lạ trên một vật KHÁC thì hoặc lệch cột, hoặc — khi vật đó ở GẦN
+    camera hơn — rộng hơn hẳn nên thò ra ngoài cột và bị loại.
+
+    ⚠️ Vì sao phải xét TRỌN khung bao chứ không phải giao nhau hay tâm (đo 2026-09-29):
+    - giao nhau: vành logo đỏ của lon Pepsi đứng chắn trước lon Coca chỉ cần chạm mép cửa sổ 1 px
+      là bị gộp -> khung bao nở từ 30 px lên 73 px, ước lượng sai 5–6 mm;
+    - tâm: lon 7Up nằm trong khay, gần camera hơn và gần như THẲNG HÀNG với lon Coca phía sau ->
+      vành logo đỏ của nó rộng 62 px (lon Coca chỉ 35 px) nên tâm vẫn rơi vào cột, bị gộp ->
+      ước lượng sai 15.3 mm mà cờ tin cậy vẫn báo OK. Đây chính là lượt hỏng duy nhất trong
+      5 bố trí ngẫu nhiên.
 
     Vì sao cần: đo trên ảnh lon thật 2026-09-30, logo Pepsi và 7Up đều có mảng ĐỎ (683–893 px và
     314–884 px so với 7347–8651 px của lon Coca); gộp mù làm tâm khối lệch 13–31 px và khi trên bàn
@@ -91,7 +101,7 @@ def _merge_near_largest(keep, stats, column=COLUMN_OVERLAP, gap=VERTICAL_GAP):
     near = []
     for i in keep:
         x, y, w, h = stats[i, :4]
-        if x + w >= x0 and x <= x1 and y + h >= y0 and y <= y1:
+        if x0 <= x and x + w <= x1 and y + h >= y0 and y <= y1:
             near.append(i)
     return near
 

@@ -65,9 +65,13 @@ class SceneObject:
     shape: str
     half_width: float
     # Tỉ lệ DANH NGHĨA của hình bóng thực sự mang màu của vật, khi vật KHÔNG bị che.
-    # Khối nhựa một màu = 1.0. Lon thì nắp nhôm bạc, vành chữ trắng và vành logo không mang màu
-    # nên chỉ còn ~0.4 (đo trên ảnh mô phỏng 2026-09-30). Thiếu hệ số này thì mọi lon đều bị cờ
-    # tin cậy coi là "bị che" và hệ thống từ chối gắp.
+    # Khối nhựa một màu = 1.0. Lon thì nắp nhôm bạc, vành chữ trắng và vành logo không mang màu.
+    # Thiếu hệ số này thì mọi lon đều bị cờ tin cậy coi là "bị che" và hệ thống từ chối gắp.
+    # Đo bằng scripts/measure_color_fraction.py (9 vị trí trong tầm với, 2026-09-29):
+    # coca 0.67–0.80, pepsi 0.56–0.71, 7up 0.55–0.71. Tỉ lệ KHÔNG phải hằng số vì phép đóng hình
+    # thái học (kernel 5 px) lấp một phần vành nhãn: lon càng ở XA camera, hình càng nhỏ, vành
+    # càng bị lấp nhiều -> tỉ lệ màu càng cao. Lấy giá trị NHỎ NHẤT đo được để lon lành lặn không
+    # bao giờ bị từ chối; đổi lại cờ tin cậy chỉ bắt được mức che > ~25%.
     color_fraction: float = 1.0
     # Khoảng từ ĐỈNH vật xuống tới mép trên của phần MANG MÀU (m). Lon có nắp nhôm bạc dày 2 mm
     # nên mép trên của vùng màu thấp hơn đỉnh lon bấy nhiêu; không trừ phần này thì phép khớp mép
@@ -84,11 +88,11 @@ CAN_HALF_WIDTH = REAL_CAN_DIAMETER / 2 / SCALE     # 0.0115
 
 OBJECTS = (
     SceneObject('coca_can', CAN_HALF_HEIGHT, ('coca', 'cocacola', 'coke', 'do', 'red'),
-                (0.06, -0.075), 'red', 'cylinder', CAN_HALF_WIDTH, 0.43, 0.0017),
+                (0.06, -0.075), 'red', 'cylinder', CAN_HALF_WIDTH, 0.66, 0.0017),
     SceneObject('pepsi_can', CAN_HALF_HEIGHT, ('pepsi', 'lam', 'xanhduong', 'blue'),
-                (0.09, 0.0), 'blue', 'cylinder', CAN_HALF_WIDTH, 0.39, 0.0017),
+                (0.09, 0.0), 'blue', 'cylinder', CAN_HALF_WIDTH, 0.55, 0.0017),
     SceneObject('sevenup_can', CAN_HALF_HEIGHT, ('7up', 'sevenup', 'luc', 'xanhla', 'green'),
-                (0.06, 0.075), 'green', 'cylinder', CAN_HALF_WIDTH, 0.39, 0.0017),
+                (0.06, 0.075), 'green', 'cylinder', CAN_HALF_WIDTH, 0.55, 0.0017),
 )
 
 # Mặt bàn (hệ robot).
@@ -186,3 +190,41 @@ LEGACY_BIN_SLOTS = {
 # Hình học khay của cảnh cũ — dùng khi phân tích ảnh/bộ dữ liệu chụp ở thế giới khối vuông.
 LEGACY_BIN_LAYOUT = BinLayout((LEGACY_BIN_CENTER,), LEGACY_BIN_INNER_HALF,
                               LEGACY_BIN_OUTER_HALF, BIN_FLOOR_Z)
+
+
+# ---------------------------------------------------------------- bàn THẬT (Bước 10a/10b)
+# Bàn thật 600 x 1200 mm, camera nhìn từ phía -X. Trên bàn thật CHỈ có lon và marker: ba khay là
+# vật ẢO, robot chỉ thao tác trong mô phỏng.
+REAL_TABLE = (0.600, 1.200)     # (bề rộng theo Y, chiều dài theo X)
+
+# Vùng đặt lon THẬT. Quy về ảo (chia SCALE) phải nằm trong tầm với ở độ cao gắp (r <= 0.119).
+REAL_OBJECT_AREA_X = (0.0, 0.280)       # ảo: 0 .. 0.093
+REAL_OBJECT_AREA_Y = (-0.190, 0.190)    # ảo: -0.063 .. 0.063
+# Góc xa nhất của vùng này quy về ảo là r = 113 mm, còn dư so với tầm với 119 mm ở độ cao gắp.
+
+# Marker trên bàn THẬT — bao quanh vùng đặt lon, cách mép bàn >= 10 mm.
+# ⚠️ KHÔNG phải CALIB_MARKERS nhân SCALE: bố trí ảo nhân 3 trải 810 x 870 mm, không vừa bàn rộng
+# 600 mm. Bố trí thật được chọn riêng; phần mềm quy về hệ ảo bằng cách CHIA SCALE.
+REAL_CALIB_MARKER_SIZE = 0.060          # ô đen 60 mm (ảo 20 mm) — camera cách ~0.7 m thấy rõ
+REAL_CALIB_MARKERS = {
+    0: (-0.080, 0.250),
+    1: (-0.080, -0.250),
+    2: (0.160, 0.250),
+    3: (0.160, -0.250),
+    4: (0.400, 0.230),
+    5: (0.400, -0.230),
+}
+
+
+def real_calib_markers_virtual():
+    """
+    Tọa độ marker THẬT quy về hệ ẢO (chia SCALE) — đây là thứ đưa vào PnP khi hiệu chuẩn.
+
+    Vì sao chia SCALE ngay ở bước hiệu chuẩn thay vì chia kết quả về sau: thu nhỏ TOÀN BỘ thế giới
+    k lần chỉ làm vectơ tịnh tiến của camera chia cho k, còn ma trận nội tham số, hệ số méo và
+    phép chiếu thì không đổi. Nên PnP nhận tọa độ ảo sẽ trả về một camera "ảo", và cả khối thị
+    giác sẵn có (pixel_to_plane, hình bóng dự đoán, khay, mặt bàn z = TABLE_Z) chạy nguyên vẹn
+    trong hệ ảo, KHÔNG phải sửa chỗ nào. Đổi lại vị trí camera in ra nhỏ hơn thật k lần — chỉ ảnh
+    hưởng lúc báo cáo, không ảnh hưởng phép đo.
+    """
+    return {i: (x / SCALE, y / SCALE) for i, (x, y) in REAL_CALIB_MARKERS.items()}

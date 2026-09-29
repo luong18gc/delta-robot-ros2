@@ -109,3 +109,30 @@ def test_ground_truth_mode_never_observes():
     te.TaskExecutor(robot, log=lambda s: None).pick_place('pepsi_can')
     assert robot.observations == 0
     assert OBSERVE_XYZ not in robot.moves
+
+
+# ---------------------------------------------------------------- trí nhớ quan sát
+
+def test_memory_fills_in_object_hidden_after_first_look():
+    """Lon nhìn rõ lúc đầu, bị che về sau -> vẫn dọn được nhờ vị trí đã nhớ."""
+    robot = FakeRobot()
+    ex = te.TaskExecutor(robot, log=lambda s: None)
+    ex._objects()                       # lần quan sát đầu: thấy đủ ba lon
+    hidden = OBJECTS[-1].name
+    robot.hidden.add(hidden)            # từ giờ camera không còn tin được lon này
+    objects = ex._objects()
+    assert hidden in objects, 'phai lay duoc tu tri nho'
+    assert hidden in ex._remembered
+    assert 'dung vi tri nho' in ex._unclear_note()
+
+
+def test_memory_is_dropped_once_the_gripper_touches_the_object():
+    """Đã hút vào là vị trí cũ hết hiệu lực — không được lấy trí nhớ ra tự xác nhận."""
+    robot = FakeRobot()
+    ex = te.TaskExecutor(robot, log=lambda s: None)
+    name = OBJECTS[0].name
+    ex.pick(name)
+    assert name not in ex._memory
+    robot.hidden.add(name)
+    with pytest.raises(TaskError, match='khong kiem chung duoc'):
+        ex.place()                      # thả xong camera không thấy -> phải báo lỗi kiểm chứng
