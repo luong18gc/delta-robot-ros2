@@ -63,6 +63,10 @@ class SceneObject:
     # nên chỉ còn ~0.4 (đo trên ảnh mô phỏng 2026-09-30). Thiếu hệ số này thì mọi lon đều bị cờ
     # tin cậy coi là "bị che" và hệ thống từ chối gắp.
     color_fraction: float = 1.0
+    # Khoảng từ ĐỈNH vật xuống tới mép trên của phần MANG MÀU (m). Lon có nắp nhôm bạc dày 2 mm
+    # nên mép trên của vùng màu thấp hơn đỉnh lon bấy nhiêu; không trừ phần này thì phép khớp mép
+    # trên (dùng cho vật trong khay) bị lệch hệ thống — đo 2026-09-29: sai 11–15 mm.
+    color_top_margin: float = 0.0
 
 
 # ---------------------------------------------------------------- cảnh hiện tại: ba lon
@@ -74,11 +78,11 @@ CAN_HALF_WIDTH = REAL_CAN_DIAMETER / 2 / SCALE     # 0.0115
 
 OBJECTS = (
     SceneObject('coca_can', CAN_HALF_HEIGHT, ('coca', 'cocacola', 'coke', 'do', 'red'),
-                (-0.085, 0.0), 'red', 'cylinder', CAN_HALF_WIDTH, 0.43),
+                (0.06, -0.075), 'red', 'cylinder', CAN_HALF_WIDTH, 0.43, 0.002),
     SceneObject('pepsi_can', CAN_HALF_HEIGHT, ('pepsi', 'lam', 'xanhduong', 'blue'),
-                (-0.045, 0.075), 'blue', 'cylinder', CAN_HALF_WIDTH, 0.39),
+                (0.09, 0.0), 'blue', 'cylinder', CAN_HALF_WIDTH, 0.39, 0.002),
     SceneObject('sevenup_can', CAN_HALF_HEIGHT, ('7up', 'sevenup', 'luc', 'xanhla', 'green'),
-                (-0.045, -0.075), 'green', 'cylinder', CAN_HALF_WIDTH, 0.39),
+                (0.06, 0.075), 'green', 'cylinder', CAN_HALF_WIDTH, 0.39, 0.002),
 )
 
 # Mặt bàn (hệ robot).
@@ -88,10 +92,15 @@ TABLE_Z = -0.22
 # MỖI LOẠI LON MỘT KHAY RIÊNG -> nhiệm vụ là PHÂN LOẠI THEO CHỦNG LOẠI, không phải xếp vào ô trống
 # bất kỳ. Lòng khay 45x45 mm cho lon Ø 23 mm; thành dày 3 mm cao 15 mm; đáy cao hơn mặt bàn 3 mm.
 # ⚠️ Ba khay màu XÁM TRUNG TÍNH trong world: khay màu đỏ/lục/lam sẽ bị camera nhận nhầm là lon.
+# ⚠️ KHAY đặt phía -X (PHÍA CAMERA), LON đặt phía +X. Tia nhìn từ camera tới khay chỉ quét khoảng
+# x từ -0.40 tới -0.06 nên KHÔNG BAO GIỜ đi qua robot. Hai bố trí sai đã thử (đo 2026-09-29):
+# khay xếp theo trục Y tại x = +0.075 -> khay giữa nằm sau thân robot, ước lượng sai 18–33 mm;
+# khay xếp theo trục X tại y = -0.08 -> ba khay nằm gần cùng hướng nhìn, lon trong khay che nhau,
+# sai 7–18 mm.
 BINS = {
-    'coca_can': (0.075, -0.075),
-    'pepsi_can': (0.075, 0.0),
-    'sevenup_can': (0.075, 0.075),
+    'coca_can': (-0.06, -0.075),
+    'pepsi_can': (-0.06, 0.0),
+    'sevenup_can': (-0.06, 0.075),
 }
 BIN_INNER_HALF = 0.0225
 BIN_OUTER_HALF = 0.0255

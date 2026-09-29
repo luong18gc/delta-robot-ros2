@@ -82,16 +82,18 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
 - `launch/pick_place.launch.py` — include `3dof_delta.launch.py` (world `delta_objects_world`)
   + bridge riêng cho gripper/odometry + `gripper`. Danh sách vật đọc từ `scene.py`.
 - `cartesian_control` có thêm `grip`/`release`; khi đang giữ vật, `safe` dùng `safe_z_holding` -0.14.
-- `scene.py` — **nguồn duy nhất phía ROS** cho vật (tên model, nửa chiều cao, tên tắt, `home_xy` =
-  vị trí ban đầu, phải khớp `<pose>` trong world), bàn `TABLE_Z`, khay (`BIN_CENTER`, `BIN_FLOOR_Z`,
-  `BIN_OUTER_HALF`) và ô thả `BIN_SLOTS` A/B/C. Launch, `gripper_node`, planner đều đọc.
+- `scene.py` — **nguồn duy nhất phía ROS** cho vật (tên model, nửa kích thước, tên tắt, `home_xy`,
+  `color`, `shape`, `color_fraction`, `color_top_margin`), `SCALE` = 2.5, bàn `TABLE_Z`, ba khay
+  `BINS` (mỗi loại một khay) + `BIN_LAYOUT`, và cảnh cũ `LEGACY_OBJECTS` / `LEGACY_BIN_LAYOUT`.
+  Launch, `gripper_node`, planner, khối thị giác đều đọc. Xem mục "Bước 10b" ở phần Tiến độ.
 - `task_planner.py` — thuần Python: lệnh cấp cao → chuỗi `Move`/`Grip`/`Release` từ vị trí **thật**
   của vật; `touch_point` = đỉnh vật + 0.003, `release_point` = đáy khay + 5 mm + cao vật + 0.003;
   `locate` (tren ban / o A / trong khay / dang giu), `check_reachable` kiểm IK mọi đích trước khi chạy.
 - `task_executor.py` — chạy kế hoạch trên node + **kiểm chứng bằng odometry vật** (pick: vật phải
   nhấc lên ≥ 10 mm; place: vật phải nằm trong ô). `pickplace` kiểm ô trống **trước khi** nhặt;
   `sort` lập lại kế hoạch sau mỗi vật. Lệnh REPL: `objects|vat`, `goto|den`, `pick|nhat`,
-  `place|tha [o]`, `pickplace|chuyen <vat> [o]`, `sort|don`, `unload|lay_ra <vat> [x y]`, `reset`.
+  `place|tha` (vào ĐÚNG khay của loại đó), `pickplace|chuyen <vat>`, `sort|don` (PHÂN LOẠI),
+  `unload|lay_ra <vat> [x y]`, `reset`.
   `lay_ra`: đặt ra bàn tại `table_release_point` (mặt bàn + 5 mm + cao vật + 0.003 = -0.182),
   `check_table_spot` từ chối điểm chồng khay (tính cả thành + 5 mm) hoặc cách tâm vật khác < 35 mm —
   kiểm tra **trước khi** nhặt; kiểm chứng: vật "tren ban", lệch ≤ 10 mm. `reset` = lay_ra mọi vật
@@ -101,7 +103,11 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
   đổi ra tọa độ robot khi có file hiệu chuẩn (Bước 8.3).
 - `camera_model.py`, `calibrate_camera_node.py` (entry `calibrate_camera`) — hiệu chuẩn ArUco + PnP (Bước 8.3).
 - `vision_eval.py` + `scripts/record_vision_dataset.py`, `scripts/evaluate_vision.py` — đánh giá sai số (Bước 8.4).
-- `vision_estimation.py` — ước lượng vị trí có xét che khuất: hình bóng dự đoán, khớp mép trên, cờ tin cậy (8.5).
+- `vision_estimation.py` — ước lượng có xét che khuất: hình bóng dự đoán, khớp **mép trên** (vật
+  trong khay) và **mép đáy** (vật nhiều màu trên bàn), `color_shape` (bỏ nắp không mang màu), cờ tin cậy.
+- `object_detector.py` — nhận dạng kiểu TÁCH NỀN TRƯỚC rồi phân loại từng vùng. CHƯA nối vào node
+  `vision`: trong mô phỏng, ba khay xám cũng là "không phải mặt bàn" nên lon trong khay dính liền
+  với khay thành một vùng và bị loại. Để dành cho camera THẬT (nền bàn đen trơn, có thể giới hạn ROI).
 - `cartesian_control`: `object_source` camera (mặc định) | ground_truth, lệnh `nguon`; `scripts/run_pick_place_trials.py` (Bước 9).
 - `scripts/probe_camera.py`, `scripts/make_chessboard_pdf.py` — chuẩn bị camera thật (Bước 10).
 - `test/` — lint + `test_delta_kinematics.py`, `test_trajectory.py`, `test_gripper_logic.py`,
@@ -520,6 +526,60 @@ Lộ trình dự kiến (từng bước, hỏi lại trước quyết định l�
     chuẩn nội tham số trước**; đã kiểm chứng render 200 dpi: `findChessboardCorners` ra 9×6, ô 20.00 mm.
   - Còn chờ người làm đồ án: **mua Logitech C270** (chốt 2026-09-28), giá đỡ/chân máy, in marker +
     bàn cờ ở tỉ lệ 100%, lon nước.
+
+### Bước 10b — cảnh LON + ba khay phân loại (2026-09-29)
+
+**Cảnh hiện tại là ba LON, không còn ba khối vuông.** `scene.OBJECTS` = `coca_can` (đỏ),
+`pepsi_can` (lam), `sevenup_can` (lục); world `delta_cans_world.sdf`; `pick_place.launch.py` đã trỏ
+sang world này. World cũ `delta_objects_world.sdf` và `scene.LEGACY_OBJECTS` / `LEGACY_BIN_LAYOUT`
+**giữ lại** vì mọi ảnh trong `test/data/` và bộ dữ liệu `datasets/vision_eval/` chụp ở cảnh cũ;
+`scripts/evaluate_vision.py` và `record_vision_dataset.py` truyền LEGACY_* vào.
+
+- **Tỉ lệ k = 2.5** (`scene.SCALE`): lon thật Ø 57.5 × 147 mm -> lon ảo Ø 23 × 58.8 mm. Giữ nguyên
+  tỉ lệ hình dạng nên lon ảo trông đúng như lon thật. Lon ảo ghép từ 4 khối để tái tạo đúng ba vấn
+  đề đo được trên ảnh thật: thân màu + **đĩa bạc** (nắp) + **vành trắng** (nhãn) + **vành đỏ**
+  (logo, chỉ Pepsi và 7Up).
+- **Ba khay riêng theo chủng loại** (`scene.BINS`), `don` = PHÂN LOẠI chứ không xếp vào ô trống.
+  `tha` không còn tham số ô. Bỏ hẳn `BIN_SLOTS`, `resolve_slot`, `first_free_slot`, `occupied_slots`.
+- **`safe_z_holding` −0.14 -> −0.13**: lon cao 58.8 mm thò xuống dưới tool0 nhiều hơn khối 30 mm.
+- **Đầu hút được làm nổi bật**: 2 khối CHỈ HIỂN THỊ màu hồng cánh sen trong `3dof_delta.urdf.xacro`
+  (mặt hút nằm âm trong bề dày platform + chóp trên đỉnh). H ≈ 157 nằm ngoài cả ba lớp màu.
+- `3dof_delta.gripper.xacro` khai cả 6 vật (3 lon + 3 khối cũ); plugin có `suppress_child_warning`
+  nên world thiếu vật nào cũng không sao.
+
+**Bốn lỗi đã tìm ra khi chuyển sang lon (mỗi lỗi đều đáng viết vào khóa luận):**
+1. **Tỉ lệ màu danh nghĩa.** Lon chỉ có **39–43%** hình bóng mang màu (nắp bạc + vành trắng + vành
+   logo), nên `visible = diện tích màu / hình bóng` luôn < 0.9 -> MỌI lon bị coi là bị che, robot từ
+   chối gắp. Sửa: thêm `SceneObject.color_fraction`, chia cho phần *đáng lẽ* thấy được.
+2. **Tâm khối vùng màu lệch xuống dưới** tâm hình bóng **32 px ≈ 28 mm** (phần trên là nắp bạc).
+   Sửa: `fit_bottom_edge` — khớp **mép đáy** (thân lon có màu xuống tận đáy, đáy tì trên bàn) ->
+   sai số còn **1.8 mm**. Dùng cho vật trên bàn có `color_fraction < 0.9`.
+3. **Mép trên quan sát được là của phần MANG MÀU, không phải đỉnh lon.** Nắp bạc dày 2 mm làm phép
+   khớp mép trên (vật trong khay) lệch hệ thống 11–15 mm. Sửa: `SceneObject.color_top_margin` +
+   `vision_estimation.color_shape()` dựng hình bóng của riêng phần mang màu.
+4. **Robot CHƯA TỚI NƠI khi ra lệnh hút.** Vòng phát điểm chạy theo **đồng hồ thật**, mô phỏng chạy
+   RTF < 1 nên `move()` trả về lúc robot còn đang đi -> lệch **46–48 mm** so với vật, trong khi ước
+   lượng camera chỉ lệch 1.8 mm. Sửa: `wait_until_arrived()` chờ vị trí ĐO ĐƯỢC (FK từ
+   `/joint_states`) vào trong 2 mm. ⚠️ Lỗi này có từ Bước 4, khối vuông thấp nên chưa lộ ra.
+   Kèm theo: `observe_camera` lấy **trung vị 5 khung** thay vì tin một khung.
+
+**Bố trí khay — đã thử sai hai lần, ghi lại để không lặp:**
+- khay xếp theo trục Y tại x = +0.075: khay giữa nằm **đúng sau thân robot** nhìn từ camera ->
+  platform che phần trên lon trong khay, mép trên lệch 41 px, ước lượng sai **18–33 mm**;
+- khay xếp theo trục X tại y = −0.08: ba khay gần như nằm **trên cùng hướng nhìn** -> lon trong khay
+  **che nhau**, sai 7–18 mm;
+- **đang dùng**: KHAY phía **−X (phía camera)** tại x = −0.06, y = −0.075 / 0 / +0.075; LON phía
+  **+X** tại (0.06, −0.075), (0.09, 0), (0.06, 0.075). Tia nhìn tới khay chỉ quét x từ −0.40 tới
+  −0.06 nên **không bao giờ đi qua robot**; lon ở phía xa vẫn thấy rõ khi robot lên tư thế quan sát.
+
+**Kiểm chứng:** `don` chế độ camera phân loại **3/3 lon vào đúng ba khay** (lệch 3.2–4.5 mm so với
+tâm khay); chế độ vị trí thật cũng vậy. Ước lượng lon trên bàn lệch **2.1–2.9 mm** (thật ≈ 5–7 mm,
+dung sai thật 30 mm). Lon trong khay: khi phép khớp mép trên chạy, lệch **3–5 mm**.
+⚠️ **`reset` (lấy lon từ khay ra) CHƯA chạy trọn vẹn ở chế độ camera** — phép khớp mép trên đôi khi
+không ra nghiệm hợp lệ và hệ rơi về tâm khối thô (sai 22–25 mm). Việc tiếp theo cần làm.
+
+⚠️ Đo hiệu năng phải xem `uptime` trước: `unattended-upgrade` của Ubuntu chạy nền từng kéo camera
+mô phỏng từ 10 xuống **1 hình/giây** (load 10.5), làm mọi phép đo vô nghĩa.
 
 ### Mặt bàn ảo đổi sang ĐEN NHÁM (2026-09-28)
 Bàn thật ở nhà người làm đồ án màu đen **nhám** (đã kiểm tra không bóng) → đổi `work_table` trong

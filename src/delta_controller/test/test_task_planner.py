@@ -42,6 +42,7 @@ DROP_Z = BIN_FLOOR_Z + 0.005 + 2 * H + PLATFORM_HALF_THICKNESS   # -0.1502
 TABLE_DROP_Z = TABLE_Z + 0.005 + 2 * H + PLATFORM_HALF_THICKNESS  # -0.1532
 
 ON_TABLE = {o.name: ObjectState((o.home_xy[0], o.home_xy[1], CENTER_Z), H) for o in OBJECTS}
+HOME = {o.name: o.home_xy for o in OBJECTS}
 
 
 def in_bin(name):
@@ -76,7 +77,7 @@ def test_bin_of_gives_each_can_its_own_bin():
 # ---------------------------------------------------------------- điểm hình học
 
 def test_touch_point_is_top_of_can_plus_platform_half():
-    assert touch_point(ON_TABLE['coca_can']) == pytest.approx((-0.085, 0.0, TOUCH_Z))
+    assert touch_point(ON_TABLE['coca_can']) == pytest.approx((*HOME['coca_can'], TOUCH_Z))
 
 
 def test_touch_point_is_accepted_by_gripper_logic():
@@ -116,7 +117,7 @@ def test_in_own_bin():
 
 def test_is_lifted():
     assert not is_lifted(ON_TABLE['coca_can'], TABLE_Z)
-    lifted = ObjectState((-0.085, 0.0, CENTER_Z + 0.047), H)
+    lifted = ObjectState((*HOME['coca_can'], CENTER_Z + 0.047), H)
     assert is_lifted(lifted, TABLE_Z)
 
 
@@ -131,14 +132,16 @@ def test_pick_sequence():
     actions = plan_pick('coca_can', ON_TABLE, '', LIFT_Z)
     assert [type(a) for a in actions] == [Move, Grip, Move]
     down, grip, up = actions
-    assert down.safe and down.goal == pytest.approx((-0.085, 0.0, TOUCH_Z))
+    assert down.safe and down.goal == pytest.approx((*HOME['coca_can'], TOUCH_Z))
     assert grip.expected == 'coca_can'
-    assert not up.safe and up.goal == pytest.approx((-0.085, 0.0, LIFT_Z))
+    assert not up.safe and up.goal == pytest.approx((*HOME['coca_can'], LIFT_Z))
 
 
 def test_pick_uses_actual_pushed_position():
-    pushed = dict(ON_TABLE, coca_can=ObjectState((-0.073, 0.004, CENTER_Z), H))
-    assert plan_pick('coca_can', pushed, '', LIFT_Z)[0].goal[:2] == pytest.approx((-0.073, 0.004))
+    pushed = dict(ON_TABLE, coca_can=ObjectState(
+        (HOME['coca_can'][0] + 0.012, HOME['coca_can'][1] + 0.004, CENTER_Z), H))
+    assert plan_pick('coca_can', pushed, '', LIFT_Z)[0].goal[:2] == pytest.approx(
+        (HOME['coca_can'][0] + 0.012, HOME['coca_can'][1] + 0.004))
 
 
 def test_pick_while_holding_is_rejected():
@@ -220,7 +223,8 @@ IN_BIN = {o.name: in_bin(o.name) for o in OBJECTS}
 
 def test_table_release_point_height():
     """Mặt bàn -0.22 + khe 5 mm + lon 58.8 mm + nửa platform 3 mm."""
-    assert table_release_point(-0.085, 0.0, H) == pytest.approx((-0.085, 0.0, TABLE_DROP_Z))
+    assert (table_release_point(*HOME['coca_can'], H)
+            == pytest.approx((*HOME['coca_can'], TABLE_DROP_Z)))
 
 
 def test_home_positions_are_valid_table_spots():
@@ -229,7 +233,7 @@ def test_home_positions_are_valid_table_spots():
         inverse_kinematics(*table_release_point(*obj.home_xy, obj.half_height))
 
 
-@pytest.mark.parametrize('xy', list(BINS.values()) + [(0.075 + 0.03, 0.0)])
+@pytest.mark.parametrize('xy', list(BINS.values()) + [(-0.06, 0.0 + 0.03)])
 def test_table_spot_rejects_bin_footprint(xy):
     with pytest.raises(TaskError, match='khay'):
         check_table_spot('coca_can', xy, {})
@@ -238,20 +242,22 @@ def test_table_spot_rejects_bin_footprint(xy):
 def test_table_spot_rejects_near_other_object_but_ignores_itself():
     objects = dict(ON_TABLE)
     with pytest.raises(TaskError, match='qua gan pepsi_can'):
-        check_table_spot('coca_can', (-0.045, 0.075 - 0.02), objects)
-    check_table_spot('coca_can', (-0.085, 0.0), objects)  # chính nó đang ở đó: không tính
+        check_table_spot('coca_can', (HOME['pepsi_can'][0], HOME['pepsi_can'][1] - 0.02),
+                         objects)
+    check_table_spot('coca_can', HOME['coca_can'], objects)  # chính nó: không tính
 
 
 def test_unload_sequence_goes_to_home_by_default():
     actions = plan_unload('coca_can', IN_BIN, '', LIFT_Z, RETREAT_Z)
     assert [type(a) for a in actions] == [Move, Grip, Move, Move, Release, Move]
     assert actions[0].goal == pytest.approx(touch_point(IN_BIN['coca_can']))
-    assert actions[3].safe and actions[3].goal == pytest.approx((-0.085, 0.0, TABLE_DROP_Z))
+    assert actions[3].safe
+    assert actions[3].goal == pytest.approx((*HOME['coca_can'], TABLE_DROP_Z))
 
 
 def test_unload_to_custom_spot():
-    actions = plan_unload('coca_can', IN_BIN, '', LIFT_Z, RETREAT_Z, xy=(-0.06, -0.06))
-    assert actions[3].goal == pytest.approx((-0.06, -0.06, TABLE_DROP_Z))
+    actions = plan_unload('coca_can', IN_BIN, '', LIFT_Z, RETREAT_Z, xy=(0.02, -0.095))
+    assert actions[3].goal == pytest.approx((0.02, -0.095, TABLE_DROP_Z))
 
 
 def test_unload_rejects_object_on_table():
@@ -260,7 +266,8 @@ def test_unload_rejects_object_on_table():
 
 
 def test_unload_rejects_blocked_spot_before_picking():
-    objects = dict(IN_BIN, pepsi_can=ObjectState((-0.080, 0.0, CENTER_Z), H))
+    objects = dict(IN_BIN, pepsi_can=ObjectState(
+        (HOME['coca_can'][0] + 0.005, HOME['coca_can'][1] + 0.005, CENTER_Z), H))
     with pytest.raises(TaskError, match='qua gan pepsi_can'):
         plan_unload('coca_can', objects, '', LIFT_Z, RETREAT_Z)
 

@@ -139,12 +139,12 @@
     <!-- ===================== Ba lon ===================== -->
     <!-- Lon ảo: bán kính 0.0115, cao 0.0588. Tâm world z = 0.78 + 0.0294 = 0.8094.
          Vị trí xuất phát nằm phía -X (gần camera), đều trong tầm với ở độ cao gắp:
-           coca     (-0.085,  0.000)  r = 0.085
-           pepsi    (-0.045,  0.075)  r = 0.0875
-           sevenup  (-0.045, -0.075)  r = 0.0875
+           coca     ( 0.060, -0.075)  r = 0.096
+           pepsi    ( 0.090,  0.000)  r = 0.090
+           sevenup  ( 0.060,  0.075)  r = 0.096
          Quán tính trụ m = 0.05: Ixx = Iyy = 1.6e-5, Izz = 3.3e-6. -->
 
-    <!-- Lon Coca — ĐỎ. Tâm robot: (-0.085, 0, -0.1906); đỉnh: z = -0.1612 -->
+    <!-- Lon Coca — ĐỎ. Tâm robot: (-0.06, 0.075, -0.1906); đỉnh: z = -0.1612 -->
     <model name="coca_can">
       <plugin filename="gz-sim-odometry-publisher-system"
               name="gz::sim::systems::OdometryPublisher">
@@ -155,7 +155,7 @@
         <tf_topic>/objects/coca_can/tf</tf_topic>
         <odom_publish_frequency>30</odom_publish_frequency>
       </plugin>
-      <pose>-0.085 0 0.8094 0 0 0</pose>
+      <pose>0.06 -0.075 0.8094 0 0 0</pose>
       <link name="link">
         <inertial>
           <mass>0.05</mass>
@@ -196,7 +196,7 @@
       </link>
     </model>
 
-    <!-- Lon Pepsi — XANH LAM + vành ĐỎ (logo). Tâm robot: (-0.045, 0.075, -0.1906) -->
+    <!-- Lon Pepsi — XANH LAM + vành ĐỎ (logo). Tâm robot: (0, 0.09, -0.1906) -->
     <model name="pepsi_can">
       <plugin filename="gz-sim-odometry-publisher-system"
               name="gz::sim::systems::OdometryPublisher">
@@ -207,7 +207,7 @@
         <tf_topic>/objects/pepsi_can/tf</tf_topic>
         <odom_publish_frequency>30</odom_publish_frequency>
       </plugin>
-      <pose>-0.045 0.075 0.8094 0 0 0</pose>
+      <pose>0.09 0 0.8094 0 0 0</pose>
       <link name="link">
         <inertial>
           <mass>0.05</mass>
@@ -256,7 +256,7 @@
       </link>
     </model>
 
-    <!-- Lon 7Up — XANH LỤC + vành ĐỎ (logo). Tâm robot: (-0.045, -0.075, -0.1906) -->
+    <!-- Lon 7Up — XANH LỤC + vành ĐỎ (logo). Tâm robot: (0.06, 0.075, -0.1906) -->
     <model name="sevenup_can">
       <plugin filename="gz-sim-odometry-publisher-system"
               name="gz::sim::systems::OdometryPublisher">
@@ -267,7 +267,7 @@
         <tf_topic>/objects/sevenup_can/tf</tf_topic>
         <odom_publish_frequency>30</odom_publish_frequency>
       </plugin>
-      <pose>-0.045 -0.075 0.8094 0 0 0</pose>
+      <pose>0.06 0.075 0.8094 0 0 0</pose>
       <link name="link">
         <inertial>
           <mass>0.05</mass>
@@ -318,7 +318,15 @@
     <!-- Mỗi loại lon một khay riêng (thay cho một khay 3 ô ở world cũ) -> bài toán thành PHÂN LOẠI
          THEO CHỦNG LOẠI. Lòng khay 45x45 mm cho lon Ø 23 mm (dư 11 mm mỗi bên), thành dày 3 mm cao
          15 mm (đỉnh robot z = -0.205), đáy dày 3 mm (mặt đáy robot z = -0.217).
-         Tâm khay (robot): coca (0.075, -0.075), pepsi (0.075, 0), sevenup (0.075, 0.075).
+         Tâm khay (robot): coca (-0.06, -0.075), pepsi (-0.06, 0), sevenup (-0.06, 0.075).
+         ⚠️ KHAY đặt phía -X (PHÍA CAMERA), LON đặt phía +X. Đã thử hai bố trí sai trước đó
+         (đo 2026-09-29):
+           - khay xếp theo trục Y tại x = +0.075: khay giữa nằm đúng sau thân robot -> platform
+             che phần trên lon, mép trên lệch 41 px, ước lượng sai 18–33 mm;
+           - khay xếp theo trục X tại y = -0.08: ba khay gần như nằm trên cùng hướng nhìn nên
+             LON TRONG KHAY CHE NHAU, sai 7–18 mm.
+         Đặt khay ở phía camera thì tia nhìn tới khay không bao giờ đi qua robot (chỉ quét khoảng
+         x từ -0.40 tới -0.06), còn lon ở phía xa vẫn thấy rõ khi robot lên tư thế quan sát.
          Điểm nhả tool0 = -0.217 + 0.005 + 0.0588 + 0.003 = -0.1502; tầm với tại đó ≈ 0.123 > 0.106.
          Đáy lon khi mang ngang ở safe_z_holding = -0.13 nằm tại -0.192, cao hơn đỉnh thành 13 mm.
 
@@ -328,7 +336,7 @@
 
     <model name="bin_coca">
       <static>true</static>
-      <pose>0.075 -0.075 0.78 0 0 0</pose>
+      <pose>-0.06 -0.075 0.78 0 0 0</pose>
       <link name="link">
         <collision name="floor_collision">
           <pose>0 0 0.0015 0 0 0</pose>
@@ -380,7 +388,7 @@
 
     <model name="bin_pepsi">
       <static>true</static>
-      <pose>0.075 0 0.78 0 0 0</pose>
+      <pose>-0.06 0 0.78 0 0 0</pose>
       <link name="link">
         <collision name="floor_collision">
           <pose>0 0 0.0015 0 0 0</pose>
@@ -432,7 +440,7 @@
 
     <model name="bin_sevenup">
       <static>true</static>
-      <pose>0.075 0.075 0.78 0 0 0</pose>
+      <pose>-0.06 0.075 0.78 0 0 0</pose>
       <link name="link">
         <collision name="floor_collision">
           <pose>0 0 0.0015 0 0 0</pose>

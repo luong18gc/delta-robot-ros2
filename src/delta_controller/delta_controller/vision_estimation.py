@@ -14,7 +14,7 @@ theo phần bị che. Hai cải tiến, cùng dựa trên việc DỰ ĐOÁN hì
       tâm ngang quan sát được: 2 phương trình, 2 ẩn, giải bằng Newton (Jacobian số).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import math
 
 import cv2
@@ -90,6 +90,24 @@ def near_bin(x, y, margin=BIN_SEARCH_MARGIN, bins=BIN_LAYOUT):
     """Gần BẤT KỲ khay nào (từ Bước 10b mỗi loại vật có một khay riêng)."""
     reach = bins.outer_half + margin
     return any(abs(x - bx) < reach and abs(y - by) < reach for bx, by in bins.centers)
+
+
+def color_shape(obj):
+    """
+    (Vật đại diện phần MANG MÀU, độ lệch tâm theo z).
+
+    Đỉnh lon là nắp nhôm bạc nên mép trên của vùng màu thấp hơn đỉnh hình bóng. So mép trên của
+    cả hình bóng với mép trên của vùng màu gây lệch hệ thống, càng ra rìa ảnh càng lớn.
+    """
+    margin = getattr(obj, 'color_top_margin', 0.0)
+    if margin <= 0.0:
+        return obj, 0.0
+    return replace(obj, half_height=obj.half_height - margin / 2), -margin / 2
+
+
+def nearest_bin(x, y, bins=BIN_LAYOUT):
+    """Tâm khay gần (x, y) nhất — điểm xuất phát tốt cho phép khớp mép trên."""
+    return min(bins.centers, key=lambda c: (x - c[0]) ** 2 + (y - c[1]) ** 2)
 
 
 def inside_bin(x, y, bins=BIN_LAYOUT):
@@ -170,9 +188,15 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
         bin_center_z = bins.floor_z + obj.half_height
         # Pixel trên cùng của mặt nạ có tâm ở hàng bbox y -> mép thật nằm ở khoảng y - 0.5.
         v_top_obs = detection.bbox[1] - 0.5
-        fit = fit_top_edge(camera, obj, u, v_top_obs, bin_center_z, (x, y))
-        if fit is not None and inside_bin(*fit, bins=bins):
-            position, method = (fit[0], fit[1], bin_center_z), 'top_edge'
+        # Xuất phát từ TÂM KHAY chứ không phải ước lượng thô: vật chắc chắn nằm trong lòng khay,
+        # còn ước lượng thô của vật nhiều màu lệch hàng chục mm nên Newton hay ra nghiệm ngoài
+        # khay rồi bị loại (đo 2026-09-29: 10/15 lần khớp hỏng -> rơi về tâm khối, sai 18–33 mm).
+        cobj, dz = color_shape(obj)      # mép trên quan sát được là của phần MANG MÀU
+        for start in (nearest_bin(x, y, bins), (x, y)):
+            fit = fit_top_edge(camera, cobj, u, v_top_obs, bin_center_z + dz, start)
+            if fit is not None and inside_bin(*fit, bins=bins):
+                position, method = (fit[0], fit[1], bin_center_z), 'top_edge'
+                break
     elif getattr(obj, 'color_fraction', 1.0) < 0.9:
         # TRÊN BÀN, vật nhiều màu (lon: nắp bạc, vành chữ trắng): tâm khối vùng MÀU lệch xuống
         # dưới so với tâm hình bóng (đo được 32 px ≈ 28 mm). Khớp MÉP DƯỚI thay vì tâm khối —
