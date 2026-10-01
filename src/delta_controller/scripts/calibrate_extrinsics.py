@@ -34,7 +34,10 @@ from delta_controller.real_camera import (
 from delta_controller.scene import REAL_CALIB_MARKERS, real_calib_markers_virtual, SCALE
 import numpy as np
 
+# Chay duoc ca khi chua `source install/setup.bash`: them thu muc goi vao duong dan.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')))
 import probe_camera as probe   # noqa: E402
 import yaml                    # noqa: E402
 

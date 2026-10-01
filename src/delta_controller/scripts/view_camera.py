@@ -25,8 +25,13 @@ import time
 
 import cv2
 
+# Chay duoc ca khi chua `source install/setup.bash`: them thu muc goi vao duong dan.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import probe_camera as probe   # noqa: E402
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')))
+from delta_controller.color_detector import COLOR_CLASSES, color_mask   # noqa: E402
+import numpy as np                                                     # noqa: E402
+import probe_camera as probe                                           # noqa: E402
 
 WS = os.path.expanduser('~/ros2_closed_loop_ws')
 PATTERN = (9, 6)
@@ -34,6 +39,35 @@ ARUCO_DICT = 'DICT_4X4_50'
 EXPECTED_IDS = set(range(6))
 DARK_V = 40          # ngưỡng V của color_detector
 BRIGHT = 250
+
+
+# Lon phai sang han nguong V bao nhieu thi coi la du an toan, va mat ban phai bao hoa duoi bao
+# nhieu. Do 2026-10-01 tren anh C270: canh qua toi -> 5% pixel toi nhat cua lon 7Up chi V=41 trong
+# khi nguong la 40, con mat ban o V 30-40 lai co 23% pixel S>=90. Sang len thi lon roi khoi mep VA
+# S cua mat ban tu tut xuong, vi S=(max-min)/max rat nhieu khi V nho.
+CAN_V_TARGET = 120
+TABLE_S_TARGET = 60
+
+
+def color_report(frame):
+    """(dong chu, anh phu mat na) ve nguong mau: lon co du sang chua, ban co du xam chua."""
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    v, sat = hsv[:, :, 2], hsv[:, :, 1]
+    overlay = frame.copy()
+    any_mask = np.zeros(v.shape, bool)
+    lines = []
+    for name, cls in COLOR_CLASSES.items():
+        mask = color_mask(hsv, cls) > 0
+        any_mask |= mask
+        if mask.sum() < 200:
+            lines.append(f'{name:5s} --')
+            continue
+        overlay[mask] = (0.35 * np.array(cls.bgr) + 0.65 * overlay[mask]).astype(np.uint8)
+        lines.append(f'{name:5s} {mask.sum():6d}px V{np.median(v[mask]):3.0f}'
+                     f'/{np.percentile(v[mask], 5):3.0f}')
+    table = (~any_mask) & (v < 110)
+    table_s = float(np.median(sat[table])) if table.sum() > 500 else 0.0
+    return lines, table_s, overlay
 
 
 def stats(frame):
@@ -81,6 +115,10 @@ def main():
                     help='/dev/videoN, hoac "auto" (mac dinh) de tu tim theo ten')
     ap.add_argument('--chess', action='store_true', help='tim ban co thay vi marker')
     ap.add_argument('--plain', action='store_true', help='khong tim gi ca')
+    ap.add_argument('--colors', action='store_true',
+                    help='xem nguong mau: lon co du sang chua, mat ban co du xam chua')
+    ap.add_argument('--exposure', type=int,
+                    help='dat phoi sang (2-5000); canh tinh nen dai cung khong nhoe')
     ap.add_argument('--no-lock', action='store_true', help='khong khoa phoi sang/can bang trang')
     ap.add_argument('--out', default=os.path.join(WS, 'datasets/real_camera'))
     args = ap.parse_args()
@@ -91,6 +129,9 @@ def main():
         sys.exit(f'Khong doc duoc che do MJPG tu {args.device} — camera da cam chua?')
     if not args.no_lock:
         probe.lock_manual(args.device, log=lambda s: None)
+    if args.exposure:
+        probe.v4l2(args.device, ['-c', f'exposure_time_absolute={args.exposure}'])
+        print(f'phoi sang = {args.exposure}')
     cap = probe.open_camera(args.device, mode[0], mode[1])
     probe.warm_up(cap)
     os.makedirs(args.out, exist_ok=True)
@@ -126,15 +167,28 @@ def main():
         draw_bar(view, f'TOI (V<{DARK_V}) {100 * dark:4.1f}%', 58,
                  (0, 220, 0) if dark < 0.20 else (0, 160, 255))
         draw_bar(view, f'DO NET {sharp:5.0f}   sang TB {mean:3.0f}', 84, (220, 220, 220))
-        if detector is not None:
+        if args.colors:
+            lines, table_s, view = color_report(frame)
+            for i, text in enumerate(lines):
+                draw_bar(view, text, 112 + 26 * i, (220, 220, 220))
+            draw_bar(view, f'mat ban S {table_s:3.0f} (can < {TABLE_S_TARGET})', 112 + 26 * 3,
+                     (0, 220, 0) if table_s < TABLE_S_TARGET else (0, 160, 255))
+            draw_bar(view, f'CHAY SANG {100 * blown:4.1f}%', 32,
+                     (0, 220, 0) if blown < 0.02 else (0, 160, 255))
+        elif detector is not None:
             overlay_markers(view, gray, detector)
         elif args.chess:
             overlay_chessboard(view, gray)
         cv2.imshow(title, view)
         if time.monotonic() - last_log > 2.0:     # in ra terminal để biết cửa sổ có đang cập nhật
             last_log = time.monotonic()
-            print(f'  sang TB {mean:3.0f} | chay sang {100 * blown:4.1f}% | '
-                  f'toi {100 * dark:4.1f}% | do net {sharp:5.0f}')
+            if args.colors:
+                lines, table_s, _ = color_report(frame)
+                print('  ' + ' | '.join(lines) + f' | mat ban S {table_s:3.0f}'
+                      f' | chay sang {100 * blown:4.1f}%')
+            else:
+                print(f'  sang TB {mean:3.0f} | chay sang {100 * blown:4.1f}% | '
+                      f'toi {100 * dark:4.1f}% | do net {sharp:5.0f}')
         key = cv2.waitKey(1) & 0xFF
         if key in (ord('q'), 27):
             break
