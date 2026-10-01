@@ -46,6 +46,69 @@ def focus_verdict(controls):
     return 'LOI', 'co mo-to lay net nhung KHONG tat duoc tu dong -> hieu chuan se troi'
 
 
+# Webcam tích hợp của máy nhìn vào NGƯỜI dùng -> không bao giờ là camera của đồ án.
+BUILTIN_HINTS = ('USB2.0 HD UVC WebCam',)
+PREFERRED = ('C270',)
+
+
+def list_devices():
+    """[(tên thiết bị, [/dev/videoN, ...]), ...] theo `v4l2-ctl --list-devices`."""
+    try:
+        out = subprocess.run(['v4l2-ctl', '--list-devices'],
+                             capture_output=True, text=True).stdout
+    except FileNotFoundError:
+        return []
+    devices, name = [], None
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        if not line.startswith((' ', '\t')):
+            name = line.rstrip(':').strip()
+            devices.append((name, []))
+        elif devices and line.strip().startswith('/dev/video'):
+            devices[-1][1].append(line.strip())
+    return devices
+
+
+def captures(node):
+    """Node này có quay được không — thiết bị UVC còn có node phụ chỉ mang metadata."""
+    out, err = v4l2(node, ['--list-formats-ext'])
+    return err is not None and 'Size:' in out
+
+
+def find_device(prefer=PREFERRED):
+    """
+    Tự chọn camera của đồ án: (node, tên) hoặc (None, lý do).
+
+    Số thứ tự /dev/videoN KHÔNG ổn định — khởi động lại máy hay cắm lại cổng là đổi (đo
+    2026-09-30: C270 từ video2 nhảy về video0, webcam tích hợp chiếm chỗ video2). Bắt người dùng
+    nhớ số là sẽ có lúc hiệu chuẩn nhầm camera mà không biết. Chọn theo TÊN: ưu tiên tên khớp
+    `prefer`, sau đó là mọi camera không phải webcam tích hợp.
+    """
+    devices = list_devices()
+    if not devices:
+        return None, 'khong chay duoc v4l2-ctl --list-devices (da cai v4l-utils chua?)'
+    ranked = sorted(devices, key=lambda d: (
+        0 if any(k.lower() in d[0].lower() for k in prefer) else
+        2 if any(k.lower() in d[0].lower() for k in BUILTIN_HINTS) else 1))
+    for name, nodes in ranked:
+        for node in nodes:
+            if captures(node):
+                return node, name
+    return None, 'khong thay camera nao quay duoc'
+
+
+def resolve_device(device, log=print):
+    """Đổi giá trị --device thành node thật; 'auto' thì tự tìm."""
+    if device and device != 'auto':
+        return device
+    node, name = find_device()
+    if node is None:
+        sys.exit(f'Khong tim duoc camera: {name}')
+    log(f'Camera: {name} -> {node}')
+    return node
+
+
 def v4l2(device, args):
     """Chạy v4l2-ctl, trả về (stdout, stderr); ('', None) nếu máy chưa cài v4l-utils."""
     try:
@@ -88,6 +151,11 @@ def open_camera(device, width, height):
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    # Hàng đợi mặc định của V4L2 là 4 khung: khung lấy ra luôn là khung CŨ NHẤT còn trong hàng,
+    # nên ảnh hiện ra trễ thêm vài khung. Đo 2026-09-30 (đổi phơi sáng rồi đếm khung tới lúc ảnh
+    # đổi theo): 4 -> trễ 5 khung; 1 -> trễ 3 khung. Ba khung còn lại (~100 ms) là độ trễ nội tại
+    # của C270 (cảm biến + nén MJPG + truyền USB), phần mềm không bỏ được.
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     if not cap.isOpened():
         sys.exit(f'Khong mo duoc {device}')
     return cap
@@ -114,6 +182,28 @@ def warm_up(cap):
     return frame
 
 
+def lock_manual(device, controls=None, log=print):
+    """
+    Chuyển camera sang phơi sáng / cân bằng trắng / lấy nét THỦ CÔNG, rồi đọc lại xác nhận.
+
+    Trả về chuỗi trạng thái đọc lại (rỗng nếu máy không có v4l2-ctl). Bắt buộc trước mọi phép đo:
+    để tự động thì ngưỡng HSV trôi giữa các khung và nội tham số hiệu chuẩn xong cũng vô nghĩa.
+    """
+    if controls is None:
+        controls = list_controls(device)
+    if controls is None:
+        return ''
+    for name, value in MANUAL:
+        if name not in controls:
+            continue
+        _, err = v4l2(device, ['-c', f'{name}={value}'])
+        log(f'  {name}={value}' + (f'  LOI: {err}' if err else '  OK'))
+    time.sleep(1.0)
+    have = [n for n, _ in MANUAL if n in controls]
+    state, _ = v4l2(device, ['-C', ','.join(have)])
+    return ' | '.join(state.splitlines())
+
+
 def measure_noise(cap):
     """Độ lệch chuẩn nhiễu cảm biến (mức xám), đo trên hai khung liên tiếp của cảnh tĩnh."""
     a = grab(cap, 5).astype(np.float64)
@@ -132,12 +222,14 @@ def report_frame(frame, tag):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--device', default='/dev/video2')
+    ap.add_argument('--device', default='auto',
+                    help='/dev/videoN, hoac "auto" (mac dinh) de tu tim theo ten')
     ap.add_argument('--shots', type=int, default=0, help='so anh thu vao --out (0 = khong thu)')
     ap.add_argument('--interval', type=float, default=3.0, help='giay giua hai anh khi thu')
     ap.add_argument('--out', default='datasets/real_camera')
     ap.add_argument('--no-lock', action='store_true', help='khong khoa che do thu cong')
     args = ap.parse_args()
+    args.device = resolve_device(args.device)
 
     print(f'== Camera {args.device}')
     controls = list_controls(args.device)
@@ -160,16 +252,9 @@ def main():
 
     if not args.no_lock and controls is not None:
         print('== Khoa che do thu cong')
-        for name, value in MANUAL:
-            if name not in controls:
-                continue
-            _, err = v4l2(args.device, ['-c', f'{name}={value}'])
-            print(f'  {name}={value}' + (f'  LOI: {err}' if err else '  OK'))
-        time.sleep(1.0)
+        state = lock_manual(args.device, controls)
         report_frame(grab(cap, WARMUP_FRAMES), 'thu cong')
-        have = [n for n, _ in MANUAL if n in controls]
-        state, _ = v4l2(args.device, ['-C', ','.join(have)])
-        print('  doc lai:', ' | '.join(state.splitlines()))
+        print('  doc lai:', state)
 
     noise = measure_noise(cap)
     print(f'== Nhieu cam bien: sigma ~ {noise:.1f} muc xam '
