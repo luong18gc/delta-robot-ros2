@@ -28,6 +28,8 @@ from delta_controller.camera_model import CameraModel, estimate_pose, marker_cen
 from delta_controller.scene import (
     CALIB_ARUCO_DICT,
     real_calib_markers_virtual,
+    REAL_CAN_HEIGHT,
+    real_roi_virtual,
     SCALE,
     TABLE_Z,
 )
@@ -36,8 +38,12 @@ import numpy as np
 # Cần ít nhất bấy nhiêu marker mới giải được tư thế. PnP cần 4 điểm; lấy dư 1 để còn phát hiện
 # được nghiệm sai qua sai số chiếu lại.
 MIN_MARKERS = 5
-# Sai số chiếu lại trên mức này coi như hỏng (nhận nhầm marker, tọa độ dán sai, nội tham số sai).
-MAX_RMS_PX = 2.0
+# Sai số trên mức này coi như hỏng (nhận nhầm marker, tọa độ dán sai, nội tham số sai).
+# ⚠️ Đo bằng MILIMÉT trong không gian ảo, không phải pixel: cùng một sai số pixel ứng với số
+# milimét khác hẳn tùy camera đặt gần hay xa, và thứ quyết định gắp được hay không là milimét so
+# với dung sai giác hút 12 mm. Bố trí thật 2026-10-05 cho RMS 3.25 px — nghe như hỏng, quy ra chỉ
+# 0.93 mm ảo (mô phỏng đạt 1.13 mm). Ngưỡng 2 px cũ loại sạch mọi khung, node không chạy nổi.
+MAX_RMS_MM = 3.0
 # Trọng số làm trơn theo khung: tư thế mới chỉ được chiếm bấy nhiêu. Camera đứng yên nên làm trơn
 # mạnh vẫn bám kịp khi giá đỡ xê dịch từ từ, mà bớt được nhiễu PnP từng khung.
 SMOOTH = 0.15
@@ -80,10 +86,15 @@ class Extrinsics:
     rms_px: float
     marker_ids: tuple
     errors_px: tuple
+    errors_mm: tuple          # sai số từng marker, MILIMÉT trong không gian ảo
+
+    @property
+    def rms_mm(self):
+        return float(np.sqrt(np.mean(np.square(self.errors_mm))))
 
     @property
     def ok(self):
-        return len(self.marker_ids) >= MIN_MARKERS and self.rms_px <= MAX_RMS_PX
+        return len(self.marker_ids) >= MIN_MARKERS and self.rms_mm <= MAX_RMS_MM
 
     def position_real_mm(self, table_z=TABLE_Z):
         """
@@ -118,8 +129,13 @@ def estimate_extrinsics(centers, K, dist, markers=None, z=TABLE_Z):
     obj = [(*known[i], z) for i in ids]
     img = [centers[i] for i in ids]
     result = estimate_pose(obj, img, K, dist)
+    # Sai số quy ra milimét: bắn tia qua pixel đo được, cắt mặt bàn, so với chỗ marker PHẢI nằm.
+    errors_mm = tuple(
+        1000.0 * float(np.linalg.norm(
+            np.array(result.model.pixel_to_plane(*centers[i], z)[:2]) - np.array(known[i])))
+        for i in ids)
     return Extrinsics(model=result.model, rms_px=result.rms_px, marker_ids=tuple(ids),
-                      errors_px=result.errors_px)
+                      errors_px=result.errors_px, errors_mm=errors_mm)
 
 
 class PoseTracker:
@@ -174,3 +190,20 @@ class PoseTracker:
     @property
     def ready(self):
         return self.model is not None
+
+
+def table_roi_mask(camera, shape, height=REAL_CAN_HEIGHT / SCALE):
+    """
+    Mặt nạ 0/255 của vùng bàn đáng xét, chiếu qua mô hình camera.
+
+    Lấy bao lồi của 4 góc vùng ở CẢ HAI cao độ — mặt bàn và đỉnh lon. Chỉ chiếu ở mặt bàn thì
+    phần trên của lon (cao 147 mm thật) nằm cao hơn trong ảnh và bị cắt mất.
+    """
+    corners = real_roi_virtual()
+    points = ([(x, y, TABLE_Z) for x, y in corners]
+              + [(x, y, TABLE_Z + height) for x, y in corners])
+    uv = camera.project(points).astype(np.float32)
+    hull = cv2.convexHull(uv).reshape(-1, 1, 2).astype(np.int32)
+    mask = np.zeros(shape[:2], np.uint8)
+    cv2.fillConvexPoly(mask, hull, 255)
+    return mask

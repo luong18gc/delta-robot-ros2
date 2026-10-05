@@ -32,6 +32,7 @@ setup(
             'gripper = delta_controller.gripper_node:main',
             'vision = delta_controller.vision_node:main',
             'calibrate_camera = delta_controller.calibrate_camera_node:main',
+            'real_vision = delta_controller.real_vision_node:main',
         ],
     },
 )

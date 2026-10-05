@@ -26,7 +26,7 @@ Tỉ lệ KHÔNG làm sai số ảo xấu đi: camera phủ vùng rộng gấp S
 nhưng sai số lại chia cho SCALE khi quy về không gian ảo -> hai hiệu ứng triệt tiêu.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 # Tỉ lệ bản sao số: kích thước/vị trí THẬT chia cho giá trị này ra kích thước/vị trí ẢO.
 SCALE = 3.0
@@ -214,6 +214,32 @@ REAL_CALIB_MARKERS = {
     4: (0.400, 0.230),
     5: (0.400, -0.230),
 }
+
+
+# Tỉ lệ màu danh nghĩa của LON THẬT — khác hẳn lon ảo, nên phải khai riêng.
+# Lon ảo ghép từ 4 khối nên phần mang màu chiếm 0.55–0.66 hình bóng; lon thật có mảng trắng bạc và
+# logo lớn hơn nhiều: đo 2026-10-05 trên C270 được coca 0.60, pepsi 0.30, 7up 0.17. Dùng nhầm hệ số
+# của lon ảo thì pepsi và 7up bị cờ tin cậy coi là "bị che" ở MỌI khung và hệ thống từ chối gắp.
+# ⚠️ TẠM THỜI: mới đo ở MỘT vị trí trên bàn. Trong mô phỏng tỉ lệ này đổi 0.67–0.80 tùy chỗ (phép
+# đóng hình thái học lấp vành nhãn nhiều ít tùy ảnh to nhỏ), nên phải quét nhiều vị trí bằng
+# scripts/measure_real_color_fraction.py rồi lấy giá trị NHỎ NHẤT.
+REAL_COLOR_FRACTION = {'coca_can': 0.55, 'pepsi_can': 0.27, 'sevenup_can': 0.15}
+
+REAL_OBJECTS = tuple(replace(o, color_fraction=REAL_COLOR_FRACTION[o.name])
+                     if o.name in REAL_COLOR_FRACTION else o for o in OBJECTS)
+
+# Vùng ẢNH đáng xét, cho theo tọa độ bàn THẬT (mm): bao trọn bố trí marker và vùng đặt lon, chừa
+# lề. Mọi thứ ngoài vùng này (tường, sàn nhà, mép bàn) bị loại bằng HÌNH HỌC — không phụ thuộc màu
+# sắc hay ánh sáng. Đo 2026-10-05: tường + sàn chiếm 18% khung hình; hôm đó vô hại (S = 57 < 90)
+# nhưng ở lab tường từng bị nhận là vật xanh lá (S ≈ 113), nên không thể trông vào may mắn.
+REAL_ROI_X = (-150.0, 480.0)
+REAL_ROI_Y = (-310.0, 310.0)
+
+
+def real_roi_virtual():
+    """4 góc vùng đáng xét, quy về hệ ảo (m)."""
+    return tuple((x / 1000.0 / SCALE, y / 1000.0 / SCALE)
+                 for x in REAL_ROI_X for y in REAL_ROI_Y)
 
 
 def real_calib_markers_virtual():
