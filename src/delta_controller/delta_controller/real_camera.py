@@ -85,9 +85,19 @@ class Extrinsics:
     def ok(self):
         return len(self.marker_ids) >= MIN_MARKERS and self.rms_px <= MAX_RMS_PX
 
-    def position_real_mm(self):
-        """Vị trí camera quy về bàn THẬT (mm) — để đối chiếu với thước đo."""
-        return tuple(1000.0 * SCALE * c for c in self.model.position())
+    def position_real_mm(self, table_z=TABLE_Z):
+        """
+        Vị trí camera trên bàn THẬT (mm): x, y so với gốc O; z so với MẶT BÀN.
+
+        ⚠️ Không quy đổi thẳng `z_ảo × SCALE`: trong hệ ảo mặt bàn nằm ở TABLE_Z = -0.22 chứ
+        không phải 0, nên làm vậy sẽ ra chiều cao ÂM và tưởng camera nằm dưới mặt bàn (đã gặp
+        2026-10-05: báo -45 mm trong khi camera thật cao ~615 mm).
+        """
+        x, y, z = self.model.position()
+        # float() tường minh: model.position() trả về numpy.float64, mà yaml.safe_dump không ghi
+        # được kiểu đó (gặp 2026-10-05 khi lưu file hiệu chuẩn).
+        return (float(1000.0 * SCALE * x), float(1000.0 * SCALE * y),
+                float(1000.0 * SCALE * (z - table_z)))
 
     def tilt_deg(self):
         """Góc chúc xuống của trục ngắm (độ)."""

@@ -31,7 +31,12 @@ from delta_controller.real_camera import (
     estimate_extrinsics,
     MIN_MARKERS,
 )
-from delta_controller.scene import REAL_CALIB_MARKERS, real_calib_markers_virtual, SCALE
+from delta_controller.scene import (
+    REAL_CALIB_MARKERS,
+    real_calib_markers_virtual,
+    SCALE,
+    TABLE_Z,
+)
 import numpy as np
 
 # Chay duoc ca khi chua `source install/setup.bash`: them thu muc goi vao duong dan.
@@ -53,15 +58,40 @@ def load_intrinsics(path):
     return K, dist, data.get('meta', {})
 
 
-def summarise(found, frames_used, frames_seen):
+def marker_errors_mm(found, centers):
+    """
+    Sai số từng marker quy ra MILIMÉT trên mặt bàn và trong không gian ảo.
+
+    Pixel không phải đơn vị để phán xét: cùng một sai số chiếu lại tính bằng pixel ứng với số
+    milimét khác hẳn nhau tùy camera đặt gần hay xa, và thứ quyết định gắp được hay không là
+    milimét trong không gian ảo so với dung sai giác hút 12 mm. Đo 2026-10-05: RMS 3.25 px nghe
+    như hỏng, quy ra chỉ ~1 mm ảo, ngang mô phỏng (1.13 mm).
+    """
+    out = {}
+    for i in found.marker_ids:
+        u, v = centers[i]
+        got = np.array(found.model.pixel_to_plane(u, v, TABLE_Z)[:2])
+        want = np.array(REAL_CALIB_MARKERS[i]) / SCALE
+        virtual_mm = 1000.0 * float(np.linalg.norm(got - want))
+        out[i] = (virtual_mm * SCALE, virtual_mm)
+    return out
+
+
+def summarise(found, frames_used, frames_seen, centers):
     """In kết quả kèm số liệu đối chiếu được bằng thước."""
     x, y, z = found.position_real_mm()
     print('\n== KET QUA')
     print(f'  marker dung       {len(found.marker_ids)}/{len(REAL_CALIB_MARKERS)}: '
           f'{", ".join(str(i) for i in found.marker_ids)}')
     print(f'  khung dung        {frames_used}/{frames_seen}')
-    print(f'  sai so chieu lai  RMS {found.rms_px:.2f} px  '
-          f'(tung marker: {min(found.errors_px):.2f} – {max(found.errors_px):.2f})')
+    errors = marker_errors_mm(found, centers)
+    virtual = np.array([v for _, v in errors.values()])
+    rms_mm = float(np.sqrt(np.mean(virtual ** 2)))
+    print(f'  sai so chieu lai  RMS {found.rms_px:.2f} px')
+    print(f'  quy ra milimet    RMS {rms_mm:.2f} mm AO '
+          f'({rms_mm * SCALE:.1f} mm tren ban that), lon nhat {virtual.max():.2f} mm ao')
+    for i, (real_mm, virt_mm) in sorted(errors.items()):
+        print(f'      ID {i}: {real_mm:5.1f} mm tren ban  ->  {virt_mm:4.2f} mm ao')
     print(f'  camera o          X {x:+.0f} mm, Y {y:+.0f} mm, cao {z:+.0f} mm so voi mat ban')
     print(f'                    (do bang thuoc de doi chieu: lui {-x:.0f} mm, cao {z:.0f} mm)')
     print(f'  goc chuc xuong    {found.tilt_deg():.1f}°')
@@ -73,19 +103,19 @@ def summarise(found, frames_used, frames_seen):
               'Thieu marker thi tu the kem on dinh va de sai khi mot cai bi che.')
     else:
         print('  OK   thay du 6 marker')
-    if found.rms_px > 2.0:
-        print(f'  LOI  sai so chieu lai {found.rms_px:.2f} px qua lon. Kiem tra: toa do dan '
-              'marker co dung bang trong scene.REAL_CALIB_MARKERS khong; marker co phang khong.')
+    # Ngưỡng tính theo dung sai giác hút 12 mm ảo: 1/4 dung sai là thoải mái, 1/2 là nên xem lại.
+    if rms_mm > 6.0:
+        print(f'  LOI  sai so {rms_mm:.2f} mm ao qua lon (nua dung sai giac hut 12 mm). '
+              'Kiem tra toa do dan marker so voi scene.REAL_CALIB_MARKERS.')
         ok = False
-    elif found.rms_px > 1.0:
-        print(f'  CANH BAO sai so chieu lai {found.rms_px:.2f} px hoi cao — nen kiem tra lai '
-              'toa do dan marker.')
+    elif rms_mm > 3.0:
+        print(f'  CANH BAO sai so {rms_mm:.2f} mm ao — dung duoc nhung nen do lai toa do marker.')
     else:
-        print(f'  OK   sai so chieu lai {found.rms_px:.2f} px')
-    worst = int(np.argmax(found.errors_px))
-    if found.errors_px[worst] > 2 * found.rms_px and found.rms_px > 0.5:
-        print(f'  CANH BAO marker {found.marker_ids[worst]} lech han cac marker khac '
-              f'({found.errors_px[worst]:.2f} px) — nhieu kha nang dan sai toa do cai do.')
+        print(f'  OK   sai so {rms_mm:.2f} mm ao (mo phong dat 1.13 mm, dung sai 12 mm)')
+    worst = max(errors, key=lambda i: errors[i][1])
+    if errors[worst][1] > 2.5 * rms_mm and errors[worst][1] > 2.0:
+        print(f'  CANH BAO marker {worst} lech han cac marker khac '
+              f'({errors[worst][0]:.0f} mm tren ban) — nhieu kha nang dan sai toa do cai do.')
     print('  ' + ('=> DUNG DUOC' if ok else '=> SUA ROI DO LAI'))
     return ok
 
@@ -163,13 +193,16 @@ def main():
     ids = sorted(set.intersection(*(set(s) for s in samples)))
     averaged = {i: tuple(np.mean([s[i] for s in samples], axis=0)) for i in ids}
     found = estimate_extrinsics(averaged, K, dist, layout)
-    ok = summarise(found, len(samples), seen)
+    ok = summarise(found, len(samples), seen, averaged)
 
     out = os.path.join(WS, 'calibration', f'{args.name}.yaml')
+    errors = marker_errors_mm(found, averaged)
+    rms_mm = float(np.sqrt(np.mean([v for _, v in errors.values()])))
     data = {'camera': found.model.to_dict(),
             'meta': {'device': args.device, 'width': mode[0], 'height': mode[1],
                      'scale': SCALE, 'markers': list(found.marker_ids),
-                     'rms_px': found.rms_px, 'frames': len(samples),
+                     'rms_px': found.rms_px,
+                     'rms_mm_virtual': round(rms_mm, 3), 'frames': len(samples),
                      'position_real_mm': [round(v, 1) for v in found.position_real_mm()],
                      'tilt_deg': round(found.tilt_deg(), 2),
                      'intrinsics': os.path.basename(args.intrinsics),

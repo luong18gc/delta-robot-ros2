@@ -725,6 +725,40 @@ Ba file phải in ở **100% / "Actual size"** (mỗi trang có thước 100 mm 
 `chessboard_A4.pdf` (nội tham số, làm TRƯỚC), `aruco_markers_real_A4.pdf` (ngoại tham số).
 `aruco_markers_A4.pdf` là bố trí mô phỏng — **không in**.
 
+### Bố trí THẬT đã dựng xong (2026-10-05)
+Camera C270 trên giá kẹp bàn, 6 marker đã dán, hiệu chuẩn cả nội lẫn ngoại tham số xong.
+
+| | giá trị đo được |
+|---|---|
+| nội tham số | `calibration/c270_intrinsics.yaml`: fx 1417.4, fy 1418.1, RMS **0.222 px** |
+| camera | **lùi 557 mm, lệch ngang +1 mm, cao 631 mm trên mặt bàn, chúc 46.1°** |
+| ngoại tham số | `calibration/c270.yaml`: 6/6 marker, **sai số 0.93 mm ảo** (2.8 mm trên bàn) |
+| ánh sáng | phơi sáng ~400; cháy sáng TRONG mặt nạ màu **0.0%**; S mặt bàn **33** |
+
+⚠️ Góc chúc thật là **46.1°**, không phải 32° như camera mô phỏng — người làm đồ án chọn giữ
+nguyên vì bàn không đủ dài để lùi thêm 35 cm. Khối thị giác tự thích nghi (dùng mô hình camera đo
+được, không giả định góc); chỉ cần nhớ khi so sánh kết quả thật với mô phỏng là có thêm biến này.
+Góc dốc hơn còn LỢI cho che khuất (lon ít che nhau hơn).
+
+**Ba cạm bẫy đo đạc đã mắc phải trong buổi dựng này — đều là lỗi của công cụ, không phải của người
+dựng, và đều suýt dẫn tới bóc marker dán lại:**
+1. **Quy đổi chiều cao camera quên mặt bàn ở `TABLE_Z`.** `position_real_mm` lấy `z_ảo × SCALE`
+   nên báo camera ở **−45 mm**, tức dưới mặt bàn. Test cũ không bắt được vì nó so kết quả với
+   chính `truth.position()` — cả hai vế cùng sai một kiểu thì vẫn pass. Test giờ so với hình học
+   giá đỡ thật (lùi 900, cao 545).
+2. **`estimatePoseSingleMarkers` nói dối trên marker nhỏ nhìn xiên.** Dùng nó để đo khoảng cách
+   giữa các marker, nó báo ID 4 và 5 lệch **+65 mm** — hai lần liên tiếp. Cách đo ĐÚNG: khớp tư
+   thế bằng một nhóm marker đáng tin rồi **giao tia với mặt bàn** để suy ra vị trí nhóm còn lại;
+   làm vậy thì cả 6 marker đều nằm trong **8 mm** so với thiết kế.
+3. **Chấm điểm bằng PIXEL là sai đơn vị.** Công cụ báo "LOI RMS 3.25 px quá lớn" trong khi quy ra
+   chỉ **0.93 mm ảo**, ngang mô phỏng. Cùng một sai số pixel ứng với số milimét khác hẳn tùy camera
+   gần hay xa. Ngưỡng giờ tính theo mm ảo so với dung sai giác hút 12 mm (≤ 3 đạt, > 6 lỗi).
+
+**Tường và sàn nhà lọt vào khung (18% diện tích) KHÔNG gây nhận nhầm** (đo 2026-10-05: 0 pixel
+vượt ngưỡng màu) vì gạch sáng nhưng nhạt màu (S = 57 < 90). Nhưng điều đó phụ thuộc ánh sáng hôm
+đó — ở lab tường từng bị nhận là vật xanh lá (S ≈ 113). Khi làm node thị giác thật nên **giới hạn
+vùng xét theo hình học**: chiếu mặt bàn lên ảnh và bỏ mọi thứ ngoài đó.
+
 - [ ] **Bước 11** — Chế độ bám theo tay/marker.
 - [ ] **Bước 12** — Đánh giá (độ chính xác, độ trễ, tỉ lệ gắp thành công) + báo cáo.
 

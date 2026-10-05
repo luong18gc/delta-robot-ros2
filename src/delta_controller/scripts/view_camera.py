@@ -41,12 +41,17 @@ DARK_V = 40          # ngưỡng V của color_detector
 BRIGHT = 250
 
 
-# Lon phai sang han nguong V bao nhieu thi coi la du an toan, va mat ban phai bao hoa duoi bao
-# nhieu. Do 2026-10-01 tren anh C270: canh qua toi -> 5% pixel toi nhat cua lon 7Up chi V=41 trong
-# khi nguong la 40, con mat ban o V 30-40 lai co 23% pixel S>=90. Sang len thi lon roi khoi mep VA
-# S cua mat ban tu tut xuong, vi S=(max-min)/max rat nhieu khi V nho.
-CAN_V_TARGET = 120
+# Ba tieu chi QUYET DINH anh sang da du chua. Khong dung "do sang cua lon" lam moc: do
+# 2026-10-05, canh du sang de nhan dang tot van chi cho V trung vi 73-105 vi than lon co mat
+# khuat, trong khi 11.7% khung hinh bi chay sang — nhung chay sang nam HET tren giay marker trang
+# va tuong, 0.0% roi vao than lon. Nen cai phai do la:
+#   1. chay sang TRONG mat na mau  -> 0% (chay sang tren than lon la mat han thong tin mau)
+#   2. S cua mat ban                -> < 60 (duoi nguong S>=90, tuc ban bi loai vi XAM chu khong
+#      phai vi TOI; mat ban toi co S cao gia tao do S=(max-min)/max khong on dinh khi V nho)
+#   3. ti le cao/rong khung bao     -> ~2.0 cho lon (147/57.5 nhin xien); thap han nhieu nghia la
+#      mat na dang hut phan than lon
 TABLE_S_TARGET = 60
+CAN_ASPECT = 2.0
 
 
 def color_report(frame):
@@ -63,8 +68,10 @@ def color_report(frame):
             lines.append(f'{name:5s} --')
             continue
         overlay[mask] = (0.35 * np.array(cls.bgr) + 0.65 * overlay[mask]).astype(np.uint8)
-        lines.append(f'{name:5s} {mask.sum():6d}px V{np.median(v[mask]):3.0f}'
-                     f'/{np.percentile(v[mask], 5):3.0f}')
+        ys, xs = np.nonzero(mask)
+        aspect = (ys.max() - ys.min() + 1) / max(1, xs.max() - xs.min() + 1)
+        burnt = 100.0 * (v[mask] >= 250).mean()
+        lines.append(f'{name:5s} {mask.sum():6d}px  cao/rong {aspect:4.2f}  chay {burnt:4.1f}%')
     table = (~any_mask) & (v < 110)
     table_s = float(np.median(sat[table])) if table.sum() > 500 else 0.0
     return lines, table_s, overlay

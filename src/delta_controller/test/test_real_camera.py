@@ -77,10 +77,11 @@ def test_recovers_known_camera_pose():
     found = estimate_extrinsics(detect_marker_centers(render(truth)), K, DIST)
     assert found.ok
     assert found.rms_px < 1.0
-    # vị trí: so bằng milimét THẬT cho dễ hình dung
-    error_mm = np.linalg.norm(np.array(found.position_real_mm())
-                              - 1000 * SCALE * np.array(truth.position()))
-    assert error_mm < 5.0, f'vi tri lech {error_mm:.1f} mm'
+    # So với hình học giá đỡ THẬT, không so với chính `truth.position()`: so với chính nó thì
+    # một sai quy ước (vd. quên mặt bàn ở TABLE_Z) vẫn pass vì cả hai vế cùng sai.
+    x, y, z = found.position_real_mm()
+    assert abs(x + 900) < 5 and abs(y) < 5, f'vi tri ngang lech: ({x:.0f}, {y:.0f})'
+    assert abs(z - 545) < 5, f'chieu cao tren mat ban {z:.0f} mm, phai la 545'
     axis = np.degrees(np.arccos(np.clip(
         found.model.optical_axis() @ truth.optical_axis(), -1, 1)))
     assert axis < 0.3, f'huong nhin lech {axis:.2f}°'
