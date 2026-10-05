@@ -17,6 +17,7 @@ import argparse
 import os
 import time
 
+import _workspace  # noqa: F401
 import cv2
 from delta_controller.usb_camera import (
     best_mjpg_mode,

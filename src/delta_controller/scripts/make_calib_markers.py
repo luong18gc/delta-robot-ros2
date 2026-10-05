@@ -10,6 +10,7 @@ worlds/delta_objects_world.sdf.
 
 import os
 
+import _workspace  # noqa: F401
 import cv2
 from delta_controller.scene import (
     CALIB_ARUCO_DICT,

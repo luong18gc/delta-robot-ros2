@@ -20,6 +20,7 @@ import sys
 import threading
 import time
 
+import _workspace  # noqa: F401
 from delta_controller.cartesian_control_node import CartesianController, HOME_XYZ
 from delta_controller.delta_kinematics import inverse_kinematics, UnreachableError
 from delta_controller.gripper_logic import PLATFORM_HALF_THICKNESS

@@ -15,6 +15,7 @@ rộng 600 mm. Xem scene.REAL_CALIB_MARKERS và scene.real_calib_markers_virtual
 import os
 import sys
 
+import _workspace  # noqa: F401
 import cv2
 from delta_controller.scene import (
     BIN_OUTER_HALF,

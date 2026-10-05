@@ -20,6 +20,7 @@ import subprocess
 import sys
 import time
 
+import _workspace  # noqa: F401
 import cv2
 from cv_bridge import CvBridge
 from delta_controller.delta_kinematics import inverse_kinematics

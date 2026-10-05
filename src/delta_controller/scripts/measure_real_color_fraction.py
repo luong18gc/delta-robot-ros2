@@ -23,6 +23,7 @@ import argparse
 import signal
 import sys
 
+import _workspace  # noqa: F401
 import cv2
 from delta_controller import usb_camera
 from delta_controller.color_detector import detect_objects

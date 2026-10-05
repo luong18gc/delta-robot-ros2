@@ -12,6 +12,7 @@ import csv
 import os
 import sys
 
+import _workspace  # noqa: F401
 import cv2
 from delta_controller.camera_model import CameraModel
 from delta_controller.color_detector import detect_objects
