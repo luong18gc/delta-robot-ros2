@@ -216,17 +216,16 @@ REAL_CALIB_MARKERS = {
 }
 
 
-# Tỉ lệ màu danh nghĩa của LON THẬT — khác hẳn lon ảo, nên phải khai riêng.
-# Lon ảo ghép từ 4 khối nên phần mang màu chiếm 0.55–0.66 hình bóng; lon thật có mảng trắng bạc và
-# logo lớn hơn nhiều: đo 2026-10-05 trên C270 được coca 0.60, pepsi 0.30, 7up 0.17. Dùng nhầm hệ số
-# của lon ảo thì pepsi và 7up bị cờ tin cậy coi là "bị che" ở MỌI khung và hệ thống từ chối gắp.
-# ⚠️ TẠM THỜI: mới đo ở MỘT vị trí trên bàn. Trong mô phỏng tỉ lệ này đổi 0.67–0.80 tùy chỗ (phép
-# đóng hình thái học lấp vành nhãn nhiều ít tùy ảnh to nhỏ), nên phải quét nhiều vị trí bằng
-# scripts/measure_real_color_fraction.py rồi lấy giá trị NHỎ NHẤT.
-REAL_COLOR_FRACTION = {'coca_can': 0.55, 'pepsi_can': 0.27, 'sevenup_can': 0.15}
-
-REAL_OBJECTS = tuple(replace(o, color_fraction=REAL_COLOR_FRACTION[o.name])
-                     if o.name in REAL_COLOR_FRACTION else o for o in OBJECTS)
+# Lon THẬT dùng bộ nhận dạng TÁCH NỀN TRƯỚC (object_detector), nên mặt nạ thu được CHÍNH LÀ hình
+# bóng vật — tỉ lệ màu danh nghĩa bằng 1, không phải hệ số phải đi đo.
+#
+# Trước đó thử dùng nhận dạng theo màu cho lon thật và phải khai hệ số riêng (coca 0.55, pepsi
+# 0.27, 7up 0.15) vì lon thật mang màu thành VÀNH chứ không phải thân đặc như lon ảo. Cách đó
+# hỏng ở chỗ sâu hơn: mặt nạ màu không phải hình bóng, nên mép đáy không phải đáy lon. Đo
+# 2026-10-05 trên lon đứng YÊN: nhận theo màu cho lon 7Up tỉ lệ cao/rộng 0.93 (lon thật là 2.5)
+# và ước lượng nhảy 48 mm giữa hai khung; tách nền trước cho 2.65 và diện tích ba lon xấp xỉ bằng
+# nhau (22 240 / 22 261 / 28 449 px) đúng như ba vật cùng kích thước.
+REAL_OBJECTS = tuple(replace(o, color_fraction=1.0, color_top_margin=0.0) for o in OBJECTS)
 
 # Vùng ẢNH đáng xét, cho theo tọa độ bàn THẬT (mm): bao trọn bố trí marker và vùng đặt lon, chừa
 # lề. Mọi thứ ngoài vùng này (tường, sàn nhà, mép bàn) bị loại bằng HÌNH HỌC — không phụ thuộc màu

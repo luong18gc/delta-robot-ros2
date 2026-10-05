@@ -14,12 +14,18 @@ Ba khác biệt so với node mô phỏng, đều có lý do đo được:
    Camera xoay 1° là vị trí vật sai 7.7 mm ảo, 2° là vượt dung sai giác hút 12 mm — mà giá kẹp bàn
    bị chạm tay thì không có gì báo. Marker nằm cố định ở rìa bàn nên lúc nào cũng thấy.
 
-2. **Giới hạn vùng xét theo HÌNH HỌC** (`table_roi_mask`): chiếu vùng bàn lên ảnh, bỏ hết phần
+2. **Nhận dạng kiểu TÁCH NỀN TRƯỚC** (`object_detector`) thay vì lọc theo màu như node mô phỏng.
+   Mặt bàn thật đen nhám nên tách nền chạy tốt, và mặt nạ thu được CHÍNH LÀ hình bóng lon — điều
+   kiện mà cả khối ước lượng vị trí ngầm giả định. Lọc theo màu thì mặt nạ chỉ là phần mang màu:
+   đo 2026-10-05, lon 7Up thật ra tỉ lệ cao/rộng 0.93 (lon thật là 2.5) và ước lượng nhảy 48 mm
+   giữa hai khung lúc lon đứng yên.
+
+3. **Giới hạn vùng xét theo HÌNH HỌC** (`table_roi_mask`): chiếu vùng bàn lên ảnh, bỏ hết phần
    ngoài. Tường và sàn chiếm 18% khung hình; đo 2026-10-05 thì vô hại (S = 57 < ngưỡng 90) nhưng
    ở lab tường từng bị nhận là vật xanh lá (S ≈ 113). Loại bằng hình học thì không phụ thuộc
    ánh sáng.
 
-3. **Đọc ảnh bằng vòng hẹn giờ** chứ không chờ topic: camera USB không đi qua ROS. Hàng đợi V4L2
+4. **Đọc ảnh bằng vòng hẹn giờ** chứ không chờ topic: camera USB không đi qua ROS. Hàng đợi V4L2
    đặt về 1 khung (bớt 2 trong 5 khung trễ, xem probe_camera.open_camera).
 """
 
@@ -29,7 +35,8 @@ import time
 import cv2
 from cv_bridge import CvBridge
 from delta_controller import usb_camera
-from delta_controller.color_detector import detect_objects, draw_detections
+from delta_controller.color_detector import COLOR_CLASSES, draw_detections
+from delta_controller.object_detector import detect_by_color
 from delta_controller.real_camera import aruco_detector, PoseTracker, table_roi_mask
 from delta_controller.scene import REAL_OBJECTS, SCALE
 from delta_controller.vision_estimation import estimate_object
@@ -115,9 +122,10 @@ class RealVisionNode(Node):
         # Vùng xét đổi theo tư thế camera; dựng lại mỗi khung (dưới 1 ms) để camera xê dịch là
         # vùng xét đi theo, không bị lệch dần.
         self._roi = table_roi_mask(camera, frame.shape)
-        masked = cv2.bitwise_and(frame, frame, mask=self._roi)
-
-        detections = detect_objects(masked)
+        # TÁCH NỀN TRƯỚC rồi phân loại từng vùng, không phải lọc theo màu: mặt nạ màu của lon THẬT
+        # không phải hình bóng lon (màu nằm thành vành, xen mảng trắng và logo), nên mọi phép
+        # ước lượng dựng trên nó đều sai. Xem scene.REAL_OBJECTS.
+        detections = detect_by_color(frame, COLOR_CLASSES, roi=self._roi)
         stamp = self.get_clock().now().to_msg()
         self._publish_pixels(detections, stamp)
         estimates = {c: estimate_object(d, camera, OBJECT_OF_COLOR[c], frame.shape)

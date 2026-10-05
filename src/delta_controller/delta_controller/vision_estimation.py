@@ -28,6 +28,13 @@ import numpy as np
 VISIBLE_MIN = 0.90
 # Ước lượng thô cách thành ngoài khay tới mức này thì thử giả thuyết "vật trong khay" (m).
 BIN_SEARCH_MARGIN = 0.03
+# Vật CAO hơn rộng bấy nhiêu lần thì khớp MÉP ĐÁY thay vì dùng tâm khối.
+# Trước đây tiêu chí là `color_fraction < 0.9` — suy luận vòng vo: lấy mức độ nhiều màu để đoán
+# hình dáng. Đúng tình cờ với lon ảo (nhiều màu VÀ cao), sai hẳn khi mặt nạ là HÌNH BÓNG thật
+# (nhận dạng tách nền trước): lúc đó tỉ lệ màu bằng 1 mà vật vẫn cao. Tiêu chí đúng là hình dáng:
+# hình trụ cao thì tâm khối hình bóng bị kéo lên (nhìn xiên thấy cả mặt trên), còn mép đáy thì tì
+# trên mặt bàn nên là đặc trưng đáng tin.
+TALL_RATIO = 1.5
 _NEWTON_STEP = 1e-4         # bước sai phân để tính Jacobian (m)
 
 
@@ -199,10 +206,10 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
 
     # --- Giả thuyết 1: vật ĐỨNG TRÊN BÀN ---------------------------------------------------
     position, method = (x, y, table_center_z), 'centroid'
-    if getattr(obj, 'color_fraction', 1.0) < 0.9:
-        # Vật nhiều màu (lon: nắp bạc, vành chữ trắng): tâm khối vùng MÀU nằm thấp hơn tâm hình
-        # bóng (đo được 32 px ≈ 28 mm). Khớp MÉP DƯỚI — thân lon có màu xuống tận đáy và đáy tì
-        # trên mặt bàn nên đặc trưng này không bị lệch.
+    if obj.half_height >= TALL_RATIO * obj.half_width:
+        # Vật cao (lon): tâm khối lệch khỏi hình chiếu tâm 3D — với mặt nạ MÀU thì lệch xuống
+        # dưới 32 px ≈ 28 mm (phần trên là nắp bạc), với HÌNH BÓNG thì lệch lên trên (nhìn xiên
+        # nên thấy cả mặt trên). Mép đáy thì tì trên mặt bàn nên không bị lệch kiểu nào.
         bx, by, bw, bh = detection.bbox
         fit = fit_bottom_edge(camera, obj, u, by + bh - 0.5, table_center_z, (x, y))
         if fit is not None:

@@ -759,6 +759,43 @@ vượt ngưỡng màu) vì gạch sáng nhưng nhạt màu (S = 57 < 90). Nhưn
 đó — ở lab tường từng bị nhận là vật xanh lá (S ≈ 113). Khi làm node thị giác thật nên **giới hạn
 vùng xét theo hình học**: chiếu mặt bàn lên ảnh và bỏ mọi thứ ngoài đó.
 
+### Camera THẬT dùng nhận dạng TÁCH NỀN TRƯỚC, mô phỏng vẫn theo màu (2026-10-05)
+`real_vision_node` (entry `real_vision`) đọc thẳng C270, giải lại ngoại tham số MỖI KHUNG từ
+marker, giới hạn vùng xét theo hình học, và nhận dạng bằng `object_detector` (tách nền trước rồi
+phân loại từng vùng) chứ KHÔNG dùng `color_detector` như node mô phỏng. Phát đúng các topic cũ
+(`/vision/objects`, `/vision/detections`, `/vision/debug_image`) nên `task_executor`, cờ tin cậy
+và trí nhớ quan sát chạy lại nguyên vẹn. Đo: 10 hình/s, **42 ms/ảnh**, 100/100 khung khóa tư thế.
+
+**Vì sao phải đổi — cả khối ước lượng ngầm giả định MẶT NẠ CHÍNH LÀ HÌNH BÓNG VẬT.** Đúng với lon
+ảo (thân một màu đặc), sai hẳn với lon thật (màu nằm thành vành, xen mảng trắng và logo lớn).
+Đo cùng một khung hình, lon đứng yên:
+
+| | theo màu | tách nền |
+|---|---|---|
+| tỉ lệ cao/rộng đỏ / lam / **lục** | 2.28 / 1.88 / **0.93** | 2.45 / 2.26 / **2.65** |
+| diện tích ba lon (px) | 14 645 / 5 603 / 2 003 | 28 449 / 22 261 / 22 240 |
+| nhiễu vị trí X (mm thật) | 3.4 / 5.9 / **13.8** | 3.0 / 7.1 / **4.4** |
+| nhảy lớn nhất giữa 2 khung | 11.6 / 19.3 / **48.1** mm | 8.9 / 22.6 / **16.0** mm |
+| tỉ lệ nhìn thấy | phải đoán bằng hằng số | **0.99 ± 0.01** |
+| cờ tin cậy | pepsi, 7up bị coi là bị che Ở MỌI KHUNG | **60/60 tin cậy** |
+
+Ba lon cùng kích thước mà nhận theo màu cho diện tích chênh **7 lần** — vì đo thiết kế nhãn chứ
+không đo vật. Và tỉ lệ nhìn thấy 0.99 nghĩa là hình bóng đo được khớp hình bóng dự đoán: **cơ chế
+phát hiện che khuất lấy lại đúng định nghĩa ban đầu**, thay vì chia cho một hằng số đoán được.
+
+Kèm theo: tiêu chí chọn khớp **mép đáy** đổi từ `color_fraction < 0.9` sang **hình dáng**
+(`half_height >= 1.5 × half_width`, hằng số `TALL_RATIO`). Tiêu chí cũ là suy luận vòng vo — lấy
+mức độ nhiều màu để đoán hình dáng; đúng tình cờ với lon ảo, vô nghĩa khi mặt nạ là hình bóng thật.
+
+⚠️ **Hai thế giới dùng hai bộ nhận dạng khác nhau, và đó là KẾT LUẬN chứ không phải chắp vá:** nền
+mô phỏng có ba khay xám (tách nền thất bại, xem ghi chú `object_detector`), nền thật là bàn đen
+trơn. Bản sao số phải giống nhau về **hình học**, còn khâu nhận dạng là bài toán riêng của từng
+thế giới. Đây cũng là câu trả lời cho "lon ảo chỉ mang tính tượng trưng": nó không cần giống thật
+về bề ngoài, chỉ cần giống về hình học.
+
+⚠️ Còn tồn: lon Coca cho tỉ lệ nhìn thấy **1.19** (hình bóng đo được lớn hơn dự đoán 19%) — nghi
+bóng đổ dính chân lon; chưa truy. Nhiễu X của Pepsi nhỉnh lên 5.9 -> 7.1 mm.
+
 - [ ] **Bước 11** — Chế độ bám theo tay/marker.
 - [ ] **Bước 12** — Đánh giá (độ chính xác, độ trễ, tỉ lệ gắp thành công) + báo cáo.
 
