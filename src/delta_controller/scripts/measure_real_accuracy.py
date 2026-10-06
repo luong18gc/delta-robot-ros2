@@ -28,18 +28,87 @@ from delta_controller import usb_camera
 from delta_controller.color_detector import COLOR_CLASSES
 from delta_controller.object_detector import detect_by_color
 from delta_controller.real_camera import aruco_detector, PoseTracker, table_roi_mask
-from delta_controller.scene import REAL_OBJECTS, SCALE, TABLE_Z
+from delta_controller.scene import (
+    REAL_CAN_HEIGHT,
+    REAL_OBJECTS,
+    REAL_ROI_X,
+    REAL_ROI_Y,
+    SCALE,
+    TABLE_Z,
+)
 from delta_controller.vision_estimation import estimate_object
 import numpy as np
 import yaml
 
 WS = '/home/luong18gc/ros2_closed_loop_ws'
 INTRINSICS = f'{WS}/calibration/c270_intrinsics.yaml'
-# Sáu điểm phủ vùng đặt lon (x 0…280, y ±190 mm). Mỗi lượt ba lon vào ba điểm, lượt sau đổi vòng,
-# nên sau 3 lượt mỗi lon đã qua cả ba điểm của bộ đó.
-POINT_SETS = (((-40.0, 150.0), (50.0, 0.0), (140.0, -150.0)),
-              ((-40.0, -150.0), (50.0, 150.0), (140.0, 0.0)))
 FRAMES = 15
+# Hai lon phải cách nhau ít nhất bấy nhiêu mm, và một lon không được nằm sát đường nhìn từ camera
+# tới lon khác (nếu không nó che mất lon phía sau).
+MIN_GAP_MM = 120.0
+SIGHT_CLEAR_MM = 90.0
+# Lề pixel đòi hỏi quanh ĐÁY và ĐỈNH lon khi chiếu lên ảnh.
+EDGE_MARGIN_PX = 30
+
+
+def feasible_points(camera, shape, step=10.0):
+    """
+    Các điểm (mm thật) đặt lon được: cả đáy lẫn ĐỈNH lon nằm trong khung và trong vùng xét.
+
+    Tính TỪ TƯ THẾ CAMERA ĐANG ĐO ĐƯỢC chứ không từ hằng số: vùng dùng được phụ thuộc camera đặt
+    ở đâu, mà hằng số trong scene.py được chọn theo hình học DỰ KIẾN. Giá đỡ thật gần và dốc hơn
+    nên bộ điểm cũ đưa đỉnh lon ra ngoài mép trên khung hình, và mọi phép đo trả về rỗng
+    (2026-10-06).
+    """
+    h, w = shape[:2]
+    top_z = TABLE_Z + REAL_CAN_HEIGHT / SCALE
+    good = []
+    xs = np.arange(REAL_ROI_X[0] + 20, REAL_ROI_X[1] - 19, step)
+    ys = np.arange(REAL_ROI_Y[0] + 20, REAL_ROI_Y[1] - 19, step)
+    for x in xs:
+        for y in ys:
+            vx, vy = x / 1000.0 / SCALE, y / 1000.0 / SCALE
+            uv = camera.project([(vx, vy, TABLE_Z), (vx, vy, top_z)])
+            if all(EDGE_MARGIN_PX < u < w - EDGE_MARGIN_PX
+                   and EDGE_MARGIN_PX < v < h - EDGE_MARGIN_PX for u, v in uv):
+                good.append((float(x), float(y)))
+    return good
+
+
+def _hides(a, b, eye):
+    """Lon ở `a` có nằm chắn đường nhìn từ `eye` tới lon ở `b` không (nhìn từ trên)."""
+    a, b, eye = np.array(a), np.array(b), np.array(eye)
+    if np.linalg.norm(a - eye) >= np.linalg.norm(b - eye):
+        return False                      # a ở xa hơn thì không che được b
+    d = b - eye
+    t = np.clip(np.dot(a - eye, d) / np.dot(d, d), 0.0, 1.0)
+    return float(np.linalg.norm(eye + t * d - a)) < SIGHT_CLEAR_MM
+
+
+def choose_points(camera, shape, eye):
+    """Hai bộ ba điểm trải rộng trong vùng dùng được, không lon nào che lon nào."""
+    good = feasible_points(camera, shape)
+    if len(good) < 20:
+        raise SystemExit('Vung dat lon qua hep — chinh camera cho thay nhieu mat ban hon.')
+    pts = np.array(good)
+    x0, x1 = np.percentile(pts[:, 0], [12, 88])
+    y0, y1 = np.percentile(pts[:, 1], [12, 88])
+    xm, ym = pts[:, 0].mean(), pts[:, 1].mean()
+
+    def snap(target):
+        return tuple(pts[np.argmin(np.linalg.norm(pts - np.array(target), axis=1))])
+
+    layouts = [[(x0, y1), (xm, ym), (x1, y0)], [(x0, y0), (xm, y1), (x1, ym)]]
+    sets = []
+    for want in layouts:
+        trio = [snap(t) for t in want]
+        ok = all(np.linalg.norm(np.array(a) - np.array(b)) >= MIN_GAP_MM
+                 and not _hides(a, b, eye) and not _hides(b, a, eye)
+                 for i, a in enumerate(trio) for b in trio[i + 1:])
+        if not ok:                        # lùi về bộ ba trải theo đường chéo khác
+            trio = [snap((x0, ym)), snap((xm, y0)), snap((x1, y1))]
+        sets.append(tuple(trio))
+    return tuple(sets)
 
 
 def to_pixel(camera, x_mm, y_mm):
@@ -150,9 +219,27 @@ def main():
     print('Dat moi lon vao VONG TRON mang ten no tren cua so, roi bam PHIM CACH.')
     print('  s = bo qua luot,  q = dung va xem ket qua\n')
 
+    # Khóa tư thế camera trước, rồi mới chọn điểm đo theo đúng tư thế đó.
+    print('Dang khoa tu the camera tu marker...')
+    for _ in range(80):
+        ok, frame = cap.read()
+        if ok:
+            tracker.update(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), detector)
+        if tracker.ready and tracker.updates >= 10:
+            break
+    if not tracker.ready:
+        raise SystemExit('Khong khoa duoc tu the — co thay du marker khong? Dung view_camera.py.')
+    eye = tracker.last.position_real_mm()[:2]
+    point_sets = choose_points(tracker.model, frame.shape, eye)
+    cx, cy, cz = tracker.last.position_real_mm()
+    print(f'camera: lui {-cx:.0f} mm, cao {cz:.0f} mm, chuc {tracker.last.tilt_deg():.1f}°')
+    print('Diem do TU TINH theo tu the nay — danh dau bang but chi len ban:')
+    for i, pts in enumerate(point_sets, 1):
+        print(f'   bo {i}: ' + ', '.join(f'({x:+5.0f},{y:+5.0f})' for x, y in pts))
+
     rows = []
     rounds = [({names[i]: pts[(i + turn) % len(pts)] for i in range(len(names))})
-              for pts in POINT_SETS for turn in range(len(names))]
+              for pts in point_sets for turn in range(len(names))]
     stop = False
     for k, truth in enumerate(rounds, 1):
         if stop:
