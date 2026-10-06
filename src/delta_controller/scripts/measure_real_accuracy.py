@@ -37,8 +37,8 @@ WS = '/home/luong18gc/ros2_closed_loop_ws'
 INTRINSICS = f'{WS}/calibration/c270_intrinsics.yaml'
 # Sáu điểm phủ vùng đặt lon (x 0…280, y ±190 mm). Mỗi lượt ba lon vào ba điểm, lượt sau đổi vòng,
 # nên sau 3 lượt mỗi lon đã qua cả ba điểm của bộ đó.
-POINT_SETS = (((20.0, 150.0), (140.0, 0.0), (260.0, -150.0)),
-              ((20.0, -150.0), (140.0, 170.0), (260.0, 20.0)))
+POINT_SETS = (((-40.0, 150.0), (50.0, 0.0), (140.0, -150.0)),
+              ((-40.0, -150.0), (50.0, 150.0), (140.0, 0.0)))
 FRAMES = 15
 
 

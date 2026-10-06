@@ -198,9 +198,14 @@ LEGACY_BIN_LAYOUT = BinLayout((LEGACY_BIN_CENTER,), LEGACY_BIN_INNER_HALF,
 REAL_TABLE = (0.600, 1.200)     # (bề rộng theo Y, chiều dài theo X)
 
 # Vùng đặt lon THẬT. Quy về ảo (chia SCALE) phải nằm trong tầm với ở độ cao gắp (r <= 0.119).
-REAL_OBJECT_AREA_X = (0.0, 0.280)       # ảo: 0 .. 0.093
-REAL_OBJECT_AREA_Y = (-0.190, 0.190)    # ảo: -0.063 .. 0.063
-# Góc xa nhất của vùng này quy về ảo là r = 113 mm, còn dư so với tầm với 119 mm ở độ cao gắp.
+# ⚠️ Đo lại 2026-10-06 TỪ TƯ THẾ CAMERA THẬT (lùi 553, cao 628, chúc 46.1°) chứ không từ hình học
+# dự kiến ban đầu (lùi 900, cao 545): giá đỡ thật gần và dốc hơn nên phần XA của bàn trượt khỏi mép
+# trên khung hình. Quét toàn bàn, đòi cả ĐÁY lẫn ĐỈNH lon nằm trong khung với lề 25 px, được
+# x −100…+240, y ±300 — và lệch (ở x = +220 chỉ còn y ≥ +60 vì camera hơi xoay). Lấy vùng vuông
+# nằm gọn bên trong. Bộ cũ x 0…280 làm ĐỈNH lon bị cắt ở x = 260 và mọi phép đo ra rỗng.
+REAL_OBJECT_AREA_X = (-0.060, 0.160)    # ảo: -0.020 .. 0.053
+REAL_OBJECT_AREA_Y = (-0.180, 0.180)    # ảo: -0.060 .. 0.060
+# Góc xa nhất quy về ảo là r = 103 mm, còn dư so với tầm với 119 mm ở độ cao gắp.
 
 # Marker trên bàn THẬT — bao quanh vùng đặt lon, cách mép bàn >= 10 mm.
 # ⚠️ KHÔNG phải CALIB_MARKERS nhân SCALE: bố trí ảo nhân 3 trải 810 x 870 mm, không vừa bàn rộng
@@ -231,8 +236,12 @@ REAL_OBJECTS = tuple(replace(o, color_fraction=1.0, color_top_margin=0.0) for o 
 # lề. Mọi thứ ngoài vùng này (tường, sàn nhà, mép bàn) bị loại bằng HÌNH HỌC — không phụ thuộc màu
 # sắc hay ánh sáng. Đo 2026-10-05: tường + sàn chiếm 18% khung hình; hôm đó vô hại (S = 57 < 90)
 # nhưng ở lab tường từng bị nhận là vật xanh lá (S ≈ 113), nên không thể trông vào may mắn.
-REAL_ROI_X = (-150.0, 480.0)
-REAL_ROI_Y = (-310.0, 310.0)
+# ⚠️ Vùng xét phải nằm GỌN TRONG mặt bàn, và KHÔNG suy ra được từ bề rộng bàn: trục X kẻ trên bàn
+# không song song với mép bàn, nên đường y = hằng số vẫn cắt qua mép dù |y| < 300. Đo 2026-10-06:
+# ±310 rồi ±280 đều còn với ra nền gạch sáng, dải nền đó NỐI LIỀN với lon Coca thành một vùng
+# bbox phủ gần hết khung hình, tỉ lệ nhìn thấy vọt lên 3.74 và mọi ước lượng bị loại.
+REAL_ROI_X = (-120.0, 240.0)
+REAL_ROI_Y = (-230.0, 230.0)
 
 
 def real_roi_virtual():

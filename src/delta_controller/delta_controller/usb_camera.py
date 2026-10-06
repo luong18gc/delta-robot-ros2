@@ -14,12 +14,21 @@ import time
 
 import cv2
 
+# Thời gian phơi sáng cho bố trí thật (đơn vị của UVC, dải 2–5000; mặc định của C270 là ~156).
+# Chọn 400 vì ở mức đó: cháy sáng TRONG mặt nạ màu 0.0%, S mặt bàn tụt từ 64 xuống 33 (mặt bàn bị
+# loại vì XÁM chứ không phải vì TỐI — ngưỡng vững hơn hẳn), pixel tối V<40 từ 53.6% còn 3.6%.
+# ⚠️ PHẢI đặt lại mỗi lần mở camera: chuyển sang chế độ thủ công KHÔNG giữ lại giá trị, cắm lại
+# camera là nó về 156. Gặp 2026-10-06: ảnh tối lại, tách nền gộp cả khung hình thành một vùng và
+# mọi phép đo ra rỗng — mà không có gì báo.
+EXPOSURE = 400
+
 MANUAL = (
     ('focus_automatic_continuous', 0),
     ('auto_exposure', 1),               # 1 = Manual Mode theo chuẩn UVC
     ('white_balance_automatic', 0),
     ('backlight_compensation', 0),
     ('exposure_dynamic_framerate', 0),
+    ('exposure_time_absolute', EXPOSURE),   # đặt SAU auto_exposure=1 mới có tác dụng
 )
 
 BUILTIN_HINTS = ('USB2.0 HD UVC WebCam',)

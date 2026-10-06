@@ -27,6 +27,7 @@ import cv2
 from delta_controller.camera_model import CameraModel, estimate_pose, marker_center
 from delta_controller.scene import (
     CALIB_ARUCO_DICT,
+    REAL_CALIB_MARKER_SIZE,
     real_calib_markers_virtual,
     REAL_CAN_HEIGHT,
     real_roi_virtual,
@@ -44,6 +45,11 @@ MIN_MARKERS = 5
 # với dung sai giác hút 12 mm. Bố trí thật 2026-10-05 cho RMS 3.25 px — nghe như hỏng, quy ra chỉ
 # 0.93 mm ảo (mô phỏng đạt 1.13 mm). Ngưỡng 2 px cũ loại sạch mọi khung, node không chạy nổi.
 MAX_RMS_MM = 3.0
+# Khoét quanh mỗi marker bấy nhiêu lần cạnh marker. 1.5 là mức vừa: đủ trùm tờ giấy và viền trắng,
+# chưa ăn vào lon đứng cạnh. Đo 2026-10-06: khoét 2.3 lần thì lon Coca hết dính vệt băng dính
+# (tỉ lệ cao/rộng về đúng 2.57) nhưng tỉ lệ nhìn thấy tụt còn 0.85 vì đã cắt mất một phần lon —
+# vá kiểu đó là giấu lỗi. Vệt băng dính trên bàn phải DỌN, không chữa bằng ngưỡng.
+MARKER_CUTOUT = 1.5
 # Trọng số làm trơn theo khung: tư thế mới chỉ được chiếm bấy nhiêu. Camera đứng yên nên làm trơn
 # mạnh vẫn bám kịp khi giá đỡ xê dịch từ từ, mà bớt được nhiễu PnP từng khung.
 SMOOTH = 0.15
@@ -192,6 +198,23 @@ class PoseTracker:
         return self.model is not None
 
 
+def marker_cutouts(camera, mask, margin=MARKER_CUTOUT):
+    """
+    Khoét 6 ô marker khỏi mặt nạ vùng xét.
+
+    Giấy marker trắng nên LUÔN là "không phải mặt bàn"; lon đứng sát marker sẽ dính liền với nó
+    thành một vùng, và hình bóng thu được phình ra vô nghĩa. Vị trí marker thì biết trước nên loại
+    bằng hình học là chắc chắn nhất.
+    """
+    half = REAL_CALIB_MARKER_SIZE / 2 / SCALE * margin
+    for x, y in real_calib_markers_virtual().values():
+        corners = [(x - half, y - half), (x + half, y - half),
+                   (x + half, y + half), (x - half, y + half)]
+        uv = camera.project([(cx, cy, TABLE_Z) for cx, cy in corners]).astype(np.int32)
+        cv2.fillConvexPoly(mask, uv.reshape(-1, 1, 2), 0)
+    return mask
+
+
 def table_roi_mask(camera, shape, height=REAL_CAN_HEIGHT / SCALE):
     """
     Mặt nạ 0/255 của vùng bàn đáng xét, chiếu qua mô hình camera.
@@ -206,4 +229,4 @@ def table_roi_mask(camera, shape, height=REAL_CAN_HEIGHT / SCALE):
     hull = cv2.convexHull(uv).reshape(-1, 1, 2).astype(np.int32)
     mask = np.zeros(shape[:2], np.uint8)
     cv2.fillConvexPoly(mask, hull, 255)
-    return mask
+    return marker_cutouts(camera, mask)
