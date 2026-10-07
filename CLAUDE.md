@@ -911,6 +911,14 @@ xác nhận mới ghi vào Gazebo. Nhấc lon đặt sang chỗ khác thì chỗ
 0,5 s); nhiễu thoáng qua thì không. Cùng tinh thần với **trí nhớ quan sát** ở `task_executor`: đừng
 tin một khung.
 
+**Kiểm chứng hai lớp phòng vệ (2026-10-07, người làm đồ án cho tay vào khung và dời lon nhiều lần):**
+**không một cú dịch chuyển giả nào**. Dấu vết trong nhật ký: 25 lần `Thay 1/2 vat` (lớp hình dáng
+loại hẳn lon bị tay che — **thà không báo gì còn hơn báo sai chỗ**) và **12 khung** bị bỏ với ghi chú
+"nhảy xa chưa xác nhận". Quan trọng: cùng khoảng thời gian đó 7up dịch thật 177 mm và coca dịch thật
+170 mm, **cả hai đều tới nơi** — bộ lọc chặn nhiễu mà không chặn nhầm chuyển động thật.
+Hai lớp phân công rõ: lớp hình dáng nói *"không biết lon ở đâu"*, lớp xác nhận nói *"chỗ mới phải
+trụ lại đã"*.
+
 - [x] **Bước 11** — Robot BÁM THEO LON (2026-10-07). `follow_node.py` (entry `follow`), chạy kèm
   `digital_twin.launch.py`: `ros2 run delta_controller follow [--ros-args -p object:=sevenup_can]`.
 
@@ -929,6 +937,9 @@ tin một khung.
   **Kiểm chứng:** tool0 đo trong Gazebo (+65, −100) mm thật so với tâm lon (+67, −105) → lệch
   **5 mm thật = 1,8 mm ảo**; z ra lệnh −0,1480 đo được **−0,1482** (lệch 0,2 mm). Khe 60 mm thật
   trên đỉnh lon. ⚠️ Node KHÔNG gắp, chỉ lơ lửng.
+  **Bám khi lon ĐANG dịch:** đẩy lon Coca 79 mm rồi 170 mm → đầu hút giữ sai lệch **3–4 mm thật**
+  suốt quá trình, z giữ trong **0,3 mm** (không chùng xuống khi đi ngang), và **không bị kéo theo**
+  lon 7up dịch 177 mm cùng lúc.
 - [ ] **Bước 12** — Đánh giá (độ chính xác, độ trễ, tỉ lệ gắp thành công) + báo cáo.
 
 ### Kế hoạch đã làm (yêu cầu của giảng viên)
