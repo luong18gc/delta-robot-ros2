@@ -851,6 +851,39 @@ tia với mặt bàn): **ID 0 lệch 26 mm, ID 4 lệch 29 mm**, ID 1/3/5 lệch
 6 marker bằng thước rồi điền vào `scene.REAL_CALIB_MARKERS`** — marker không cần nằm đúng chỗ thiết
 kế, chỉ cần **biết đúng** chỗ nó nằm.
 
+### Bước 10b — BẢN SAO SỐ đã chạy (2026-10-07)
+`digital_twin_node.py` (entry `digital_twin`) + `launch/digital_twin.launch.py`. Lon THẬT dịch trên
+bàn → lon ẢO trong Gazebo dịch theo.
+
+```
+lon thật → C270 → real_vision → /vision/objects → digital_twin → Gazebo
+                   (hệ ẢO)        (hệ ẢO)          (+ BASE_Z 1.0)
+```
+
+**Chỗ nối mỏng đúng như phải thế**: khối thị giác đã phát tọa độ trong hệ ẢO sẵn (tọa độ ảo đi vào
+PnP ngay từ khâu hiệu chuẩn — xem `real_calib_markers_virtual`), nên ở tầng này chỉ còn cộng độ cao
+đế robot. **Không có phép đổi tỉ lệ nào ở đây.**
+
+- Ghi pose qua **dịch vụ ROS đã cầu nối** `/world/delta_world/set_pose@ros_gz_interfaces/srv/SetEntityPose`.
+  Gọi `gz service` bằng tiến trình con mất ~0,37 s/lần → 3 lon hơn 1 giây, không theo kịp camera 10 Hz.
+- ⚠️ Launch này chạy `real_vision`, **KHÔNG** chạy `vision` (camera mô phỏng). Hai node cùng phát
+  `/vision/objects` là lẫn lộn.
+- Ba điều node **từ chối làm**: (1) bỏ qua lon `score = 0`; (2) chỉ ghi pose khi lon thật dịch quá
+  `MIN_MOVE` = 0,002 m ảo (6 mm thật, rộng so với nhiễu 0,5–0,9 mm) — dưới mức đó để bộ giải vật lý
+  tự lo thay vì ghi đè 10 lần/giây; (3) không đụng lon giác hút đang giữ.
+- Dịch vụ phải gọi **bất đồng bộ** — gọi đồng bộ trong callback là khóa chết executor.
+
+**Kiểm chứng (chấm bằng odometry Gazebo):** lon ảo nằm **0,0–0,4 mm ảo** so với chỗ camera báo, z
+đúng độ cao lon đứng (−195,5 mm) nên chúng nằm yên trên bàn chứ không rơi. Dịch coca hơn 100 mm →
+lon ảo bám theo trong **1 mm thật = 0,3 mm ảo**. Khởi động lại thì lon ảo **tự đồng bộ ngay** từ vị
+trí spawn trong SDF về vị trí thật.
+
+**Lỗi tìm ra khi chạy thật: BÀN TAY bị nhận là lon Coca.** Tay người ngả đỏ cam nên rơi vào lớp màu
+của Coca; lon ảo nhảy **294 mm rồi quay về**. Cờ tin cậy **không chặn được** vì nó chỉ hỏi tỉ lệ nhìn
+thấy có **TỤT** dưới `VISIBLE_MIN` không — **không có chặn trên**, nên vùng to gấp mấy lần vẫn lọt.
+Sửa: thêm **`VISIBLE_MAX = 1.30`** (lon lành lặn đo được 0,99–1,02). Chặn này còn bắt được **hai lon
+dính liền pixel** — thứ mà quy tắc gộp mảnh ở lỗi thứ 6 không tách nổi.
+
 - [ ] **Bước 11** — Chế độ bám theo tay/marker.
 - [ ] **Bước 12** — Đánh giá (độ chính xác, độ trễ, tỉ lệ gắp thành công) + báo cáo.
 
