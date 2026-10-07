@@ -41,7 +41,7 @@ _NEWTON_STEP = 1e-4         # bước sai phân để tính Jacobian (m)
 @dataclass(frozen=True)
 class ObjectEstimate:
     position: tuple         # (x, y, z) tâm vật, hệ robot (m)
-    method: str             # 'centroid' (tâm khối) | 'top_edge' (khớp mép trên, vật trong khay)
+    method: str             # 'centroid' | 'bottom_edge' | 'top_edge_table' | 'top_edge' (khay)
     visible_fraction: float
     cut_by_border: bool
     reliable: bool
@@ -190,7 +190,7 @@ def touches_border(detection, image_shape):
 
 
 def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
-                    bins=BIN_LAYOUT):
+                    bins=BIN_LAYOUT, reflective_table=False):
     """
     Vị trí tâm vật từ một Detection.
 
@@ -211,9 +211,19 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
         # dưới 32 px ≈ 28 mm (phần trên là nắp bạc), với HÌNH BÓNG thì lệch lên trên (nhìn xiên
         # nên thấy cả mặt trên). Mép đáy thì tì trên mặt bàn nên không bị lệch kiểu nào.
         bx, by, bw, bh = detection.bbox
-        fit = fit_bottom_edge(camera, obj, u, by + bh - 0.5, table_center_z, (x, y))
-        if fit is not None:
-            position, method = (fit[0], fit[1], table_center_z), 'bottom_edge'
+        if reflective_table:
+            # Mặt bàn BÓNG: nó phản chiếu vật, và ảnh phản chiếu dính liền chân vật nên mép đáy
+            # của mặt nạ không còn là chỗ vật chạm bàn. Đo trên bàn thật 2026-10-07 (18 phép đo,
+            # đã trừ nền tham chiếu nên mặt nạ sạch): mép đáy lệch ĐỀU −31.7…−34.3 mm thật ở cả
+            # ba lon, tức đúng chiều cao ảnh phản chiếu; mép trên 4.50 mm ảo, tệ nhất 6.31 —
+            # trong dung sai giác hút 12 mm. Phản chiếu luôn nằm DƯỚI nên mép trên không dính.
+            fit = fit_top_edge(camera, obj, u, by - 0.5, table_center_z, (x, y))
+            if fit is not None:
+                position, method = (fit[0], fit[1], table_center_z), 'top_edge_table'
+        else:
+            fit = fit_bottom_edge(camera, obj, u, by + bh - 0.5, table_center_z, (x, y))
+            if fit is not None:
+                position, method = (fit[0], fit[1], table_center_z), 'bottom_edge'
 
     # --- Giả thuyết 2: vật NẰM TRONG KHAY --------------------------------------------------
     # Chọn giả thuyết theo TÍNH KHẢ THI VẬT LÝ: không vật nào đứng được trên mặt bàn ở chỗ đang bị

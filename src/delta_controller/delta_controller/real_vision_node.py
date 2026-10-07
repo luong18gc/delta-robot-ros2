@@ -56,6 +56,7 @@ import yaml
 
 WS = os.path.expanduser('~/ros2_closed_loop_ws')
 DEFAULT_INTRINSICS = os.path.join(WS, 'calibration', 'c270_intrinsics.yaml')
+DEFAULT_REFERENCE = os.path.join(WS, 'calibration', 'table_reference.png')
 # Dùng REAL_OBJECTS (tỉ lệ màu của lon THẬT), không phải OBJECTS của cảnh mô phỏng.
 COLOR_TO_OBJECT = {o.color: o.name for o in REAL_OBJECTS}
 OBJECT_OF_COLOR = {o.color: o for o in REAL_OBJECTS}
@@ -70,6 +71,8 @@ class RealVisionNode(Node):
         intrinsics = os.path.expanduser(
             self.declare_parameter('intrinsics_file', DEFAULT_INTRINSICS).value)
         rate = float(self.declare_parameter('rate_hz', 10.0).value)
+        reference = os.path.expanduser(
+            self.declare_parameter('reference_file', DEFAULT_REFERENCE).value)
 
         if not os.path.exists(intrinsics):
             raise SystemExit(f'Chua co {intrinsics} — chay calibrate_intrinsics.py truoc.')
@@ -91,6 +94,16 @@ class RealVisionNode(Node):
         self._cap = usb_camera.open_camera(device, mode[0], mode[1])
         usb_camera.warm_up(self._cap)
 
+        # Ảnh mặt bàn trống để TRỪ NỀN. Không có thì quay về cách lấy ngưỡng, nhưng ngưỡng không
+        # bền với ánh sáng (đo 2026-10-07: ban ngày bàn ám màu nên lọt vào mặt nạ; một đèn thì bàn
+        # quá tối, S hóa nhiễu, gần như cả mặt bàn lọt vào) — xem capture_table_reference.py.
+        self._reference = cv2.imread(reference) if os.path.exists(reference) else None
+        if self._reference is None:
+            self.get_logger().warning(
+                f'Chua co anh nen {reference} — dang lay nguong, keo nhan dang theo anh sang. '
+                f'Chay scripts/capture_table_reference.py.')
+        else:
+            self.get_logger().info(f'Tru nen theo {reference}')
         self._tracker = PoseTracker(self._K, self._dist)
         self._detector = aruco_detector()
         self._bridge = CvBridge()
@@ -125,10 +138,12 @@ class RealVisionNode(Node):
         # TÁCH NỀN TRƯỚC rồi phân loại từng vùng, không phải lọc theo màu: mặt nạ màu của lon THẬT
         # không phải hình bóng lon (màu nằm thành vành, xen mảng trắng và logo), nên mọi phép
         # ước lượng dựng trên nó đều sai. Xem scene.REAL_OBJECTS.
-        detections = detect_by_color(frame, COLOR_CLASSES, roi=self._roi)
+        detections = detect_by_color(frame, COLOR_CLASSES, roi=self._roi,
+                                     reference=self._reference)
         stamp = self.get_clock().now().to_msg()
         self._publish_pixels(detections, stamp)
-        estimates = {c: estimate_object(d, camera, OBJECT_OF_COLOR[c], frame.shape)
+        estimates = {c: estimate_object(d, camera, OBJECT_OF_COLOR[c], frame.shape,
+                                        reflective_table=True)
                      for c, d in detections.items() if c in OBJECT_OF_COLOR}
         self._publish_objects(estimates, stamp)
         if self._debug_pub.get_subscription_count() > 0:
@@ -197,7 +212,7 @@ class RealVisionNode(Node):
             x, y, _ = est.position
             labels[c] += (f' {x * 1000 * SCALE:+.0f},{y * 1000 * SCALE:+.0f}mm that'
                           f' {100 * est.visible_fraction:.0f}%')
-            if est.method in ('top_edge', 'bottom_edge'):
+            if est.method != 'centroid':
                 labels[c] += f' [{est.method}]'
             if not est.reliable:
                 labels[c] += ' BI CHE?'
