@@ -25,6 +25,9 @@ mặt bàn rồi đặt lon theo dấu, vòng tròn chỉ để tham khảo.
 
 import argparse
 import collections
+import datetime
+import json
+import os
 import sys
 
 import _workspace  # noqa: F401
@@ -47,6 +50,7 @@ import yaml
 
 WS = '/home/luong18gc/ros2_closed_loop_ws'
 INTRINSICS = f'{WS}/calibration/c270_intrinsics.yaml'
+RESULTS = f'{WS}/docs/results/real_accuracy.json'
 FRAMES = 15
 # Hai lon phải cách nhau ít nhất bấy nhiêu mm, và một lon không được nằm sát đường nhìn từ camera
 # tới lon khác (nếu không nó che mất lon phía sau).
@@ -258,12 +262,34 @@ def measure(cap, tracker, detector, objects, frames, reference):
             for n, v in seen.items() if len(v) >= 3}
 
 
+def save(path, rows, used_reference, pose):
+    """Ghi từng phép đo ra JSON — chạy xong mà chỉ có chữ trên màn hình là mất số liệu."""
+    if not rows:
+        return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    data = {
+        'luc': datetime.datetime.now().isoformat(timespec='seconds'),
+        'tru_nen_tham_chieu': used_reference,
+        'camera': ({'lui_mm': -pose.position_real_mm()[0], 'cao_mm': pose.position_real_mm()[2],
+                    'chuc_do': pose.tilt_deg(), 'sai_so_mm_ao': pose.rms_mm}
+                   if pose is not None else None),
+        'phep_do': [{'vat': n, 'that_mm': [float(t[0]), float(t[1])],
+                     'lech_mep_day_mm': [float(eb[0]), float(eb[1])],
+                     'lech_mep_tren_mm': [float(et[0]), float(et[1])]}
+                    for n, t, eb, et in rows],
+    }
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=1, ensure_ascii=False)
+    print(f'\nDa ghi {len(rows)} phep do vao {path}')
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--device', default='auto')
     ap.add_argument('--intrinsics', default=INTRINSICS)
     ap.add_argument('--frames', type=int, default=FRAMES)
+    ap.add_argument('--out', default=RESULTS)
     args = ap.parse_args()
 
     with open(args.intrinsics) as f:
@@ -339,6 +365,7 @@ def main():
 
     if not rows:
         return 1
+    save(args.out, rows, reference is not None, tracker.last)
     print('\n== KET QUA  (mm AO; mo phong dat 1.13 mm, dung sai giac hut 12 mm)')
     for idx, label in ((2, 'KHOP MEP DAY'), (3, 'KHOP MEP TREN')):
         print(f'\n  {label}')
