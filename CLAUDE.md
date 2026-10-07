@@ -833,6 +833,16 @@ lon — đặc trưng hình học sạch.
 mọi lon đặt tại (−70, −160) đều cho **cùng một đáp án sai** (+88,7, −28,7) bất kể là lon nào — dấu
 hiệu rơi vào nghiệm lạ, không phải sai số đo. Xuất phát từ ước lượng mép đáy → hết hẳn.
 
+**Ảnh phản chiếu thổi phồng tỉ lệ nhìn thấy → cờ che khuất mất tác dụng một nửa.** Phản chiếu vẫn
+nằm trong mặt nạ nên tỉ lệ nhìn thấy xuất phát từ **1,08–1,29** thay vì ~1,00; mà cờ báo khi tỉ lệ
+**tụt** dưới `VISIBLE_MIN = 0,90`, nên phải bị che tới ~30% mới báo. Sửa: `ObjectDetection` mang thêm
+`row_counts` (số pixel từng hàng — gọn hơn giữ cả mặt nạ), `estimate_object` chỉ đếm phần **phía trên
+chân vật dự đoán**. Đo lại: **0,99 / 1,00 / 1,02**, cờ lấy lại đủ dư địa.
+
+**Kiểm chứng đầu-cuối (2026-10-07, ảnh nền đã chụp):** 3/3 lon, `method = top_edge_table`, tỉ lệ
+cao/rộng **2,41–2,89** (lon thật 2,56), **nhiễu vị trí 0,5–0,9 mm** (trước khi trừ nền: 3,0–13,8 mm),
+50/50 khung tin cậy, 6/6 marker, 12,3 hình/s.
+
 **Phần lệch hệ thống còn lại +9,6 mm là do MARKER, không phải chiều cao lon.** Sai chiều cao sinh
 ra lệch **tăng** theo x (tính được: −13 → −19,8), còn đo được thì **giảm** (+12,5 / +12,4 / +3,9 tại
 x = −70 / +60 / +190) → bác bỏ. Đo riêng từng marker (khớp tư thế bằng các marker còn lại rồi giao

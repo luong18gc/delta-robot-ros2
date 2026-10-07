@@ -249,10 +249,19 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
             position, method = (cx, cy, bin_center_z), 'bin_center'
 
     area, _, _ = silhouette_features(camera, obj, position)
+    seen_area = detection.area
+    if reflective_table and method == 'top_edge_table' and detection.row_counts:
+        # Mặt bàn bóng: ẢNH PHẢN CHIẾU nằm dưới chân vật và vẫn ở trong mặt nạ, nên nó thổi phồng
+        # tỉ lệ nhìn thấy (đo 2026-10-07: 1.08–1.29 thay vì ~1.00). Cờ che khuất báo khi tỉ lệ TỤT
+        # dưới VISIBLE_MIN, nên xuất phát từ 1.2 nghĩa là phải bị che ~30% mới báo. Đã biết vị trí
+        # vật nên biết chân vật đáng lẽ nằm ở hàng nào — chỉ đếm phần PHÍA TRÊN hàng đó.
+        v_bottom = float(silhouette(camera, obj, position)[:, 1].max())
+        top = detection.bbox[1]
+        seen_area = sum(c for k, c in enumerate(detection.row_counts) if top + k <= v_bottom)
     # Chia cho tỉ lệ màu danh nghĩa: vật nhiều màu (lon có nắp bạc, chữ trắng) chỉ mang màu trên
     # một phần hình bóng, nên phải so với phần ĐÁNG LẼ thấy được chứ không so với cả hình bóng.
     expected = area * getattr(obj, 'color_fraction', 1.0)
-    visible = detection.area / expected if expected > 0 else 0.0
+    visible = seen_area / expected if expected > 0 else 0.0
     cut = touches_border(detection, image_shape)
     reliable = (not cut and method != 'bin_center'
                 and (method == 'top_edge' or visible >= VISIBLE_MIN))

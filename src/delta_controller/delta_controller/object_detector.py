@@ -51,6 +51,10 @@ class ObjectDetection:
     # tỉ lệ pixel có sắc màu trong vùng — chỉ để chẩn đoán, KHÔNG dùng làm cờ che khuất
     color_fraction: float
     confidence: float     # tỉ lệ pixel màu thuộc về lớp thắng (0–1)
+    # Số pixel của vùng trên TỪNG HÀNG trong khung bao (dài h). Đủ để đếm diện tích phía trên một
+    # hàng bất kỳ mà không phải giữ cả mặt nạ — dùng để bỏ ẢNH PHẢN CHIẾU ra khỏi phép tính tỉ lệ
+    # nhìn thấy trên mặt bàn bóng. Rỗng khi bộ nhận dạng không cung cấp.
+    row_counts: tuple = ()
 
 
 def foreground_mask(hsv, roi=None):
@@ -143,6 +147,7 @@ def detect_objects(bgr, color_classes, roi=None, min_area=MIN_AREA,
         if area < min_area:
             continue
         region = (labels == i).astype(np.uint8)
+        x, y, w, h = (int(v) for v in stats[i, :4])
         name, confidence, fraction = classify_region(hsv, region, color_classes)
         if name is None or fraction < min_color_fraction or confidence < min_confidence:
             continue
@@ -152,7 +157,9 @@ def detect_objects(bgr, color_classes, roi=None, min_area=MIN_AREA,
             area=area,
             bbox=tuple(int(v) for v in stats[i, :4]),
             color_fraction=float(fraction),
-            confidence=float(confidence)))
+            confidence=float(confidence),
+            row_counts=tuple(
+                int(c) for c in region[y:y + h, x:x + w].sum(axis=1, dtype=np.int32))))
     return sorted(found, key=lambda d: -d.area)
 
 
