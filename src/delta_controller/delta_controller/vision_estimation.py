@@ -26,6 +26,12 @@ import numpy as np
 # hộp đỏ bị trụ xanh đứng trước che ~15% -> lệch 8 mm -> hút lệch tâm -> đè thành khay, trượt
 # sang ô khác.
 VISIBLE_MIN = 0.90
+# ... và tối đa. Hình bóng đo được LỚN HƠN HẲN dự đoán thì thứ đang nhìn không phải vật đó: hai vật
+# dính liền pixel, hoặc một thứ khác lọt vào khung mang đúng lớp màu. Gặp thật 2026-10-07 khi chạy
+# bản sao số: BÀN TAY người với vào dời lon ngả đỏ cam nên rơi vào lớp màu của lon Coca, lon ảo
+# nhảy 294 mm rồi quay về. Chặn dưới không bắt được vì nó chỉ hỏi tỉ lệ có TỤT hay không.
+# 1.30 chừa chỗ cho phản chiếu còn sót và sai số hình bóng (đo 0.99–1.02 khi lon lành lặn).
+VISIBLE_MAX = 1.30
 # Ước lượng thô cách thành ngoài khay tới mức này thì thử giả thuyết "vật trong khay" (m).
 BIN_SEARCH_MARGIN = 0.03
 # Vật CAO hơn rộng bấy nhiêu lần thì khớp MÉP ĐÁY thay vì dùng tâm khối.
@@ -263,7 +269,7 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
     expected = area * getattr(obj, 'color_fraction', 1.0)
     visible = seen_area / expected if expected > 0 else 0.0
     cut = touches_border(detection, image_shape)
-    reliable = (not cut and method != 'bin_center'
+    reliable = (not cut and method != 'bin_center' and visible <= VISIBLE_MAX
                 and (method == 'top_edge' or visible >= VISIBLE_MIN))
     return ObjectEstimate(position=tuple(float(c) for c in position), method=method,
                           visible_fraction=float(visible), cut_by_border=cut, reliable=reliable)

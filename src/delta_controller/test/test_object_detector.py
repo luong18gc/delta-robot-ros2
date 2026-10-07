@@ -34,3 +34,9 @@ def test_tru_nen_bo_qua_nhieu_cam_bien():
     noisy = np.clip(reference.astype(np.int16)
                     + rng.normal(0, 3, reference.shape), 0, 255).astype(np.uint8)
     assert object_detector.foreground_from_reference(noisy, reference).max() == 0
+
+
+def test_vung_qua_to_khong_duoc_coi_la_vat():
+    """Hình bóng lớn hơn hẳn dự đoán -> không tin (bàn tay lọt vào khung mang đúng lớp màu)."""
+    from delta_controller.vision_estimation import VISIBLE_MAX, VISIBLE_MIN
+    assert VISIBLE_MIN < 1.0 < VISIBLE_MAX, 'vat lanh lan (ti le ~1.0) phai nam giua hai nguong'
