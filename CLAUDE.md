@@ -881,8 +881,21 @@ trí spawn trong SDF về vị trí thật.
 **Lỗi tìm ra khi chạy thật: BÀN TAY bị nhận là lon Coca.** Tay người ngả đỏ cam nên rơi vào lớp màu
 của Coca; lon ảo nhảy **294 mm rồi quay về**. Cờ tin cậy **không chặn được** vì nó chỉ hỏi tỉ lệ nhìn
 thấy có **TỤT** dưới `VISIBLE_MIN` không — **không có chặn trên**, nên vùng to gấp mấy lần vẫn lọt.
-Sửa: thêm **`VISIBLE_MAX = 1.30`** (lon lành lặn đo được 0,99–1,02). Chặn này còn bắt được **hai lon
-dính liền pixel** — thứ mà quy tắc gộp mảnh ở lỗi thứ 6 không tách nổi.
+Sửa một nửa: thêm **`VISIBLE_MAX = 1.30`** (lon lành lặn đo được 0,99–1,02), chặn này bắt được **hai
+lon dính liền pixel** — thứ mà quy tắc gộp mảnh ở lỗi thứ 6 không tách nổi.
+
+⚠️ **Nhưng cờ tin cậy VỀ NGUYÊN TẮC không bắt được vị trí sai** — tính chất cấu trúc, không phải
+ngưỡng đặt chưa khéo. `estimate_object` ước lượng vị trí **trước**, rồi mới dựng hình bóng dự đoán
+**tại chính vị trí đó**. Vùng ảnh to hơn → phép khớp đẩy vật lại **gần camera hơn** → hình bóng dự
+đoán ở đó **cũng to hơn** → tỉ lệ **tự chuẩn hóa** về ~1. Nó chỉ bắt được **che khuất** (méo hình
+dáng mà phép khớp không bù được). Thử lại bằng cách giơ tay vào khung: lon ảo vẫn nhảy 284 mm
+**trong khi score = 1,00**.
+
+**Ràng buộc không tự chuẩn hóa duy nhất là VẬT LÝ**: lon không dịch 284 mm trong 1/10 giây. Nhảy quá
+`JUMP` = 0,02 m ảo (60 mm thật, tức 0,6 m/s ở 10 Hz) phải có **`CONFIRM_FRAMES` = 5 khung liên tiếp**
+xác nhận mới ghi vào Gazebo. Nhấc lon đặt sang chỗ khác thì chỗ mới **trụ lại** nên vẫn đi theo (trễ
+0,5 s); nhiễu thoáng qua thì không. Cùng tinh thần với **trí nhớ quan sát** ở `task_executor`: đừng
+tin một khung.
 
 - [ ] **Bước 11** — Chế độ bám theo tay/marker.
 - [ ] **Bước 12** — Đánh giá (độ chính xác, độ trễ, tỉ lệ gắp thành công) + báo cáo.
