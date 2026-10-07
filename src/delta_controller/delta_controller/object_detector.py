@@ -71,6 +71,38 @@ def foreground_mask(hsv, roi=None):
     return cv2.morphologyEx(mask, cv2.MORPH_OPEN, _OPEN_KERNEL)
 
 
+# Pixel khác ảnh tham chiếu quá mức này (mức xám, lấy kênh lệch nhiều nhất) thì coi là VẬT.
+# 30 là mức an toàn so với nhiễu cảm biến của C270 (σ ≈ 2–3 mức xám, đo 2026-09-29).
+REFERENCE_DIFF = 30
+
+
+def foreground_from_reference(bgr, reference, roi=None, diff_min=REFERENCE_DIFF):
+    """
+    Mặt nạ "khác mặt bàn trống", so với ảnh tham chiếu chụp khi bàn không có vật.
+
+    Vì sao cần, thay cho cách lấy ngưỡng: ngưỡng cố định không bền với ánh sáng. Đo 2026-10-07
+    trên cùng bố trí, cùng bộ ngưỡng: ban ngày mặt bàn sáng lên và ÁM MÀU nên lọt vào mặt nạ; thắp
+    một đèn thì bàn quá tối, S = (max-min)/max hóa nhiễu và gần như CẢ MẶT BÀN lọt vào. Hai kiểu
+    hỏng ngược nhau, không bộ ngưỡng nào thỏa mãn cả hai; quét phơi sáng 80–2600 và gain 0–100 đều
+    không cứu được.
+
+    So với ảnh tham chiếu thì câu hỏi đổi từ "pixel này sáng/đậm màu bao nhiêu" thành "pixel này có
+    giống mặt bàn lúc trống không" — vân bàn, ám màu, chỗ sáng chỗ tối đều có y hệt trong tham
+    chiếu nên tự triệt tiêu.
+
+    ⚠️ KHÔNG xóa được ẢNH PHẢN CHIẾU của vật trên mặt bàn bóng: phản chiếu chỉ xuất hiện khi có
+    vật nên nó cũng "khác bàn trống". Phản chiếu luôn nằm DƯỚI chân vật, nên chỗ dựa phải là mép
+    TRÊN của hình bóng.
+    ⚠️ Đổi ánh sáng là phải chụp lại tham chiếu.
+    """
+    diff = cv2.absdiff(bgr.astype(np.int16), reference.astype(np.int16)).max(axis=2)
+    mask = (diff >= diff_min).astype(np.uint8) * 255
+    if roi is not None:
+        mask &= roi
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, _CLOSE_KERNEL)
+    return cv2.morphologyEx(mask, cv2.MORPH_OPEN, _OPEN_KERNEL)
+
+
 def classify_region(hsv, mask, color_classes):
     """Phân loại vùng theo sắc màu chiếm ưu thế: (tên lớp, độ chắc chắn, tỉ lệ có màu)."""
     pixels = hsv[mask > 0]
@@ -93,7 +125,8 @@ def classify_region(hsv, mask, color_classes):
 
 
 def detect_objects(bgr, color_classes, roi=None, min_area=MIN_AREA,
-                   min_color_fraction=MIN_COLOR_FRACTION, min_confidence=MIN_CONFIDENCE):
+                   min_color_fraction=MIN_COLOR_FRACTION, min_confidence=MIN_CONFIDENCE,
+                   reference=None):
     """
     Tìm mọi vật trên ảnh và phân loại từng vật.
 
@@ -101,7 +134,8 @@ def detect_objects(bgr, color_classes, roi=None, min_area=MIN_AREA,
     vật (khác hẳn `color_detector`), nên hàm này dùng được cho cảnh có hai lon cùng loại.
     """
     hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
-    mask = foreground_mask(hsv, roi)
+    mask = (foreground_mask(hsv, roi) if reference is None
+            else foreground_from_reference(bgr, reference, roi))
     count, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
     found = []
     for i in range(1, count):
