@@ -796,6 +796,51 @@ về bề ngoài, chỉ cần giống về hình học.
 ⚠️ Còn tồn: lon Coca cho tỉ lệ nhìn thấy **1.19** (hình bóng đo được lớn hơn dự đoán 19%) — nghi
 bóng đổ dính chân lon; chưa truy. Nhiễu X của Pepsi nhỉnh lên 5.9 -> 7.1 mm.
 
+### Sai số THẬT đo xong — 4,50 mm ảo (2026-10-07)
+18 phép đo (3 lon × 6 vị trí, đặt theo dấu bút chì trên bàn), ghi vào
+`docs/results/real_accuracy.json` (`scripts/measure_real_accuracy.py`, in **cả hai** cách khớp).
+
+| | TB | tệ nhất | lệch hệ thống X (mm thật) |
+|---|---|---|---|
+| khớp **mép trên** (đang dùng) | **4,50 mm ảo** | 6,31 | +9,2 … +10,2 |
+| khớp mép đáy | 11,42 | 20,55 | −31,7 … −34,3 |
+
+Mô phỏng đạt 1,13 mm; dung sai giác hút 12 mm → **đạt, kể cả trường hợp tệ nhất**.
+Bỏ phần lệch hệ thống ra thì còn **2,35 mm ảo** → phép đo rất ổn định, phần dư là lỗi mô hình.
+
+**Ngưỡng cố định KHÔNG bền với ánh sáng — đây là kết luận chính của buổi này.** Cùng bố trí, cùng
+bộ ngưỡng: ban ngày mặt bàn sáng lên **và ám màu** nên lọt vào mặt nạ; thắp một đèn thì bàn quá tối,
+`S = (max−min)/max` hóa nhiễu nên **gần như cả mặt bàn** lọt vào. Hai kiểu hỏng **ngược cơ chế**;
+quét phơi sáng 80–2600 và gain 0–100 đều không cứu được (C270 bão hòa phơi sáng ở 800).
+⇒ `object_detector.foreground_from_reference` so với **ảnh mặt bàn trống**
+(`scripts/capture_table_reference.py`, node tự nạp `calibration/table_reference.png`).
+Cảnh không đổi: mặt nạ mới báo **0,00%** khung, cách lấy ngưỡng báo 12,06%; nhiễu cảm biến 1 mức
+xám so với ngưỡng 30. ⚠️ **Đổi ánh sáng hoặc xê dịch camera là phải chụp lại ảnh nền.**
+
+**Mặt bàn PHẢN CHIẾU lon → mép đáy không dùng được.** Phản chiếu dính liền chân lon (phình đáy
+24–57 px) nên mép đáy của mặt nạ không còn là chỗ lon chạm bàn; nó sai **đều −33 mm ở cả ba lon**,
+đúng chiều cao ảnh phản chiếu. Trừ nền KHÔNG xóa được (phản chiếu chỉ có khi có lon). Phản chiếu
+luôn nằm **dưới** nên **mép trên miễn nhiễm** → `estimate_object(..., reflective_table=True)`,
+`real_vision_node` bật cờ này.
+⚠️ Trước khi trừ nền, mép đáy *trông* chính xác hơn (9,08 mm) — vì đám lốm đốm phình **đỉnh** bù
+trừ một phần cho phản chiếu phình **đáy**. Hai lỗi triệt tiêu nhau tạo ra con số đẹp giả tạo; dọn
+sạch một lỗi mới thấy lỗi kia. Bài học: **đừng chọn phương pháp theo con số tổng khi mặt nạ còn bẩn.**
+⚠️ Kết luận cũ của 8.5 "mép trên không dùng được cho lon trên bàn" chỉ áp cho mặt nạ **MÀU** (mép
+trên là mép vành màu, bị nắp và vành nhãn làm nhòe). Với **hình bóng** thì mép trên là vành miệng
+lon — đặc trưng hình học sạch.
+
+**Bộ giải Newton phân kỳ vì điểm xuất phát.** Xuất phát từ tâm khối (bị phản chiếu kéo xuống) thì
+mọi lon đặt tại (−70, −160) đều cho **cùng một đáp án sai** (+88,7, −28,7) bất kể là lon nào — dấu
+hiệu rơi vào nghiệm lạ, không phải sai số đo. Xuất phát từ ước lượng mép đáy → hết hẳn.
+
+**Phần lệch hệ thống còn lại +9,6 mm là do MARKER, không phải chiều cao lon.** Sai chiều cao sinh
+ra lệch **tăng** theo x (tính được: −13 → −19,8), còn đo được thì **giảm** (+12,5 / +12,4 / +3,9 tại
+x = −70 / +60 / +190) → bác bỏ. Đo riêng từng marker (khớp tư thế bằng các marker còn lại rồi giao
+tia với mặt bàn): **ID 0 lệch 26 mm, ID 4 lệch 29 mm**, ID 1/3/5 lệch 9–15 mm, **ID 2 không nhận ra
+được** → ngoại tham số tụt từ 0,93 xuống **1,96 mm ảo**. Muốn tốt hơn thì **đo lại tọa độ thật của
+6 marker bằng thước rồi điền vào `scene.REAL_CALIB_MARKERS`** — marker không cần nằm đúng chỗ thiết
+kế, chỉ cần **biết đúng** chỗ nó nằm.
+
 - [ ] **Bước 11** — Chế độ bám theo tay/marker.
 - [ ] **Bước 12** — Đánh giá (độ chính xác, độ trễ, tỉ lệ gắp thành công) + báo cáo.
 
