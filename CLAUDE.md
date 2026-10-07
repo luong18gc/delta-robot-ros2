@@ -891,6 +891,20 @@ ngưỡng đặt chưa khéo. `estimate_object` ước lượng vị trí **trư
 dáng mà phép khớp không bù được). Thử lại bằng cách giơ tay vào khung: lon ảo vẫn nhảy 284 mm
 **trong khi score = 1,00**.
 
+**Lỗi thật hóa ra không phải bàn tay mà là VÀNH LOGO ĐỎ CỦA LON 7UP.** Khi vùng ảnh của 7up bị cắt
+thành nhiều mảnh, mảnh vành đỏ thành vùng riêng, được phân loại là **đỏ**, và `detect_by_color` lấy
+**vùng đỏ lớn nhất** → lon Coca "dịch chuyển tức thời" sang chỗ lon 7Up, lặp đi lặp lại, score vẫn
+1,00. Đây là họ hàng của **lỗi thứ 6** trong mô phỏng, nhưng ở đây quy tắc "cùng cột" không áp dụng
+vì camera thật dùng `object_detector` (tách nền trước) chứ không phải `color_detector`.
+
+Sửa: **`shape_matches`** — so **BỀ RỘNG và CHIỀU CAO** khung bao đo được với hình bóng dự đoán.
+Phép khớp chỉ khớp **mép trên + tâm ngang**, nên bề rộng và chiều cao là **thông tin độc lập**, phép
+khớp không tự điều chỉnh cho chúng khớp. Đo trên ảnh thật: ba lon lành lặn +5/+13/+8% bề rộng → ĐẠT;
+vùng rộng gấp 2,3 lần (+133%) → LOẠI; mảnh vụn (−59%) → LOẠI.
+⚠️ **Chiều cao phải KHÔNG đối xứng**: ảnh phản chiếu nằm trong khung bao nên lon lành lặn cao hơn dự
+đoán **16–28%** → `HEIGHT_MIN, HEIGHT_MAX = 0.65, 1.60`. Chặt phía dưới vì "thấp hơn hẳn" chính là
+dấu vân tay của vành logo bị tách ra (rộng bằng lon, cao bằng 1/4).
+
 **Ràng buộc không tự chuẩn hóa duy nhất là VẬT LÝ**: lon không dịch 284 mm trong 1/10 giây. Nhảy quá
 `JUMP` = 0,02 m ảo (60 mm thật, tức 0,6 m/s ở 10 Hz) phải có **`CONFIRM_FRAMES` = 5 khung liên tiếp**
 xác nhận mới ghi vào Gazebo. Nhấc lon đặt sang chỗ khác thì chỗ mới **trụ lại** nên vẫn đi theo (trễ

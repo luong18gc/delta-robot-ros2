@@ -32,6 +32,20 @@ VISIBLE_MIN = 0.90
 # nhảy 294 mm rồi quay về. Chặn dưới không bắt được vì nó chỉ hỏi tỉ lệ có TỤT hay không.
 # 1.30 chừa chỗ cho phản chiếu còn sót và sai số hình bóng (đo 0.99–1.02 khi lon lành lặn).
 VISIBLE_MAX = 1.30
+# Bề rộng và chiều cao của hình bóng ĐO ĐƯỢC được phép lệch bao nhiêu so với hình bóng DỰ ĐOÁN.
+# Đây là kiểm tra HÌNH DÁNG, và nó bắt được thứ mà tỉ lệ diện tích không bao giờ bắt được: phép
+# khớp chỉ khớp MÉP TRÊN và TÂM NGANG, nên bề rộng và chiều cao là thông tin ĐỘC LẬP, không bị
+# phép khớp tự điều chỉnh cho khớp. Tỉ lệ diện tích thì tự chuẩn hóa (vùng to hơn -> khớp đẩy vật
+# lại gần camera -> hình bóng dự đoán cũng to hơn -> tỉ lệ vẫn ~1 dù vị trí sai hàng trăm mm).
+# Gặp thật 2026-10-07 khi chạy bản sao số: VÀNH LOGO ĐỎ của lon 7Up tách thành vùng riêng, được
+# phân loại là đỏ, và `detect_by_color` lấy vùng đỏ lớn nhất -> lon Coca "dịch chuyển tức thời"
+# sang chỗ lon 7Up, score vẫn 1.00. Vành logo rộng mà thấp nên lệch chiều cao bắt được ngay.
+SHAPE_TOLERANCE = 0.35
+# Chiều cao thì KHÔNG đối xứng: ảnh phản chiếu nằm dưới chân vật vẫn ở trong khung bao, nên vật
+# lành lặn đo được CAO HƠN dự đoán 16–28% (đo 2026-10-07). Nới rộng phía trên để lon thật không bị
+# loại oan, nhưng giữ chặt phía dưới — vì "thấp hơn hẳn" chính là dấu hiệu của vành logo bị tách
+# ra thành vùng riêng (mảnh rộng bằng lon nhưng chỉ cao bằng 1/4).
+HEIGHT_MIN, HEIGHT_MAX = 0.65, 1.60
 # Ước lượng thô cách thành ngoài khay tới mức này thì thử giả thuyết "vật trong khay" (m).
 BIN_SEARCH_MARGIN = 0.03
 # Vật CAO hơn rộng bấy nhiêu lần thì khớp MÉP ĐÁY thay vì dùng tâm khối.
@@ -90,6 +104,31 @@ def silhouette_features(camera, obj, center):
     hull = silhouette(camera, obj, center)
     m = cv2.moments(hull)
     return m['m00'], m['m10'] / m['m00'], float(hull[:, 1].min())
+
+
+def silhouette_size(camera, obj, center):
+    """(bề rộng, chiều cao) của khung bao hình bóng dự đoán, tính bằng pixel."""
+    hull = silhouette(camera, obj, center)
+    return (float(hull[:, 0].max() - hull[:, 0].min()),
+            float(hull[:, 1].max() - hull[:, 1].min()))
+
+
+def shape_matches(detection, camera, obj, center, tolerance=SHAPE_TOLERANCE):
+    """
+    Khung bao đo được có đúng CỠ hình bóng dự đoán tại `center` không.
+
+    Vì sao phép kiểm tra này bắt được thứ tỉ lệ diện tích không bắt được: phép khớp chỉ khớp MÉP
+    TRÊN và TÂM NGANG, nên bề rộng và chiều cao là thông tin ĐỘC LẬP — phép khớp không tự điều
+    chỉnh để chúng khớp. Tỉ lệ diện tích thì tự chuẩn hóa: vùng to hơn làm phép khớp đẩy vật lại
+    gần camera, mà ở gần thì hình bóng dự đoán cũng to hơn, nên tỉ lệ vẫn ~1 dù vị trí sai hàng
+    trăm milimét.
+    """
+    _, _, w, h = detection.bbox
+    pw, ph = silhouette_size(camera, obj, center)
+    if pw <= 0 or ph <= 0:
+        return False
+    return (abs(w / pw - 1.0) <= tolerance
+            and HEIGHT_MIN <= h / ph <= HEIGHT_MAX)
 
 
 def silhouette_bottom(camera, obj, center):
@@ -269,7 +308,10 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
     expected = area * getattr(obj, 'color_fraction', 1.0)
     visible = seen_area / expected if expected > 0 else 0.0
     cut = touches_border(detection, image_shape)
-    reliable = (not cut and method != 'bin_center' and visible <= VISIBLE_MAX
+    # Hình dáng: chỉ đòi hỏi khi vật đứng trên bàn. Vật trong khay bị thành khay che nửa dưới nên
+    # khung bao đo được THẤP HƠN hình bóng đầy đủ — đúng như vậy mới phải.
+    shape_ok = method == 'top_edge' or shape_matches(detection, camera, obj, position)
+    reliable = (not cut and method != 'bin_center' and visible <= VISIBLE_MAX and shape_ok
                 and (method == 'top_edge' or visible >= VISIBLE_MIN))
     return ObjectEstimate(position=tuple(float(c) for c in position), method=method,
                           visible_fraction=float(visible), cut_by_border=cut, reliable=reliable)

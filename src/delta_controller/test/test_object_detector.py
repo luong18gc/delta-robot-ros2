@@ -40,3 +40,10 @@ def test_vung_qua_to_khong_duoc_coi_la_vat():
     """Hình bóng lớn hơn hẳn dự đoán -> không tin (bàn tay lọt vào khung mang đúng lớp màu)."""
     from delta_controller.vision_estimation import VISIBLE_MAX, VISIBLE_MIN
     assert VISIBLE_MIN < 1.0 < VISIBLE_MAX, 'vat lanh lan (ti le ~1.0) phai nam giua hai nguong'
+
+
+def test_nguong_hinh_dang_chua_cho_cho_phan_chieu():
+    """Vật lành lặn trên bàn bóng cao hơn dự đoán 16-28%: nới phía trên, chặt phía dưới."""
+    from delta_controller.vision_estimation import HEIGHT_MAX, HEIGHT_MIN
+    assert HEIGHT_MAX >= 1.28 * 1.2, 'chua du cho cho anh phan chieu'
+    assert HEIGHT_MIN > 0.5, 'nong qua thi vanh logo bi tach ra van lot'
