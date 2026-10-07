@@ -911,7 +911,24 @@ xác nhận mới ghi vào Gazebo. Nhấc lon đặt sang chỗ khác thì chỗ
 0,5 s); nhiễu thoáng qua thì không. Cùng tinh thần với **trí nhớ quan sát** ở `task_executor`: đừng
 tin một khung.
 
-- [ ] **Bước 11** — Chế độ bám theo tay/marker.
+- [x] **Bước 11** — Robot BÁM THEO LON (2026-10-07). `follow_node.py` (entry `follow`), chạy kèm
+  `digital_twin.launch.py`: `ros2 run delta_controller follow [--ros-args -p object:=sevenup_can]`.
+
+  **Bám lon ẢO chứ không bám thẳng kết quả camera** — có chủ ý: lon ảo đã qua bộ lọc của
+  `digital_twin` (bỏ ước lượng không tin cậy, 5 khung xác nhận cho mỗi cú nhảy xa) nên robot không
+  lao theo khung nhiễu. Chuỗi đầy đủ:
+  `lon thật → camera → real_vision → digital_twin → lon ảo → follow → robot`.
+
+  **Vòng servo chứ không phải quỹ đạo điểm-tới-điểm**: `cartesian_control` lập trọn quỹ đạo rồi mới
+  chạy — đúng cho "đi tới đó", sai cho bám đuổi vì đích đổi ngay trong lúc đang đi. Mỗi nhịp chỉ kéo
+  vị trí lệnh về phía đích một đoạn giới hạn bởi `max_speed`; chính giới hạn tốc độ làm mượt (camera
+  10 Hz, vòng điều khiển 50 Hz nên một bước nhảy ước lượng được rải thành nhiều nhịp nhỏ).
+  `DEADBAND` 1,5 mm ảo để không rung quanh đích; `STALE_SEC` 2 s thì dừng thay vì bám số liệu cũ;
+  IK hỏng (ngoài tầm với) thì đứng tại chỗ hợp lệ gần nhất.
+
+  **Kiểm chứng:** tool0 đo trong Gazebo (+65, −100) mm thật so với tâm lon (+67, −105) → lệch
+  **5 mm thật = 1,8 mm ảo**; z ra lệnh −0,1480 đo được **−0,1482** (lệch 0,2 mm). Khe 60 mm thật
+  trên đỉnh lon. ⚠️ Node KHÔNG gắp, chỉ lơ lửng.
 - [ ] **Bước 12** — Đánh giá (độ chính xác, độ trễ, tỉ lệ gắp thành công) + báo cáo.
 
 ### Kế hoạch đã làm (yêu cầu của giảng viên)
