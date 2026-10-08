@@ -72,6 +72,15 @@ TABLES = [
     ('7.7', 'Kết quả thí nghiệm gắp–thả trên 10 bố trí ngẫu nhiên'),
     ('7.8', 'Thống kê kiểm thử tự động của package delta_controller'),
     ('7.9', 'Đối chiếu yêu cầu đặt ra và kết quả đạt được'),
+    ('8.1', 'Thiết bị và thông số bố trí thực nghiệm với camera thật'),
+    ('8.2', 'Kết quả hiệu chuẩn nội tham số camera Logitech C270'),
+    ('8.3', 'Kết quả hiệu chuẩn ngoại tham số trên bàn thật'),
+    ('8.4', 'Hai cơ chế hỏng của phương pháp lấy ngưỡng theo điều kiện chiếu sáng'),
+    ('8.5', 'Sai số định vị trên bàn thật: khớp mép đáy so với khớp mép trên (18 phép đo)'),
+    ('8.6', 'Đối chiếu kết quả giữa môi trường mô phỏng và bàn thật'),
+    ('9.1', 'Ba mức tích hợp giữa thế giới thật và mô hình số theo Kritzinger'),
+    ('9.2', 'Các lớp lọc của bản sao số và căn cứ của từng lớp'),
+    ('9.3', 'Kết quả điều khiển bám theo vật'),
     ('A.1', 'Thông số hình học và giới hạn khớp của robot'),
     ('A.2', 'Thông số môi trường làm việc'),
     ('C.1', 'Các tệp mã nguồn của package delta_controller'),
@@ -439,9 +448,16 @@ for t in [
     'trên bộ dữ liệu 172 ảnh có vị trí thật làm đối chứng, sai số ngang trung bình trong vùng '
     'robot gắp được là 1,13 mm; trong mười bố trí ngẫu nhiên, robot điều khiển hoàn toàn bằng '
     'camera gắp và thả đúng 30/30 vật, bằng với khi dùng vị trí thật từ mô phỏng.',
+    'Thứ năm, hệ thống được chuyển sang dùng camera thật quan sát lon nước ngọt đặt trên bàn '
+    'thật, với thế giới thật được thu nhỏ ba lần khi đưa vào mô phỏng. Phép đo trên bàn thật cho '
+    'sai số định vị trung bình 4,50 mm và lớn nhất 6,31 mm quy đổi, toàn bộ nằm trong dung sai '
+    'gắp 12 mm. Vị trí vật thật được chép tự động sang mô phỏng với sai lệch dưới 1 mm, và robot '
+    'bám theo vật đang di chuyển với sai lệch 3 – 4 mm.',
     'Kết quả cho thấy độ chính xác của khối thị giác đủ cho yêu cầu gắp–thả và các cơ chế xử lý '
-    'che khuất là yếu tố quyết định độ tin cậy của hệ thống. Toàn bộ phần mềm được tổ chức để có '
-    'thể thay nguồn ảnh mô phỏng bằng camera thật ở giai đoạn tiếp theo.',
+    'che khuất là yếu tố quyết định độ tin cậy của hệ thống. Quá trình chuyển sang camera thật '
+    'làm lộ ra ba vấn đề không tồn tại trong mô phỏng — ngưỡng phân đoạn cố định không bền với '
+    'thay đổi chiếu sáng, mặt bàn phản chiếu vật, và các vùng ảnh giả mạo mà phép kiểm tra dựa '
+    'trên diện tích về nguyên tắc không phát hiện được — cùng cách khắc phục từng vấn đề.',
 ]:
     p = P(t, size=12)
     p.paragraph_format.line_spacing = 1.2
@@ -477,10 +493,18 @@ for t in [
     'dataset of 172 images with ground truth, the mean horizontal error inside the reachable '
     'workspace is 1.13 mm; over ten random layouts the camera-driven robot picked and placed '
     '30 out of 30 objects, matching the ground-truth baseline.',
+    'Fifth, the system is moved to a real camera observing drink cans on a real table, with the '
+    'real world scaled down by a factor of three as it enters the simulation. Measured against '
+    'marked positions on the table, the mean localisation error is 4.50 mm and the worst case '
+    '6.31 mm in scaled units, all within the 12 mm grasping tolerance. Real object positions are '
+    'mirrored into the simulation to within 1 mm, and the robot tracks a moving can to within '
+    '3-4 mm.',
     'The results show that the accuracy of the vision pipeline is sufficient for the '
     'pick-and-place task, and that occlusion handling is the decisive factor for reliability. '
-    'The software is structured so that the simulated image source can be replaced by a real '
-    'camera in the next stage of the project.',
+    'Moving to a real camera exposed three problems absent from simulation — a fixed '
+    'segmentation threshold that cannot survive a change of lighting, a table that reflects the '
+    'objects, and spurious image regions that an area-based check is structurally unable to '
+    'reject — together with a remedy for each.',
 ]:
     p = P(t, size=12)
     p.paragraph_format.line_spacing = 1.2
@@ -797,7 +821,13 @@ T('1.1',
        'Sai số 1,13 mm trong vùng gắp được', 'Đã xong'),
       ('9', 'Gắp–thả hoàn toàn dựa trên camera',
        '30/30 vật, bằng với dùng vị trí thật', 'Đã xong'),
-      ('10 – 12', 'Camera thật và bản sao số; chế độ bám marker; đánh giá tổng thể',
+      ('10a', 'Camera thật: hiệu chuẩn nội và ngoại tham số, đo sai số định vị',
+       'Sai số 4,50 mm quy đổi, trong dung sai 12 mm', 'Đã xong'),
+      ('10b', 'Bản sao số: vị trí vật thật được chép sang mô phỏng',
+       'Vật ảo bám vật thật trong 1 mm', 'Đã xong'),
+      ('11', 'Robot bám theo vật khi vật di chuyển',
+       'Sai lệch bám 3 – 4 mm khi vật đang dịch', 'Đã xong'),
+      ('10c', 'Đo chiều cao vật; phân biệt nhiều vật cùng màu',
        '—', 'Hướng phát triển'),
   ],
   widths=[1.8, 6.0, 5.5, 2.5])
@@ -816,7 +846,11 @@ B([
     '**Chương 5** trình bày khối thị giác: nhận dạng vật theo màu, hiệu chuẩn camera bằng marker '
     'ArUco, chuyển tọa độ ảnh sang tọa độ robot và ước lượng có xét che khuất.',
     '**Chương 6** trình bày việc tích hợp: robot gắp–thả hoàn toàn dựa trên dữ liệu camera.',
-    '**Chương 7** trình bày phương pháp đánh giá và toàn bộ kết quả thực nghiệm.',
+    '**Chương 7** trình bày phương pháp đánh giá và toàn bộ kết quả thực nghiệm trên mô phỏng.',
+    '**Chương 8** chuyển hệ thống sang **camera thật**: hiệu chuẩn, nguyên tắc ánh xạ tỉ lệ, các '
+    'vấn đề chỉ xuất hiện khi rời mô phỏng, và kết quả đo sai số trên bàn thật.',
+    '**Chương 9** trình bày **bản sao số** và chế độ **bám theo vật**, khép vòng từ vật thật tới '
+    'chuyển động của robot.',
     'Phần **Kết luận** tổng kết kết quả đạt được, hạn chế còn tồn tại và hướng phát triển.',
 ])
 
@@ -2043,6 +2077,529 @@ B([
 ])
 
 # ============================================================================ KẾT LUẬN
+H1('Chương 8. CHUYỂN SANG CAMERA THẬT')
+
+P('Bảy chương trước xây dựng và đánh giá hệ thống hoàn toàn trong môi trường mô phỏng. Chương này '
+  'thay camera mô phỏng bằng một camera thật quan sát các vật thật đặt trên bàn thật, giữ nguyên '
+  'robot trong mô phỏng. Đây là trọng tâm của đề tài theo đúng tên gọi: tín hiệu điều khiển đến từ '
+  'thế giới thật, còn đối tượng được điều khiển nằm trong mô phỏng.')
+P('Chương được tổ chức theo đúng thứ tự mà các vấn đề đã bộc lộ trong quá trình thực hiện: trước '
+  'hết là bài toán tỉ lệ và cách giải quyết nó ở mức thiết kế, tiếp đến là hiệu chuẩn, rồi tới ba '
+  'vấn đề mà môi trường mô phỏng không thể bộc lộ — ánh sáng thay đổi, mặt bàn phản chiếu, và các '
+  'vùng ảnh giả mạo — và cuối cùng là kết quả đo sai số đối chiếu với mô phỏng.')
+
+H2('8.1. Bài toán tỉ lệ và nguyên tắc ánh xạ')
+
+P('Robot delta trong mô phỏng có vùng làm việc rất nhỏ: mặt bàn nằm ở cao độ −0,22 m còn trần vùng '
+  'làm việc khoảng −0,10 m, tức chỉ còn khoảng 120 mm chiều cao khả dụng. Vật thật được chọn là '
+  'lon nước ngọt 330 ml, đường kính 57,5 mm và cao 147 mm. Đặt thẳng một lon như vậy vào cảnh mô '
+  'phỏng thì đỉnh lon nằm đúng ở trần vùng làm việc: robot có thể chạm tới đỉnh lon nhưng **không '
+  'thể nhấc lon lên**, và khay chứa có lòng 70×70 mm cũng không chứa nổi lon đường kính 66 mm kể '
+  'cả phần nhô.')
+P('Phóng to robot không phải là lời giải. Hình học robot được mô tả trong tệp URDF, và mạch động '
+  'học kín được đóng lúc chạy bằng cách hàn hai liên kết có hệ quy chiếu **trùng nhau tại tư thế '
+  'gốc**; đổi hình học sẽ phá vỡ điều kiện trùng khớp đó, đồng thời làm mất hiệu lực toàn bộ phần '
+  'kiểm chứng động học đã trình bày ở Chương 7.')
+P('Lời giải được chọn là **ánh xạ theo tỉ lệ**: thế giới thật được thu nhỏ k lần khi đưa vào mô '
+  'phỏng. Với k = 3, lon thật đường kính 57,5 mm và cao 147 mm trở thành lon ảo đường kính 19,2 mm '
+  'và cao 49 mm — vừa vặn vùng làm việc và vừa khay chứa. Tỉ lệ hình dạng được giữ nguyên nên lon '
+  'ảo trông đúng như lon thật.')
+P('Giá trị k = 3 không phải chọn tùy tiện mà là **kết quả của một ràng buộc đo được**. Khi mang '
+  'một lon tới khay, robot phải nhấc lon đi qua phía trên các lon còn đang đứng, tức đầu công tác '
+  'phải lên tới cao độ bằng đỉnh lon đứng cộng nửa bề dày bàn máy cộng chiều cao lon đang mang. '
+  'Với k = 2,5 (lon ảo cao 58,8 mm) yêu cầu đó là −0,0994 m, **vượt trần vùng làm việc** −0,10 m '
+  'nên không thể thực hiện: trong thí nghiệm, lon đang mang chồng 30,6 mm vào lon đang đứng và '
+  'đánh đổ nó. Với k = 3 yêu cầu chỉ còn −0,119 m, thỏa mãn thoải mái.')
+P('Một câu hỏi tự nhiên là liệu việc thu nhỏ có làm xấu độ chính xác hay không. Câu trả lời là '
+  '**không**, và lý do rất gọn: camera phải bao quát một vùng rộng gấp k lần nên độ phân giải '
+  'không gian (số milimét ứng với mỗi điểm ảnh) xấu đi đúng k lần; nhưng khi quy sai số về không '
+  'gian ảo thì nó lại được chia cho k. Hai hệ số triệt tiêu nhau. Dung sai giác hút 12 mm trong '
+  'không gian ảo tương đương 36 mm trên bàn thật. Camera thật có độ phân giải 1280×720, gấp đôi '
+  'camera mô phỏng 640×480 theo mỗi chiều, nên phần dư này còn bù thêm cho nhiễu cảm biến và méo '
+  'ống kính vốn không có trong mô phỏng.')
+
+H3('8.1.1. Quy ước tỉ lệ khi hiệu chuẩn')
+
+P('Một quyết định thiết kế quan trọng là **đưa tọa độ ảo vào bài toán hiệu chuẩn ngay từ đầu**, '
+  'thay vì hiệu chuẩn theo milimét thật rồi chia kết quả cho k về sau. Cụ thể, khi giải bài toán '
+  'ước lượng tư thế camera từ các điểm mốc, tọa độ của các điểm mốc được khai báo bằng **tọa độ '
+  'thật chia cho k**.')
+P('Cơ sở của quy ước này là một tính chất của phép chiếu phối cảnh: thu nhỏ toàn bộ thế giới đi k '
+  'lần chỉ làm **vectơ tịnh tiến của camera bị chia cho k**, còn ma trận nội tham số, các hệ số '
+  'méo và bản thân phép chiếu đều không đổi. Nhờ vậy toàn bộ khối thị giác đã xây dựng ở Chương 5 '
+  '— phép giao tia với mặt phẳng, hình bóng dự đoán, cao độ mặt bàn, hình học khay — chạy nguyên '
+  'vẹn trong hệ ảo mà **không phải sửa một dòng nào**. Cái giá duy nhất là vị trí camera in ra '
+  'trong các báo cáo nhỏ hơn thực tế k lần, điều chỉ ảnh hưởng tới cách trình bày.')
+
+H2('8.2. Thiết bị và bố trí thực nghiệm')
+
+P('Camera được chọn là Logitech C270. Tiêu chí lựa chọn không phải độ phân giải cao nhất mà là '
+  '**khả năng khóa các chế độ tự động**: một camera tự điều chỉnh tiêu cự, phơi sáng hoặc cân bằng '
+  'trắng trong lúc chạy sẽ làm vô hiệu kết quả hiệu chuẩn và làm ngưỡng màu trôi theo thời gian. '
+  'C270 khóa được phơi sáng, cân bằng trắng và bù ngược sáng, và quan trọng hơn cả, nó là camera '
+  '**lấy nét cố định** — không có mô-tơ lấy nét nên tiêu cự không thể trôi sau khi hiệu chuẩn. '
+  'Trong bối cảnh này, việc thiếu chức năng lấy nét tự động là một **ưu điểm** chứ không phải '
+  'khuyết điểm.')
+P('Một chương trình kiểm tra riêng được viết để thẩm định camera trước khi dùng: nó liệt kê các '
+  'nút điều chỉnh bắt buộc, chọn chế độ nén có độ phân giải lớn nhất đạt tối thiểu 15 hình/giây, '
+  'khóa các chế độ thủ công rồi **đọc lại để xác nhận**, và đo nhiễu cảm biến. Kết quả: C270 chạy '
+  '1280×720 ở 30 hình/giây, khóa được toàn bộ các chế độ cần thiết, nhiễu cảm biến khoảng 2,2 mức '
+  'xám — thấp hơn nhiều so với ngưỡng 10 mức xám mà Chương 7 xác định là vô hại.')
+
+T('8.1',
+  ['Hạng mục', 'Thông số'],
+  [
+      ('Camera', 'Logitech C270, 1280×720 @ 30 hình/giây, nén MJPG, lấy nét cố định'),
+      ('Nhiễu cảm biến', '≈ 2,2 mức xám (ngưỡng vô hại theo Chương 7: ≤ 10)'),
+      ('Vị trí camera', 'Lùi 539 mm, cao 628 mm so với mặt bàn, góc chúc xuống 45,2°'),
+      ('Mặt bàn', 'Màu đen nhám, kích thước khả dụng khoảng 600 mm'),
+      ('Điểm mốc hiệu chuẩn', 'Sáu marker ArUco từ điển 4×4, ô đen 60 mm, dán cố định trên bàn'),
+      ('Vật thể', 'Ba lon nước ngọt 330 ml: đỏ, xanh lam, xanh lục'),
+      ('Tỉ lệ ánh xạ', 'k = 3 (lon ảo đường kính 19,2 mm, cao 49 mm)'),
+      ('Chiếu sáng', 'Hai đèn khuếch tán, rèm che ánh sáng ngoài trời'),
+  ],
+  widths=[4.5, 11.3])
+
+P('Góc chúc thật là 45,2°, khác hẳn góc 32° của camera mô phỏng. Sự khác biệt này được **chấp nhận '
+  'có ý thức** thay vì cố ép cho giống: bàn thật không đủ dài để lùi camera thêm. Khối thị giác '
+  'không bị ảnh hưởng vì nó dùng mô hình camera **đo được** chứ không giả định góc nhìn; và góc '
+  'dốc hơn thực ra **có lợi** cho bài toán che khuất vì các lon ít che nhau hơn. Điểm cần lưu ý '
+  'chỉ là khi đối chiếu kết quả thật với mô phỏng thì có thêm một biến khác nhau giữa hai bên.')
+P('Bố trí các điểm mốc trên bàn thật **không phải là bố trí ảo nhân với k**: nhân ba lên thì các '
+  'điểm mốc trải rộng 810×870 mm, không vừa mặt bàn rộng 600 mm. Vì vậy một bố trí riêng được '
+  'thiết kế cho bàn thật, chiếm 560 mm, kèm vùng đặt vật tương ứng. Khi quy về không gian ảo, vùng '
+  'đặt vật này có bán kính 113 mm, nằm gọn trong tầm với 119 mm của robot.')
+
+H2('8.3. Hiệu chuẩn camera')
+
+P('Camera thật khác camera mô phỏng ở hai điểm buộc phải xử lý: nó có **méo ống kính**, và các '
+  'tham số quang học của nó **không được biết trước**. Do đó phải hiệu chuẩn hai bước: nội tham số '
+  '(tiêu cự, tâm ảnh, hệ số méo — gắn với từng máy cụ thể, kể cả hai máy cùng kiểu) và ngoại tham '
+  'số (vị trí và hướng của camera so với bàn).')
+
+H3('8.3.1. Nội tham số')
+
+P('Nội tham số được xác định bằng phương pháp bàn cờ quen thuộc: chụp nhiều ảnh một bàn cờ phẳng ở '
+  'nhiều tư thế rồi giải bài toán tối ưu để tìm bộ tham số làm các góc ô chiếu lại đúng nhất.')
+P('Quá trình này đã thất bại nhiều lần trước khi thành công, và các nguyên nhân đều đáng ghi lại '
+  'vì chúng là những cái bẫy điển hình. Thứ nhất là **bàn cờ không phẳng**: bản in dán lên bìa '
+  'cứng vẫn vênh khoảng 1,8 mm, đủ để làm hỏng phép giải. Thứ hai, và tinh vi hơn, là **suy biến '
+  'do thiếu đa dạng tư thế**: nếu mọi ảnh đều chụp bàn cờ nghiêng xấp xỉ như nhau thì tiêu cự và '
+  'khoảng cách tới bàn cờ **không tách được khỏi nhau**, bài toán có vô số nghiệm cho cùng một sai '
+  'số chiếu lại. Triệu chứng là phép giải vẫn báo sai số nhỏ nhưng cho tiêu cự vô lý.')
+P('Giải pháp cuối cùng là hiển thị bàn cờ **trên màn hình máy tính** thay vì dùng bản in: màn hình '
+  'phẳng tuyệt đối và kích thước ô biết chính xác, nên loại bỏ hoàn toàn nguyên nhân thứ nhất. '
+  'Chương trình hiệu chuẩn được bổ sung phần hướng dẫn trực tiếp: nó đo độ nghiêng của bàn cờ '
+  'trong từng khung hình, chia dải nghiêng thành nhiều khoảng và **yêu cầu đủ số ảnh trong mỗi '
+  'khoảng** trước khi cho phép giải, qua đó ngăn chặn suy biến một cách có hệ thống. Hệ số méo bậc '
+  'cao nhất được cố định bằng 0 để đường cong méo giữ tính đơn điệu ra tới góc ảnh.')
+
+T('8.2',
+  ['Đại lượng', 'Giá trị'],
+  [
+      ('Tiêu cự f_x, f_y', '1417,4 và 1418,1 điểm ảnh'),
+      ('Tâm ảnh c_x, c_y', '610,9 và 382,4 điểm ảnh'),
+      ('Hệ số méo xuyên tâm k₁, k₂', '+0,1178 và −0,2765'),
+      ('Hệ số méo tiếp tuyến p₁, p₂', '+0,0027 và −0,0008'),
+      ('Sai số chiếu lại', '0,222 điểm ảnh'),
+      ('Số ảnh dùng để giải', '16'),
+  ],
+  widths=[7.0, 8.8])
+
+H3('8.3.2. Ngoại tham số')
+
+P('Ngoại tham số được xác định từ sáu marker ArUco dán cố định trên bàn, theo đúng phương pháp đã '
+  'dùng trong mô phỏng ở Chương 5: tâm marker được lấy làm điểm tương ứng, bài toán tư thế được '
+  'giải bằng thuật toán SQPnP rồi tinh chỉnh bằng phương pháp Levenberg–Marquardt.')
+P('Khác biệt quan trọng so với mô phỏng là ngoại tham số được **giải lại ở từng khung hình** thay '
+  'vì nạp một lần từ tệp. Lý do rất thực tế: giá đỡ camera có thể bị chạm tay, và một góc lệch 1° '
+  'đã làm vị trí vật sai 7,7 mm quy đổi, 2° là vượt dung sai giác hút, mà không có gì báo cho '
+  'người vận hành biết. Vì các marker nằm cố định ở rìa bàn và luôn trong khung hình, việc giải '
+  'lại mỗi khung là khả thi và biến một nguồn sai số tiềm ẩn thành một đại lượng được theo dõi '
+  'liên tục.')
+P('Trong quá trình dựng bố trí thật, ba cái bẫy **đo đạc** đã mắc phải, cả ba đều là khuyết điểm '
+  'của công cụ chứ không phải của người dựng, và cả ba đều suýt dẫn tới việc bóc các marker ra dán '
+  'lại một cách vô ích.')
+N([
+    '**Quy đổi chiều cao camera quên mất cao độ mặt bàn.** Công cụ nhân cao độ ảo với k mà quên '
+    'rằng trong hệ ảo mặt bàn nằm ở −0,22 chứ không phải 0, nên báo camera ở độ cao âm, tức nằm '
+    'dưới mặt bàn. Phép kiểm thử tự động không phát hiện được vì nó so kết quả với chính đại lượng '
+    'mắc cùng một lỗi — hai vế cùng sai một kiểu thì phép so sánh vẫn qua. Phép kiểm thử sau đó '
+    'được sửa để so với hình học thật của giá đỡ.',
+    '**Hàm ước lượng tư thế từng marker riêng lẻ cho kết quả sai** trên marker nhỏ nhìn xiên: nó '
+    'báo hai marker lệch tới 65 mm, hai lần liên tiếp. Phương pháp đúng là khớp tư thế từ một nhóm '
+    'marker đáng tin rồi **giao tia với mặt phẳng bàn** để suy ra vị trí các marker còn lại; làm '
+    'như vậy thì cả sáu marker đều nằm trong 8 mm so với thiết kế.',
+    '**Chấm điểm bằng đơn vị điểm ảnh là sai đơn vị.** Công cụ báo sai số 3,25 điểm ảnh là "quá '
+    'lớn", trong khi quy về không gian ảo chỉ là 0,93 mm, ngang với mô phỏng. Cùng một sai số điểm '
+    'ảnh ứng với số milimét rất khác nhau tùy camera đặt gần hay xa. Ngưỡng đánh giá sau đó được '
+    'định nghĩa theo **milimét quy đổi, đối chiếu với dung sai giác hút 12 mm**.',
+])
+
+T('8.3',
+  ['Đại lượng', 'Giá trị'],
+  [
+      ('Số marker nhận được', '6 / 6'),
+      ('Sai số định vị marker (quy đổi về không gian ảo)', '0,93 mm'),
+      ('Sai số tương ứng trên bàn thật', '2,8 mm'),
+      ('Vị trí camera suy ra', 'lùi 557 mm, lệch ngang +1 mm, cao 631 mm'),
+      ('Góc chúc xuống suy ra', '46,1°'),
+      ('Ngưỡng chấp nhận', '≤ 3 mm quy đổi (đạt); > 6 mm (lỗi)'),
+  ],
+  widths=[8.5, 7.3])
+
+H2('8.4. Phân đoạn vật khỏi nền: vì sao ngưỡng cố định không dùng được')
+
+P('Trong mô phỏng, việc tách vật khỏi nền được thực hiện bằng cách lấy ngưỡng: một điểm ảnh được '
+  'coi là thuộc vật nếu nó đủ bão hòa màu **hoặc** đủ sáng so với mức nền. Cách này hoạt động tốt '
+  'suốt Chương 5 đến Chương 7 vì môi trường mô phỏng có điều kiện chiếu sáng không đổi.')
+P('Trên bàn thật, cách này **thất bại theo hai cơ chế ngược nhau**, tùy điều kiện chiếu sáng. Phát '
+  'hiện này đến từ việc chạy đúng một bộ ngưỡng trên cùng một bố trí vào hai thời điểm khác nhau '
+  'trong ngày.')
+
+T('8.4',
+  ['', 'Ban ngày, ánh sáng tự nhiên', 'Một đèn, rèm che'],
+  [
+      ('Độ sáng mặt bàn', 'Cao (mức 97)', 'Rất thấp (mức 39)'),
+      ('Cơ chế hỏng', 'Ánh sáng cửa sổ làm mặt bàn **ám màu** nên nhiều điểm ảnh của bàn vượt '
+       'ngưỡng bão hòa', 'Bàn quá tối nên đại lượng bão hòa, vốn là tỉ số, trở nên **nhiễu**; '
+       'phần lớn điểm ảnh của bàn vượt ngưỡng'),
+      ('Tỉ lệ khung hình bị coi là vật', '17 – 48 %', '35 – 55 %'),
+      ('Hệ quả', 'Các lon dính liền với mảng nền, hình bóng méo hoàn toàn',
+       'Gần như toàn bộ mặt bàn bị coi là vật'),
+      ('Sàn độ sáng có cứu được không?', 'Không — mặt bàn đã sáng hơn ngưỡng sàn',
+       'Có, nhưng khi đó lại cắt mất nửa dưới của các lon sẫm màu'),
+  ],
+  widths=[3.6, 6.1, 6.1])
+
+P('Điểm then chốt là **hai cơ chế này triệt tiêu lẫn nhau về mặt giải pháp**: ngưỡng nào chữa được '
+  'trường hợp thứ nhất thì làm hỏng trường hợp thứ hai và ngược lại. Việc quét toàn bộ dải phơi '
+  'sáng từ 80 đến 2600 và dải khuếch đại từ 0 đến 100 cho thấy không có thiết lập nào cho kết quả '
+  'nhận dạng chấp nhận được, nên nguyên nhân không nằm ở việc chỉnh camera.')
+P('Kết luận rút ra có giá trị tổng quát: **một ngưỡng cố định mã hóa một giả định về điều kiện '
+  'chiếu sáng**, và giả định đó không tồn tại ngoài phòng thí nghiệm.')
+
+H3('8.4.1. Trừ nền theo ảnh tham chiếu')
+
+P('Giải pháp được chọn là đổi câu hỏi. Thay vì hỏi *"điểm ảnh này sáng và đậm màu đến mức nào"*, '
+  'hệ thống hỏi *"điểm ảnh này có còn giống mặt bàn lúc không có vật hay không"*. Cụ thể, một ảnh '
+  'mặt bàn trống được chụp làm chuẩn, lấy trung vị của hai mươi khung hình để nhiễu cảm biến không '
+  'đi vào chính cái chuẩn; sau đó mỗi khung hình được so sánh từng điểm ảnh với ảnh chuẩn, và '
+  'điểm nào sai khác quá 30 mức xám thì được coi là thuộc vật.')
+P('Ưu điểm của cách này là vân bàn, ám màu, chỗ sáng chỗ tối đều **có mặt y hệt trong ảnh chuẩn** '
+  'nên tự triệt tiêu. Hiệu quả đo được rất dứt khoát: trên một cảnh không thay đổi, mặt nạ mới báo '
+  '**0,00 %** diện tích khung hình là vật, trong khi phương pháp lấy ngưỡng báo **12,06 %**. Biên '
+  'an toàn cũng rất rộng: nhiễu cảm biến đo được là 1 mức xám so với ngưỡng 30.')
+P('Phương pháp này có hai giới hạn phải nói rõ. Thứ nhất, **đổi điều kiện chiếu sáng hoặc xê dịch '
+  'camera thì phải chụp lại ảnh chuẩn** — đó là cái giá phải trả, và nó biến một giả định ngầm '
+  '(ánh sáng không đổi) thành một thao tác tường minh mà người vận hành kiểm soát được. Thứ hai, '
+  'và quan trọng hơn, nó **không loại bỏ được ảnh phản chiếu của vật trên mặt bàn**, vì ảnh phản '
+  'chiếu chỉ xuất hiện khi có vật nên nó cũng "khác với mặt bàn trống". Vấn đề này được xử lý ở '
+  'mục tiếp theo.')
+
+H2('8.5. Mặt bàn phản chiếu và việc chọn đặc trưng hình học')
+
+P('Mặt bàn thật, dù sơn nhám, vẫn phản chiếu các lon đủ rõ để ảnh phản chiếu dính liền với chân '
+  'lon trong mặt nạ. Đo trực tiếp bằng cách so mặt nạ với hình bóng dự đoán tại vị trí thật đã '
+  'biết: mặt nạ **phình xuống dưới 24 đến 57 điểm ảnh** so với chân lon.')
+P('Hệ quả là **mép đáy của mặt nạ không còn là chỗ lon chạm bàn**, trong khi toàn bộ phép ước '
+  'lượng vị trí ở Chương 5 dựa trên chính đặc trưng đó. Phải chọn một đặc trưng hình học khác, và '
+  'lựa chọn tự nhiên là **mép trên**: ảnh phản chiếu luôn nằm phía dưới vật nên không bao giờ chạm '
+  'tới mép trên.')
+P('Cần nói rõ rằng kết luận này **mâu thuẫn với kết luận đã rút ra trong mô phỏng ở Chương 5**, '
+  'nơi phép khớp mép trên bị loại bỏ vì cho sai số 5–12 mm trong khi mép đáy chỉ cho 0,1–0,7 mm. '
+  'Mâu thuẫn chỉ là bề ngoài: kết luận cũ áp dụng cho mặt nạ **theo màu**, nơi mép trên là mép của '
+  'vành màu trên thân lon, bị nắp lon và vành nhãn làm nhòe. Ở đây mặt nạ là **hình bóng** của vật, '
+  'nên mép trên chính là vành miệng lon — một đặc trưng hình học sắc nét. Hai kết luận trái ngược '
+  'nhau nhưng đều đúng trong phạm vi của mình, vì chúng nói về hai đại lượng khác nhau.')
+
+H3('8.5.1. Một bài học về cách so sánh hai phương pháp')
+
+P('Trước khi áp dụng trừ nền, phép đo sai số cho kết quả tưởng như rõ ràng: khớp mép đáy đạt 9,08 '
+  'mm quy đổi còn khớp mép trên chỉ đạt 18,31 mm, tức mép đáy **tốt hơn gấp đôi**. Sau khi áp '
+  'dụng trừ nền, thứ tự **đảo ngược hoàn toàn**: mép đáy 11,42 mm còn mép trên 4,50 mm.')
+P('Nguyên nhân của sự đảo ngược là **hai sai số triệt tiêu lẫn nhau**. Khi mặt nạ còn bẩn, các '
+  'mảng nền lọt vào làm hình bóng phình lên **phía trên**, kéo ước lượng ra xa camera; ảnh phản '
+  'chiếu làm hình bóng phình xuống **phía dưới**, kéo ước lượng lại gần. Với hai trong ba lon, hai '
+  'hiệu ứng ngược chiều này bù nhau một cách tình cờ, tạo ra một con số đẹp không phản ánh chất '
+  'lượng thật của phương pháp. Dấu hiệu nhận biết đã có sẵn trong dữ liệu mà ban đầu bị bỏ qua: '
+  'sai lệch hệ thống của ba lon rất khác nhau (−15,9; −16,9 và −41,5 mm). Sau khi mặt nạ được làm '
+  'sạch, ba giá trị đó trở nên **gần như bằng nhau** (−31,7; −33,0 và −34,3 mm), đúng bằng chiều '
+  'cao ảnh phản chiếu — một sai lệch có nguyên nhân vật lý duy nhất thì phải tác động như nhau lên '
+  'cả ba vật giống nhau.')
+P('Bài học phương pháp luận: **không chọn phương pháp dựa trên con số tổng hợp khi dữ liệu đầu vào '
+  'còn chứa lỗi chưa xử lý**. Sự không đồng nhất giữa các mẫu lẽ ra phải được xem là tín hiệu cảnh '
+  'báo trước khi so sánh các con số trung bình.')
+
+H2('8.6. Kiểm tra độ tin cậy trên dữ liệu thật')
+
+P('Cờ tin cậy xây dựng ở Chương 5 dựa trên **tỉ lệ nhìn thấy**, tức tỉ số giữa diện tích mặt nạ đo '
+  'được và diện tích hình bóng dự đoán. Trên dữ liệu thật, cơ chế này bộc lộ hai khiếm khuyết.')
+P('**Khiếm khuyết thứ nhất — ảnh phản chiếu làm phồng tỉ lệ.** Vì ảnh phản chiếu nằm trong mặt nạ, '
+  'một lon lành lặn cho tỉ lệ 1,08 đến 1,29 thay vì xấp xỉ 1,00. Cờ tin cậy báo động khi tỉ lệ '
+  '**tụt** xuống dưới 0,90, nên xuất phát từ 1,2 nghĩa là vật phải bị che tới khoảng 30 % mới bị '
+  'phát hiện — một nửa tác dụng của cơ chế đã mất. Cách sửa: vì vị trí vật nay được suy ra từ mép '
+  'trên nên đã biết **chân vật phải nằm ở hàng điểm ảnh nào**; chỉ đếm phần mặt nạ nằm phía trên '
+  'hàng đó. Tỉ lệ đo lại được là 0,99 đến 1,02, cơ chế lấy lại toàn bộ dư địa.')
+P('**Khiếm khuyết thứ hai — tỉ lệ diện tích tự chuẩn hóa, nên về nguyên tắc không phát hiện được '
+  'vị trí sai.** Đây là một tính chất cấu trúc chứ không phải chuyện đặt ngưỡng chưa khéo, và nó '
+  'đáng được nêu rõ. Quy trình ước lượng xác định vị trí **trước**, rồi mới dựng hình bóng dự đoán '
+  '**tại chính vị trí vừa xác định**. Nếu vùng ảnh lớn hơn thực tế, phép khớp sẽ đẩy vật lại gần '
+  'camera hơn; mà ở gần camera thì hình bóng dự đoán **cũng lớn hơn**. Hai đại lượng cùng tăng nên '
+  'tỉ số giữa chúng vẫn xấp xỉ 1 ngay cả khi vị trí sai hàng trăm milimét. Thực nghiệm xác nhận '
+  'điều này: một vùng ảnh giả mạo cho vị trí sai 284 mm trong khi tỉ lệ nhìn thấy vẫn báo 1,00.')
+P('Đại lượng tỉ lệ diện tích chỉ phát hiện được **che khuất**, vì che khuất làm méo *hình dạng* '
+  'theo cách mà phép khớp không thể hấp thụ. Muốn phát hiện vị trí sai thì cần một đại lượng mà '
+  'phép khớp **không tự điều chỉnh được**.')
+
+H3('8.6.1. Kiểm tra kích thước hình bóng')
+
+P('Đại lượng đó là **bề rộng và chiều cao** của khung bao. Phép khớp chỉ ràng buộc hai điều kiện: '
+  'mép trên và tâm ngang của hình bóng. Bề rộng và chiều cao không nằm trong số đó, nên chúng là '
+  '**bằng chứng độc lập** mà phép khớp không thể làm cho khớp một cách giả tạo.')
+P('Trên các khung hình thật, ba lon lành lặn cho bề rộng lệch +5 %, +13 % và +8 % so với dự đoán; '
+  'một vùng ảnh rộng gấp 2,3 lần và một mảnh vụn 51 điểm ảnh đều bị loại. Ngưỡng cho chiều cao '
+  'được đặt **không đối xứng** một cách có chủ ý: nới rộng về phía trên tới 1,60 lần vì ảnh phản '
+  'chiếu còn nằm trong khung bao làm lon lành lặn cao hơn dự đoán 16–28 %, nhưng giữ chặt về phía '
+  'dưới ở 0,65 lần vì "thấp hơn hẳn" chính là dấu hiệu đặc trưng của một vành nhãn bị tách rời — '
+  'rộng bằng cả lon nhưng chỉ cao bằng một phần tư.')
+
+H2('8.7. Kết quả đo sai số trên bàn thật')
+
+P('Phép đo được thực hiện bằng cách đặt từng lon vào các vị trí đã đánh dấu sẵn trên mặt bàn và so '
+  'vị trí do hệ thống ước lượng với vị trí đánh dấu. Sáu điểm đo được chương trình **tự chọn** '
+  'theo tư thế camera đang đo được, với ràng buộc là hai lon cách nhau tối thiểu và không lon nào '
+  'nằm chắn đường nhìn tới lon khác; ba lon luân phiên đổi chỗ qua sáu lượt nên mỗi lon được đo ở '
+  'mọi điểm. Tổng cộng 18 phép đo, mỗi phép lấy trung vị của mười lăm khung hình.')
+P('Một chi tiết nhỏ nhưng quan trọng về quy ước đặt vật: **tâm đáy lon** phải trùng dấu, không '
+  'phải mép lon. Đại lượng được ước lượng là tâm vật, nên đặt mép vào dấu sẽ làm mọi phép đo lệch '
+  'thêm đúng một bán kính lon, và sai lệch đó trông y hệt một sai số hệ thống của khối thị giác.')
+
+T('8.5',
+  ['Phương pháp', 'Vật', 'Trung bình', 'Lớn nhất', 'Sai lệch hệ thống theo X'],
+  [
+      ('Khớp mép đáy', 'Lon đỏ', '11,81 mm', '20,55 mm', '−34,3 mm'),
+      ('', 'Lon lam', '11,06 mm', '18,36 mm', '−31,7 mm'),
+      ('', 'Lon lục', '11,39 mm', '20,55 mm', '−33,0 mm'),
+      ('', '**Chung**', '**11,42 mm**', '**20,55 mm**', ''),
+      ('Khớp mép trên', 'Lon đỏ', '4,37 mm', '6,07 mm', '+9,4 mm'),
+      ('', 'Lon lam', '4,71 mm', '6,31 mm', '+10,2 mm'),
+      ('', 'Lon lục', '4,42 mm', '5,99 mm', '+9,2 mm'),
+      ('', '**Chung**', '**4,50 mm**', '**6,31 mm**', ''),
+  ],
+  widths=[3.4, 2.4, 3.0, 3.0, 4.0])
+
+P('Các giá trị trung bình và lớn nhất được quy đổi về không gian ảo để so trực tiếp với dung sai '
+  'giác hút 12 mm; sai lệch hệ thống để nguyên theo milimét trên bàn thật cho dễ hình dung.')
+P('Phương pháp khớp mép trên đạt **4,50 mm trung bình và 6,31 mm ở trường hợp xấu nhất**, tức '
+  '**toàn bộ 18 phép đo nằm trong dung sai**, kể cả trường hợp xấu nhất còn dư gần một nửa. Khi '
+  'trừ đi thành phần sai lệch hệ thống thì phần còn lại chỉ 2,35 mm, cho thấy **bản thân phép đo '
+  'rất ổn định** và phần sai số chủ yếu là sai lệch của mô hình chứ không phải nhiễu ngẫu nhiên.')
+P('Thành phần sai lệch hệ thống +9,6 mm đã được truy nguyên. Giả thuyết đầu tiên — chiều cao lon '
+  'khai trong chương trình không đúng — bị **bác bỏ bằng tính toán**: sai chiều cao sẽ sinh ra sai '
+  'lệch **tăng dần** theo khoảng cách tới camera, trong khi sai lệch đo được **giảm dần** '
+  '(+12,5; +12,4 và +3,9 mm tại ba khoảng cách khảo sát). Nguyên nhân thực sự nằm ở vị trí các '
+  'điểm mốc: đo riêng từng marker cho thấy hai marker lệch 26 và 29 mm so với tọa độ thiết kế, làm '
+  'sai số ngoại tham số tăng từ 0,93 lên 1,96 mm quy đổi. Hướng khắc phục là **đo lại tọa độ thật '
+  'của các marker bằng thước và khai báo đúng giá trị đo được** — các điểm mốc không cần nằm đúng '
+  'chỗ thiết kế, chỉ cần vị trí của chúng được **biết chính xác**.')
+
+T('8.6',
+  ['Tiêu chí', 'Mô phỏng (Chương 7)', 'Bàn thật (Chương 8)'],
+  [
+      ('Sai số định vị trung bình', '1,13 mm', '4,50 mm'),
+      ('Sai số lớn nhất', '6,2 mm', '6,31 mm'),
+      ('Tỉ lệ nằm trong dung sai 12 mm', '100 %', '100 %'),
+      ('Độ phân giải cảm biến', '640×480', '1280×720'),
+      ('Góc chúc của camera', '32°', '45,2°'),
+      ('Phương pháp tách nền', 'Lấy ngưỡng theo màu và độ sáng', 'Trừ theo ảnh nền tham chiếu'),
+      ('Đặc trưng hình học dùng để định vị', 'Mép đáy', 'Mép trên'),
+      ('Nguồn sai số chính', 'Che khuất một phần', 'Vị trí các điểm mốc hiệu chuẩn'),
+  ],
+  widths=[5.4, 5.2, 5.2])
+
+P('Sai số thật lớn gấp khoảng bốn lần mô phỏng, điều hoàn toàn hợp lý khi tính đến méo ống kính, '
+  'nhiễu cảm biến, sai số dán các điểm mốc và sai số của chính phép đo đối chứng bằng thước. Điều '
+  'đáng chú ý hơn là **sai số lớn nhất của hai bên gần như bằng nhau**: mô phỏng có những trường '
+  'hợp che khuất nặng đẩy sai số lên 6,2 mm, còn hệ thống thật thì ổn định quanh mức trung bình. '
+  'Nói cách khác, hệ thống thật kém chính xác hơn nhưng **đồng đều hơn**.')
+
+H2('8.8. Giới hạn đã xác định')
+
+P('Hai giới hạn được ghi nhận rõ ràng ở thời điểm viết khóa luận.')
+P('**Thứ nhất, các vật đứng sát nhau bị gộp thành một vùng.** Bộ nhận dạng dùng cho camera thật '
+  'tách nền trước rồi mới phân loại từng vùng liên thông theo màu chiếm ưu thế. Khi hai hoặc ba '
+  'lon đứng đủ gần để hình ảnh của chúng chạm nhau, chúng trở thành **một vùng liên thông duy '
+  'nhất** và được phân loại thành một vật duy nhất có diện tích gấp nhiều lần dự đoán. Hành vi của '
+  'hệ thống trong tình huống này là **đúng đắn**: phép kiểm tra kích thước hình bóng loại bỏ vùng '
+  'đó, cờ tin cậy báo không tin được, và bản sao số giữ nguyên vị trí cũ thay vì ghi một vị trí '
+  'bịa. Nhưng hệ quả là hệ thống **không nhìn thấy gì** trong tình huống đó. Hướng khắc phục là '
+  'tách vùng gộp bằng cách phân loại màu ở mức từng điểm ảnh rồi tách thành các vùng con theo lớp '
+  'màu.')
+P('**Thứ hai, mỗi màu chỉ ứng với đúng một vật.** Toàn bộ chuỗi xử lý, từ khâu nhận dạng tới khâu '
+  'lập kế hoạch, đều giả định ba vật có ba màu phân biệt và gọi vật theo tên. Muốn xử lý nhiều vật '
+  'cùng màu thì phải chuyển từ mô hình "ba vật biết trước" sang mô hình "N thực thể phát hiện '
+  'được", kéo theo thay đổi ở hầu hết các module. Đây là phần việc lớn nhất còn lại và được xếp '
+  'vào hướng phát triển.')
+
+H1('Chương 9. BẢN SAO SỐ VÀ ĐIỀU KHIỂN BÁM THEO VẬT')
+
+P('Chương 8 dừng lại ở chỗ hệ thống biết vị trí của các vật thật trong hệ tọa độ ảo. Chương này '
+  'khép kín vòng điều khiển: vị trí đó được ghi vào mô phỏng để các vật ảo đi theo các vật thật, '
+  'và robot được điều khiển bám theo vật ảo. Kết quả là một chuỗi hoàn chỉnh từ thế giới thật tới '
+  'chuyển động của robot.')
+
+H2('9.1. Bản sao số: khái niệm và mức độ tích hợp')
+
+P('Thuật ngữ "bản sao số" (digital twin) được dùng khá rộng rãi và không phải lúc nào cũng nhất '
+  'quán. Cách phân loại của Kritzinger và cộng sự phân biệt ba mức theo **chiều luồng dữ liệu '
+  'giữa đối tượng thật và mô hình số**, và cách phân loại này giúp xác định chính xác hệ thống '
+  'trong khóa luận thuộc mức nào.')
+
+T('9.1',
+  ['Mức', 'Luồng dữ liệu', 'Đặc điểm'],
+  [
+      ('Mô hình số', 'Không tự động theo chiều nào',
+       'Mô hình được dựng và cập nhật thủ công; thay đổi ở vật thật không tự phản ánh vào mô hình'),
+      ('Bóng số', 'Tự động một chiều: thật → số',
+       'Trạng thái vật thật tự động cập nhật vào mô hình; mô hình không tác động ngược lại'),
+      ('Bản sao số', 'Tự động hai chiều',
+       'Mô hình cũng điều khiển ngược lại đối tượng thật'),
+  ],
+  widths=[3.0, 4.6, 8.2])
+
+P('Hệ thống trong khóa luận này đạt mức **bóng số** theo đúng định nghĩa: vị trí các lon thật tự '
+  'động cập nhật vào mô phỏng, nhưng mô phỏng không tác động ngược lại các lon thật. Chiều ngược '
+  'lại sẽ chỉ hoàn chỉnh khi có một robot vật lý thực hiện thao tác trên bàn thật, nằm ngoài phạm '
+  'vi đề tài. Việc nêu rõ điều này quan trọng hơn là dùng thuật ngữ cho kêu: phần đã làm được là '
+  'luồng nhận thức tự động từ thật sang số, và đó cũng chính là phần khó về mặt thị giác máy tính.')
+P('Một điểm cần làm rõ về vai trò của các điểm mốc: chúng **không định nghĩa camera mà định nghĩa '
+  'hệ quy chiếu chung** giữa hai thế giới. Nhờ vậy, khi camera bị dời đi hoặc đổi góc nhìn, hệ '
+  'thống vẫn cho vị trí vật trong cùng hệ tọa độ cũ — bản sao số không bị ảnh hưởng. Đây chính là '
+  'lý do ngoại tham số được giải lại ở từng khung hình như đã trình bày ở mục 8.3.2.')
+
+H2('9.2. Kiến trúc và vị trí của chỗ nối')
+
+P('Chuỗi xử lý hoàn chỉnh gồm sáu khâu:')
+CODE([
+    'lon thật  ->  camera C270  ->  node thị giác thật  ->  node bản sao số',
+    '          ->  lon ảo trong Gazebo  ->  node bám theo  ->  robot',
+])
+P('Điều đáng chú ý về mặt thiết kế là **chỗ nối giữa hai thế giới mỏng một cách có chủ ý**. Node '
+  'bản sao số không đọc ảnh, không biết gì về điểm ảnh, không thực hiện phép đổi tỉ lệ nào: nó '
+  'nhận vị trí vật **đã ở trong hệ tọa độ ảo** và chỉ cộng thêm cao độ của đế robot trước khi ghi '
+  'vào mô phỏng. Toàn bộ công việc chuyển đổi đã được thực hiện ở tầng dưới, mà như đã trình bày ở '
+  'mục 8.1.1, phần lớn lại không cần làm gì cả vì tọa độ ảo đã được đưa vào ngay từ khâu hiệu '
+  'chuẩn. Một chỗ nối mỏng như vậy dễ kiểm chứng và dễ thay thế: muốn đổi nguồn vị trí vật, chỉ '
+  'cần thay node phía trước.')
+P('Về mặt kỹ thuật, việc ghi vị trí vào Gazebo được thực hiện qua **dịch vụ đã được cầu nối sang '
+  'ROS**. Lựa chọn này xuất phát từ một phép đo: gọi công cụ dòng lệnh của Gazebo bằng tiến trình '
+  'con mất khoảng 0,37 giây mỗi lần, nên ba vật đã mất hơn một giây — không thể theo kịp camera '
+  'chạy ở 10 hình/giây. Khi cầu nối thành dịch vụ ROS thì mỗi lệnh ghi chỉ là một lời gọi dịch vụ '
+  'thông thường. Lời gọi phải thực hiện **bất đồng bộ**: gọi đồng bộ bên trong một hàm xử lý sự '
+  'kiện sẽ gây khóa chết, vì hàm đó chờ phản hồi trong khi phản hồi lại cần chính bộ điều phối '
+  'đang bị chiếm để xử lý.')
+
+H2('9.3. Những gì bản sao số từ chối làm')
+
+P('Phần lớn chất lượng của node bản sao số không nằm ở những gì nó làm mà ở những gì nó **từ chối '
+  'làm**. Mỗi quy tắc dưới đây đều ra đời từ một tình huống hỏng quan sát được.')
+
+T('9.2',
+  ['Quy tắc', 'Căn cứ'],
+  [
+      ('Bỏ qua vật mà cờ tin cậy nghi ngờ',
+       'Ghi một vị trí không tin được vào mô phỏng là làm hỏng trạng thái của cả cảnh; giữ nguyên '
+       'vị trí cũ là lựa chọn an toàn vì vật không tự di chuyển'),
+      ('Chỉ ghi khi vật đã dịch quá 6 mm trên bàn thật',
+       'Nhiễu đo được là 0,5 – 0,9 mm; ghi lại vị trí ở mỗi khung hình sẽ dịch cứng vật ảo mười '
+       'lần mỗi giây, không cho bộ giải vật lý kịp làm việc'),
+      ('Không đụng tới vật mà giác hút đang giữ',
+       'Khi robot đang giữ vật thì vị trí vật ảo do robot quyết định; camera cũng không nhìn thấy '
+       'vật thật nào đang bay vì vật thật vẫn nằm trên bàn'),
+      ('Cú dịch chuyển xa phải được năm khung hình liên tiếp xác nhận',
+       'Ràng buộc vật lý: một lon không thể dịch 284 mm trong một phần mười giây. Khi người dùng '
+       'nhấc lon đặt sang chỗ khác thì vị trí mới **trụ lại**, còn nhiễu thoáng qua thì không'),
+  ],
+  widths=[5.6, 10.2])
+
+P('Quy tắc cuối cùng đáng được giải thích thêm vì nó bổ khuyết cho một điểm yếu đã phân tích ở mục '
+  '8.6: cờ tin cậy dựa trên tỉ lệ diện tích **về nguyên tắc không phát hiện được vị trí sai**. Khi '
+  'tất cả các phép kiểm tra dựa trên một khung hình đơn lẻ đều có thể bị đánh lừa, ràng buộc còn '
+  'lại phải đến từ **mối quan hệ giữa các khung hình**, và ràng buộc tự nhiên nhất là tính liên '
+  'tục của chuyển động vật lý. Điều tinh tế là phép lọc phải phân biệt được "nhảy đi rồi quay về" '
+  'với "nhảy đi rồi ở lại": một bộ lọc chặn mọi cú nhảy thì sạch nhiễu nhưng cũng vô dụng vì nó '
+  'chặn luôn cả chuyển động thật. Yêu cầu xác nhận qua nhiều khung hình giải quyết được cả hai, '
+  'với cái giá là độ trễ nửa giây khi vật được đặt sang vị trí mới.')
+P('Cách tiếp cận này trùng tinh thần với cơ chế **trí nhớ quan sát** đã xây dựng ở Chương 6 cho '
+  'bài toán che khuất giữa các vật: trong cả hai trường hợp, lời giải đều là không tin vào một '
+  'khung hình đơn lẻ.')
+
+H3('9.3.1. Kiểm chứng các lớp lọc')
+
+P('Các lớp lọc được kiểm chứng bằng cách cố ý tạo nhiễu: người thực hiện đưa tay vào khung hình và '
+  'di chuyển các lon nhiều lần trong khi hệ thống chạy. Trong toàn bộ quá trình, **không có cú '
+  'dịch chuyển giả nào** được ghi vào mô phỏng.')
+P('Dấu vết hoạt động của từng lớp được ghi lại trong nhật ký. Lớp kiểm tra kích thước hình bóng đã '
+  'loại bỏ hoàn toàn các lon bị tay che — thể hiện qua 25 lần hệ thống báo chỉ nhìn thấy một hoặc '
+  'hai vật thay vì ba. Lớp xác nhận nhiều khung hình đã giữ lại 12 khung hình có cú nhảy xa chưa '
+  'được xác nhận. Quan trọng nhất, **trong cùng khoảng thời gian đó hai lon được di chuyển thật sự '
+  '170 mm và 177 mm, và cả hai đều tới đúng vị trí mới** — bộ lọc chặn nhiễu mà không chặn nhầm '
+  'chuyển động thật.')
+P('Sự phân công giữa hai lớp khá rõ ràng và đáng ghi nhận: lớp kiểm tra hình dáng nói *"tôi không '
+  'biết vật ở đâu"* — thà im lặng còn hơn đoán bừa; lớp xác nhận nói *"vị trí mới này phải trụ lại '
+  'đã"* — phân biệt chuyển động thật với nhiễu thoáng qua.')
+
+H2('9.4. Điều khiển bám theo vật')
+
+P('Khâu cuối cùng là đưa robot bám theo vật. Có một lựa chọn thiết kế cần giải thích: node bám '
+  'theo **lấy vị trí từ vật ảo trong mô phỏng chứ không lấy thẳng kết quả của khối thị giác**. Lý '
+  'do là vị trí vật ảo đã đi qua toàn bộ các lớp lọc mô tả ở mục 9.3, nên robot thừa hưởng các cơ '
+  'chế bảo vệ đó và không bao giờ lao theo một khung hình nhiễu. Đây cũng là cách thể hiện đúng '
+  'chuỗi mà đề tài muốn chứng minh: thế giới thật điều khiển robot **thông qua** bản sao số.')
+P('Về mặt điều khiển, bài toán bám đuổi khác hẳn bài toán đi tới một điểm. Bộ điều khiển xây dựng '
+  'ở Chương 4 lập trọn quỹ đạo rồi mới chạy — đúng cho lệnh "đi tới đó" nhưng sai cho bám đuổi, vì '
+  'đích thay đổi ngay trong lúc robot đang di chuyển. Vì vậy một **vòng điều khiển kiểu servo** '
+  'được xây dựng: ở mỗi nhịp, điểm lệnh được kéo về phía đích một đoạn ngắn có giới hạn bởi tốc độ '
+  'tối đa, rồi giải động học ngược và phát lệnh khớp.')
+P('Chính giới hạn tốc độ là cơ chế làm mượt. Camera cập nhật ở 10 hình/giây còn vòng điều khiển '
+  'chạy ở 50 nhịp/giây, nên một bước nhảy của ước lượng được rải ra thành nhiều nhịp nhỏ thay vì '
+  'làm robot giật một cái. Ba cơ chế an toàn được bổ sung: một vùng chết 1,5 mm để robot không '
+  'rung quanh đích vì nhiễu đo; một ngưỡng thời gian hai giây, quá hạn đó mà không nhận được vị '
+  'trí mới thì robot dừng tại chỗ thay vì bám theo số liệu cũ; và khi điểm đích nằm ngoài tầm với '
+  'thì robot giữ nguyên vị trí hợp lệ gần nhất thay vì nhích tiếp cho tới khi động học ngược không '
+  'còn nghiệm.')
+P('Cao độ bám được chọn sao cho mặt dưới bàn máy cách đỉnh lon 60 mm trên bàn thật, đủ để quan sát '
+  'thấy rõ robot đang bám chứ không chạm vào vật.')
+
+T('9.3',
+  ['Phép đo', 'Kết quả'],
+  [
+      ('Sai lệch bám khi vật đứng yên', '3 mm trên bàn thật'),
+      ('Sai lệch bám khi vật đang di chuyển', '3 – 4 mm, giữ ổn định suốt quá trình'),
+      ('Quãng đường vật di chuyển trong phép thử', '79 mm rồi 170 mm'),
+      ('Sai lệch cao độ so với lệnh', '0,2 mm khi đứng yên; 0,3 mm khi đang di chuyển ngang'),
+      ('Ảnh hưởng của vật khác di chuyển cùng lúc', 'Không — robot không bị kéo theo vật thứ hai '
+       'dịch 177 mm trong cùng khoảng thời gian'),
+  ],
+  widths=[7.4, 8.4])
+
+P('Kết quả cho thấy robot bám ổn định, không dao động quanh đích và không bị chùng cao độ khi di '
+  'chuyển ngang. Việc robot **không bị kéo theo** một vật khác đang di chuyển cùng lúc tuy đơn '
+  'giản nhưng là bằng chứng rằng khâu gán danh tính vật hoạt động đúng trong điều kiện động.')
+
+H2('9.5. Tổng hợp sai số toàn chuỗi')
+
+P('Ghép các kết quả của Chương 8 và Chương 9 lại, có thể theo dõi sai số tích lũy qua từng khâu: '
+  'khối thị giác ước lượng vị trí vật với sai số **4,50 mm** quy đổi; bản sao số chép vị trí đó '
+  'sang mô phỏng với sai lệch dưới **1 mm** trên bàn thật, phần lớn là do vùng chết cố ý; và robot '
+  'bám theo với sai lệch **3 – 4 mm** trên bàn thật.')
+P('Cần lưu ý rằng ba con số này không cộng trực tiếp được vì chúng đo trong các hệ quy chiếu khác '
+  'nhau và một phần sai số là hệ thống chứ không ngẫu nhiên. Điều có thể khẳng định là toàn bộ '
+  'chuỗi hoạt động trong phạm vi dung sai của thao tác gắp, và khâu quyết định độ chính xác tổng '
+  'thể vẫn là **khối thị giác**, đúng như kỳ vọng đối với một đề tài lấy thị giác máy tính làm '
+  'trọng tâm.')
+
 H1('KẾT LUẬN')
 
 H2('1. Các kết quả chính đã đạt được')
@@ -2070,6 +2627,15 @@ N([
     '100% số ước lượng sai quá 5 mm.',
     '**Tích hợp toàn hệ thống**: robot điều khiển hoàn toàn bằng camera gắp và thả đúng 30/30 vật '
     'trong 10 bố trí ngẫu nhiên, bằng đúng kết quả khi dùng vị trí thật từ mô phỏng.',
+    'Chuyển hệ thống sang **camera thật**: hiệu chuẩn nội tham số đạt sai số chiếu lại 0,222 điểm '
+    'ảnh và ngoại tham số đạt 0,93 mm quy đổi; thay phương pháp lấy ngưỡng bằng **trừ nền theo ảnh '
+    'tham chiếu**; chuyển đặc trưng định vị từ mép đáy sang **mép trên** để tránh ảnh phản chiếu; '
+    'và bổ sung **kiểm tra kích thước hình bóng** để loại các vùng ảnh giả mạo. Sai số định vị đo '
+    'được trên bàn thật là 4,50 mm trung bình và 6,31 mm lớn nhất, toàn bộ nằm trong dung sai.',
+    'Xây dựng **bản sao số** ở mức bóng số: vị trí lon thật tự động cập nhật sang mô phỏng với sai '
+    'lệch dưới 1 mm, có bốn lớp lọc bảo vệ mà phép thử cố ý gây nhiễu không phá được.',
+    'Xây dựng **chế độ bám theo vật** bằng vòng điều khiển servo: robot bám vật đang di chuyển với '
+    'sai lệch 3 – 4 mm, giữ cao độ trong 0,3 mm, khép kín chuỗi từ vật thật tới chuyển động robot.',
 ])
 
 H2('2. Đóng góp của đồ án')
@@ -2078,6 +2644,16 @@ P('Về mặt kỹ thuật, đóng góp đáng kể nhất là **cơ chế ướ
   'hình bóng dự đoán của vật để vừa phát hiện tình trạng bị che, vừa khôi phục vị trí đúng trong '
   'trường hợp vật nằm trong khay. Cách làm này chỉ cần mô hình hình học của vật và mô hình camera '
   'đã hiệu chuẩn, không cần thêm cảm biến hay dữ liệu huấn luyện.')
+P('Từ phần làm với camera thật, đóng góp đáng kể là **phép kiểm tra kích thước hình bóng**. Nó '
+  'xuất phát từ một nhận xét có tính cấu trúc: phép kiểm tra dựa trên tỉ lệ diện tích **tự chuẩn '
+  'hóa** nên về nguyên tắc không thể phát hiện vị trí sai, vì quy trình ước lượng xác định vị trí '
+  'trước rồi mới dựng hình bóng dự đoán tại chính vị trí đó. Bề rộng và chiều cao của khung bao '
+  'không nằm trong các ràng buộc của phép khớp nên chúng là bằng chứng độc lập, và thực nghiệm cho '
+  'thấy chúng loại được đúng những vùng ảnh giả mạo mà tỉ lệ diện tích bỏ lọt.')
+P('Cũng từ phần này, việc **đưa tọa độ đã thu nhỏ vào ngay khâu hiệu chuẩn** thay vì quy đổi kết '
+  'quả về sau là một thủ thuật đơn giản nhưng hiệu quả: nhờ tính chất của phép chiếu phối cảnh, '
+  'toàn bộ khối thị giác xây dựng cho mô phỏng chạy nguyên vẹn trên dữ liệu thật mà không phải sửa '
+  'dòng nào.')
 P('Về mặt phương pháp, đồ án đề xuất và áp dụng nhất quán một quy trình làm việc: mọi khâu đều '
   'được đo sai số riêng bằng đối chứng từ mô phỏng; mọi thao tác đều được kiểm chứng sau khi thực '
   'hiện; mọi ngưỡng đều được chọn bằng dữ liệu thay vì bằng cảm tính; và phần tính toán được tách '
@@ -2086,16 +2662,21 @@ P('Về mặt phương pháp, đồ án đề xuất và áp dụng nhất quán
 
 H2('3. Hướng phát triển')
 
-P('Ba hướng tiếp theo đã được chuẩn bị sẵn nền tảng trong đồ án này:')
+P('Bốn hướng tiếp theo đã được chuẩn bị sẵn nền tảng trong đồ án này:')
 N([
-    '**Chuyển sang camera thật và hoàn thiện bản sao số.** Đây là bước kế tiếp trực tiếp. Phần '
-    'chuẩn bị đã hoàn tất: bộ marker hiệu chuẩn cùng bố trí với mô phỏng đã được xuất ra dạng in '
-    'trên khổ A4 và kiểm tra lại bằng cách nhận dạng trên bản in mô phỏng (cạnh marker đo được '
-    '49,91 mm so với thiết kế 50 mm). Công việc còn lại gồm: hiệu chuẩn **nội tham số** và khử '
-    'méo ống kính bằng phương pháp bàn cờ; hiệu chỉnh lại ngưỡng màu theo điều kiện chiếu sáng '
-    'thật; và ánh xạ vị trí vật thật sang vật ảo trong mô phỏng để robot mô phỏng thao tác theo.',
-    '**Chế độ bám theo tay hoặc marker** để trình diễn khả năng điều khiển thời gian thực: robot '
-    'bám theo một marker cầm tay, cho phép đánh giá độ trễ của cả chuỗi từ ảnh tới lệnh khớp.',
+    '**Tách các vật đứng sát nhau.** Đây là giới hạn cụ thể và cấp thiết nhất đã xác định ở mục '
+    '8.8: khi hình ảnh hai vật chạm nhau, bộ nhận dạng gộp chúng thành một vùng liên thông và từ '
+    'chối cả hai. Hệ thống xử lý tình huống này an toàn — nó báo không tin được thay vì đưa ra vị '
+    'trí sai — nhưng vẫn là một khoảng mù. Hướng khắc phục đã rõ: phân loại màu ở mức từng điểm '
+    'ảnh bên trong vùng đã tách khỏi nền, rồi chia vùng đó thành các vùng con theo lớp màu.',
+    '**Chuyển từ mô hình "ba vật biết trước" sang "N thực thể phát hiện được".** Giả định mỗi màu '
+    'ứng với đúng một vật nằm xuyên suốt toàn bộ chuỗi xử lý, từ khâu nhận dạng tới khâu lập kế '
+    'hoạch gọi vật theo tên. Gỡ bỏ giả định này là điều kiện cần để xử lý nhiều vật cùng loại, và '
+    'cũng mở đường cho việc **đo chiều cao vật bằng camera đơn** — bài toán ngược của phép khớp '
+    'mép trên, trong đó đáy vật trên mặt bàn cho tọa độ ngang còn mép trên cho chiều cao.',
+    '**Khép kín chiều còn lại của bản sao số.** Hệ thống hiện đạt mức bóng số: thông tin chảy tự '
+    'động từ thật sang số. Chiều ngược lại đòi hỏi một robot vật lý thao tác trên bàn thật, khi đó '
+    'mô phỏng trở thành nơi lập kế hoạch và kiểm tra trước khi thực thi.',
     '**Mở rộng phạm vi nhận dạng**: nhận dạng vật theo hình dạng hoặc bằng mô hình học sâu để '
     'không còn phụ thuộc vào màu đã biết trước; ước lượng cả góc xoay của vật để gắp được vật '
     'không đối xứng; và xử lý vật chuyển động trên băng tải.',
