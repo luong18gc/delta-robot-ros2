@@ -940,6 +940,57 @@ trụ lại đã"*.
   **Bám khi lon ĐANG dịch:** đẩy lon Coca 79 mm rồi 170 mm → đầu hút giữ sai lệch **3–4 mm thật**
   suốt quá trình, z giữ trong **0,3 mm** (không chùng xuống khi đi ngang), và **không bị kéo theo**
   lon 7up dịch 177 mm cùng lúc.
+### Vật chạm nhau trong ảnh — đã tách được một phần (2026-10-08)
+Hai lon chạm **mép** (chưa cần che nhau) là gộp thành một vùng liên thông → một danh tính → trượt
+kiểm tra hình dáng. Nặng nhất: **lon thứ ba đứng riêng cũng mất**, vì khâu chọn lấy vùng LỚN NHẤT
+của mỗi màu nên vùng gộp giành mất lớp màu rồi bị loại.
+
+- **`vision_estimation.best_detection`** — giữ MỌI vùng của một màu, chọn vùng **đạt kiểm tra hình
+  dáng** trước, không vùng nào đạt thì trả vùng lớn nhất kèm cờ không tin (để tầng trên biết có gì
+  đó, không im lặng như bàn trống). Chọn theo kích cỡ là quyết định TRƯỚC khi biết vùng nào hợp lệ.
+- **`object_detector.split_by_color`** — vùng đã trượt thì tách: pixel từng lớp màu làm hạt giống,
+  phần không mang màu về hạt giống **gần nhất theo khoảng cách**. Chỉ gọi khi đã trượt (gọi vô điều
+  kiện thì vành logo đỏ của 7Up xé lon lành lặn làm đôi).
+- **`vision_estimation._above_foot`** — đo diện tích VÀ kích thước trên chân vật dự đoán. Chiều cao
+  ba lon: +28…+56% → **+0%, −2%, +0%**.
+- `real_vision_node` vẽ khung bao **phần vật** (không gồm phản chiếu) trong ảnh gỡ lỗi.
+
+**Ba cạm bẫy khi cài phép tách:**
+1. **Watershed sai công cụ** — nó theo gradient độ sáng, vệt lóa trên vỏ lon làm biên chạy sang lon
+   bên cạnh: mảnh rộng gấp đôi lon, đặc 0,53, lấy mất ~30% pixel lon kề. Gán theo khoảng cách cho
+   biên THẲNG ĐỨNG, đúng hình học hai hình trụ.
+2. **`distanceTransformWithLabels` + `DIST_LABEL_CCOMP` đánh nhãn theo thành phần liên thông** — hai
+   lon chạm nhau thì hạt giống hai màu cũng chạm → một thành phần → cả vùng về màu đông pixel hơn.
+   Phải tính khoảng cách RIÊNG từng màu.
+3. **Logo mang màu khác** (mảng đỏ trên Pepsi, vành đỏ trên 7Up) → chỉ lấy **mảng lớn nhất** mỗi màu
+   làm hạt giống.
+
+**Kết quả:** lon đứng riêng lấy lại được (tỉ lệ nhìn thấy 1,02, tin cậy). **Hai lon chạm nhau VẪN bị
+từ chối** (tỉ lệ nhìn thấy 0,71–0,80 < `VISIBLE_MIN` 0,90).
+⚠️ **KHÔNG hạ `VISIBLE_MIN`** — nó bảo đảm "hễ báo tin cậy thì sai số trong dung sai gắp"; hạ xuống
+thì mọi vật bị che một phần đều lọt và robot hút lệch tâm (lỗi đã gặp ở Bước 9).
+⚠️ **Đã thử và BÁC BỎ**: đo bề rộng bằng trung vị theo hàng / phân vị 85–95 để né hàng dị thường do
+phản chiếu gộp. Mặt nạ trừ nền có mép lởm chởm (đặc ~0,68 so với khung bao) nên trung vị kéo lon
+LÀNH LẶN xuống −25%. Phá trường hợp thường gặp để cứu trường hợp hiếm → giữ bề rộng khung bao.
+⇒ **Điều kiện vận hành: đặt lon cách nhau ≥ 1 bề rộng lon (~60 mm thật).** Khi đó 3/3 lon, tỉ lệ
+nhìn thấy 1,01–1,06, 93/93 khung tin cậy.
+
+**Ảnh phản chiếu thò xuống dưới chân lon 25 / 67 / 102 px** tùy lon xa hay gần camera (càng gần,
+góc nhìn càng chếch, ảnh gương càng dài). Mọi phép đo quy chiếu về **chân vật dự đoán**, không về
+khoảng cách cố định theo pixel.
+
+### `follow` bám lon VỪA DỊCH (2026-10-08)
+Mặc định `object` = `auto`: node theo dõi cả ba lon, lon nào dịch quá `SWITCH_MOVE` = 0,01 m ảo
+(30 mm thật) thì thành đích, giữ tới khi lon khác dịch. Vẫn khóa được một lon bằng `-p object:=...`,
+và đổi lúc chạy bằng topic `/follow/target` (std_msgs/String).
+
+### Dịch vụ chụp lại ảnh nền (2026-10-08)
+`/vision/capture_reference` (std_srvs/Trigger) trên `real_vision` — chụp lại ngay trong lúc chạy,
+không phải tắt hệ (node giữ camera nên trước đó phải tắt mới chụp lại được).
+⚠️ **Dời camera cũng làm hỏng ảnh nền**, không chỉ đổi ánh sáng. Tư thế thì tự giải lại mỗi khung
+nên không ai nhắc; ảnh nền thì không. Đã gặp 2026-10-08: nền trước vọt 9% → 17%, sinh "vùng ma"
+ngả đỏ rộng gấp 2,6 lần lon, nó lớn hơn lon Coca thật nên được chọn rồi bị loại → mất lon Coca.
+
 - [ ] **Bước 12** — Đánh giá (độ chính xác, độ trễ, tỉ lệ gắp thành công) + báo cáo.
 
 ### Kế hoạch đã làm (yêu cầu của giảng viên)

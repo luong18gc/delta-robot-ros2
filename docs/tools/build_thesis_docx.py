@@ -84,6 +84,7 @@ TABLES = [
     ('8.4', 'Hai cơ chế hỏng của phương pháp lấy ngưỡng theo điều kiện chiếu sáng'),
     ('8.5', 'Sai số định vị trên bàn thật: khớp mép đáy so với khớp mép trên (18 phép đo)'),
     ('8.6', 'Đối chiếu kết quả giữa môi trường mô phỏng và bàn thật'),
+    ('8.7', 'Kết quả tách vùng gộp khi hai lon đứng chạm nhau trong ảnh'),
     ('9.1', 'Ba mức tích hợp giữa thế giới thật và mô hình số theo Kritzinger'),
     ('9.2', 'Các lớp lọc của bản sao số và căn cứ của từng lớp'),
     ('9.3', 'Kết quả điều khiển bám theo vật'),
@@ -2317,6 +2318,12 @@ H2('8.5. Mặt bàn phản chiếu và việc chọn đặc trưng hình học')
 P('Mặt bàn thật, dù sơn nhám, vẫn phản chiếu các lon đủ rõ để ảnh phản chiếu dính liền với chân '
   'lon trong mặt nạ. Đo trực tiếp bằng cách so mặt nạ với hình bóng dự đoán tại vị trí thật đã '
   'biết: mặt nạ **phình xuống dưới 24 đến 57 điểm ảnh** so với chân lon.')
+P('Độ dài vệt phản chiếu **phụ thuộc khoảng cách tới camera** theo một quy luật hình học đơn giản: '
+  'camera càng nhìn chếch thì ảnh gương càng trải dài. Đo trên một khung hình với ba lon ở ba '
+  'khoảng cách khác nhau: lon xa camera nhất cho vệt dài **25 điểm ảnh**, lon ở giữa **67**, lon '
+  'gần nhất **102**. Con số này quan trọng khi thiết kế phép kiểm tra: một ngưỡng cố định theo '
+  'điểm ảnh sẽ sai ở một trong hai đầu, nên mọi phép đo đều phải quy chiếu về **chân vật dự đoán** '
+  'chứ không về một khoảng cách cố định.')
 P('Hệ quả là **mép đáy của mặt nạ không còn là chỗ lon chạm bàn**, trong khi toàn bộ phép ước '
   'lượng vị trí ở Chương 5 dựa trên chính đặc trưng đó. Phải chọn một đặc trưng hình học khác, và '
   'lựa chọn tự nhiên là **mép trên**: ảnh phản chiếu luôn nằm phía dưới vật nên không bao giờ chạm '
@@ -2372,6 +2379,12 @@ H3('8.6.1. Kiểm tra kích thước hình bóng')
 P('Đại lượng đó là **bề rộng và chiều cao** của khung bao. Phép khớp chỉ ràng buộc hai điều kiện: '
   'mép trên và tâm ngang của hình bóng. Bề rộng và chiều cao không nằm trong số đó, nên chúng là '
   '**bằng chứng độc lập** mà phép khớp không thể làm cho khớp một cách giả tạo.')
+P('Phép đo này phải thực hiện **trên phần nằm phía trên chân vật**, cùng lý do như với tỉ lệ nhìn '
+  'thấy. Khi đo trên toàn bộ khung bao, ảnh phản chiếu làm chiều cao đo được lớn hơn dự đoán '
+  '16–28 %, buộc phải nới ngưỡng chiều cao một cách không đối xứng để lon lành lặn không bị loại '
+  'oan. Khi đo trên phần vật, ba lon lành lặn cho chiều cao lệch **+0 %, −2 % và +0 %** — ngưỡng '
+  'trở lại đối xứng và chặt hơn hẳn. Đây là một ví dụ cho thấy việc **chọn đúng miền đo** có giá '
+  'trị hơn việc nới ngưỡng cho vừa dữ liệu.')
 P('Trên các khung hình thật, ba lon lành lặn cho bề rộng lệch +5 %, +13 % và +8 % so với dự đoán; '
   'một vùng ảnh rộng gấp 2,3 lần và một mảnh vụn 51 điểm ảnh đều bị loại. Ngưỡng cho chiều cao '
   'được đặt **không đối xứng** một cách có chủ ý: nới rộng về phía trên tới 1,60 lần vì ảnh phản '
@@ -2442,16 +2455,73 @@ P('Sai số thật lớn gấp khoảng bốn lần mô phỏng, điều hoàn t
 H2('8.8. Giới hạn đã xác định')
 
 P('Hai giới hạn được ghi nhận rõ ràng ở thời điểm viết khóa luận.')
-P('**Thứ nhất, các vật đứng sát nhau bị gộp thành một vùng.** Bộ nhận dạng dùng cho camera thật '
-  'tách nền trước rồi mới phân loại từng vùng liên thông theo màu chiếm ưu thế. Khi hai hoặc ba '
-  'lon đứng đủ gần để hình ảnh của chúng chạm nhau, chúng trở thành **một vùng liên thông duy '
-  'nhất** và được phân loại thành một vật duy nhất có diện tích gấp nhiều lần dự đoán. Hành vi của '
-  'hệ thống trong tình huống này là **đúng đắn**: phép kiểm tra kích thước hình bóng loại bỏ vùng '
-  'đó, cờ tin cậy báo không tin được, và bản sao số giữ nguyên vị trí cũ thay vì ghi một vị trí '
-  'bịa. Nhưng hệ quả là hệ thống **không nhìn thấy gì** trong tình huống đó. Hướng khắc phục là '
-  'tách vùng gộp bằng cách phân loại màu ở mức từng điểm ảnh rồi tách thành các vùng con theo lớp '
-  'màu.')
-P('**Thứ hai, mỗi màu chỉ ứng với đúng một vật.** Toàn bộ chuỗi xử lý, từ khâu nhận dạng tới khâu '
+
+H3('8.8.1. Hai vật đứng chạm nhau trong ảnh')
+
+P('Bộ nhận dạng dùng cho camera thật tách nền trước rồi mới phân loại từng **vùng liên thông** '
+  'theo màu chiếm ưu thế. Khi hai lon đứng đủ gần để hình ảnh của chúng chạm nhau — và điều này '
+  'xảy ra sớm hơn trực giác, vì chỉ cần hai hình bóng **chạm mép**, chưa cần che nhau — chúng trở '
+  'thành một vùng duy nhất, được gán một danh tính duy nhất, và vùng đó có kích thước gấp nhiều '
+  'lần một lon nên bị phép kiểm tra hình dáng loại bỏ.')
+P('Hậu quả nặng hơn vẻ ngoài của nó. Vật bị che thì đương nhiên không định vị được, nhưng **vật '
+  'không bị che cũng mất theo**, và vì khâu chọn ứng viên lấy vùng lớn nhất của mỗi màu nên **lon '
+  'thứ ba đứng riêng một chỗ cũng bị vạ lây**: vùng gộp lớn hơn nó, giành mất lớp màu, rồi bị '
+  'loại. Một lần chạm nhau làm hỏng toàn bộ cảnh.')
+P('Giải pháp đã cài đặt gồm hai phần. Thứ nhất, khâu chọn ứng viên **ưu tiên hình dáng trước kích '
+  'cỡ**: giữ mọi vùng của một màu rồi chọn vùng đạt phép kiểm tra hình dáng, thay vì chốt vùng lớn '
+  'nhất khi còn chưa biết vùng nào hợp lệ. Thứ hai, vùng nào đã trượt phép kiểm tra thì được **tách '
+  'theo màu**: điểm ảnh thuộc từng lớp màu làm hạt giống, phần không mang màu (nắp bạc, vành nhãn) '
+  'về hạt giống **gần nhất theo khoảng cách**.')
+P('Ba lựa chọn kỹ thuật trong phần tách này đều được chọn sau khi cách làm hiển nhiên hơn đã thất '
+  'bại, nên đáng ghi lại.')
+N([
+    '**Không dùng thuật toán phân vùng theo đường phân thủy** (watershed), dù đó là công cụ quen '
+    'thuộc cho bài toán tách vùng chạm nhau. Nó đi theo gradient độ sáng, mà vỏ lon kim loại có '
+    'vệt lóa nên đường biên chạy loằng ngoằng sang vật bên cạnh: mảnh thu được rộng gấp đôi một '
+    'lon mà chỉ đặc 0,53, và nó lấy mất khoảng 30 % điểm ảnh của lon kề bên. Phép gán theo khoảng '
+    'cách cho đường biên **thẳng đứng**, đúng với hình học hai hình trụ đứng cạnh nhau, và không '
+    'phụ thuộc độ sáng.',
+    '**Phải tính khoảng cách riêng cho từng màu.** Hàm biến đổi khoảng cách kèm nhãn của thư viện '
+    'đánh nhãn theo **thành phần liên thông** của tập hạt giống; mà hai lon chạm nhau thì hạt '
+    'giống hai màu cũng chạm nhau nên gộp thành một thành phần, và toàn bộ vùng về màu nào có '
+    'nhiều điểm ảnh hơn.',
+    '**Chỉ mảng lớn nhất của mỗi màu được làm hạt giống.** Nhãn lon mang nhiều màu: logo Pepsi có '
+    'mảng đỏ, lon 7Up có vành đỏ. Những mảng đó nằm trên vật khác nhưng vẫn là "đỏ", nên nếu dùng '
+    'làm hạt giống thì chúng kéo cả vùng quanh vật kia về phía vật mang màu đó.',
+])
+
+T('8.7',
+  ['Tình huống', 'Trước khi tách vùng', 'Sau khi tách vùng'],
+  [
+      ('Lon đứng riêng, cùng cảnh', 'Mất (bị vùng gộp giành lớp màu)',
+       'Nhận đúng, tỉ lệ nhìn thấy 1,02, tin cậy'),
+      ('Lon phía trước (không bị che)', 'Mất', 'Tách ra đúng kích thước, vẫn bị từ chối'),
+      ('Lon phía sau (bị che một phần)', 'Mất', 'Tách ra đúng kích thước, tỉ lệ nhìn thấy 0,71–0,80'),
+      ('Ngưỡng tỉ lệ nhìn thấy', '0,90', '0,90 (giữ nguyên)'),
+  ],
+  widths=[5.0, 5.4, 5.4])
+
+P('Như Bảng 8.7 cho thấy, phần tách vùng đã lấy lại được **lon đứng riêng** — tức chấm dứt việc '
+  'một lần chạm nhau làm hỏng cả cảnh — nhưng **hai lon chạm nhau vẫn bị từ chối**, vì tỉ lệ nhìn '
+  'thấy của chúng rơi xuống 0,71–0,80 trong khi ngưỡng là 0,90.')
+P('Việc **giữ nguyên ngưỡng 0,90** là một quyết định có ý thức. Ngưỡng này là thứ bảo đảm mệnh đề '
+  '"hễ hệ thống báo tin cậy thì sai số nằm trong dung sai gắp"; hạ nó xuống cho hai lon kia lọt '
+  'qua thì mọi vật bị che một phần cũng lọt, và robot sẽ hút lệch tâm — đúng kiểu hỏng đã gặp và '
+  'đã sửa ở Chương 6. Con số báo cáo sẽ đẹp hơn trong khi hệ thống tệ đi.')
+P('Một hướng sửa đã **thử và bác bỏ** cũng nên ghi lại. Phần còn trượt là bề rộng của mảnh đỏ, bị '
+  'phồng vì hai vệt phản chiếu dính liền nhau và được gán cho một vật. Đã thử đo bề rộng bằng '
+  '**trung vị theo từng hàng** và bằng **phân vị 85–95** để né mấy hàng dị thường đó. Cả hai đều '
+  'tệ hơn: mặt nạ do trừ nền sinh ra có mép lởm chởm nên chỉ đặc khoảng 0,68 so với khung bao, và '
+  'trung vị kéo **lon lành lặn** xuống −25 % so với dự đoán. Nói cách khác, cách sửa đó phá hỏng '
+  'trường hợp thường gặp để cứu một trường hợp hiếm — một đánh đổi sai hướng.')
+P('**Điều kiện vận hành rút ra:** các vật cần đặt cách nhau ít nhất một bề rộng vật (khoảng 60 mm '
+  'trên bàn thật). Trong điều kiện đó, hệ thống nhận đủ ba lon với tỉ lệ nhìn thấy 1,01–1,06 và '
+  '93/93 khung hình đều tin cậy. Đây là một ràng buộc bố trí, không phải một lỗi ngẫu nhiên: hệ '
+  'thống **hỏng một cách an toàn** — nó từ chối chứ không đưa ra vị trí sai — nên ràng buộc này '
+  'không gây rủi ro cho thao tác gắp, chỉ giới hạn các bố trí có thể dùng.')
+H3('8.8.2. Mỗi màu chỉ ứng với đúng một vật')
+
+P('**Mỗi màu chỉ ứng với đúng một vật.** Toàn bộ chuỗi xử lý, từ khâu nhận dạng tới khâu '
   'lập kế hoạch, đều giả định ba vật có ba màu phân biệt và gọi vật theo tên. Muốn xử lý nhiều vật '
   'cùng màu thì phải chuyển từ mô hình "ba vật biết trước" sang mô hình "N thực thể phát hiện '
   'được", kéo theo thay đổi ở hầu hết các module. Đây là phần việc lớn nhất còn lại và được xếp '
@@ -2687,11 +2757,12 @@ H2('3. Hướng phát triển')
 
 P('Bốn hướng tiếp theo đã được chuẩn bị sẵn nền tảng trong đồ án này:')
 N([
-    '**Tách các vật đứng sát nhau.** Đây là giới hạn cụ thể và cấp thiết nhất đã xác định ở mục '
-    '8.8: khi hình ảnh hai vật chạm nhau, bộ nhận dạng gộp chúng thành một vùng liên thông và từ '
-    'chối cả hai. Hệ thống xử lý tình huống này an toàn — nó báo không tin được thay vì đưa ra vị '
-    'trí sai — nhưng vẫn là một khoảng mù. Hướng khắc phục đã rõ: phân loại màu ở mức từng điểm '
-    'ảnh bên trong vùng đã tách khỏi nền, rồi chia vùng đó thành các vùng con theo lớp màu.',
+    '**Định vị được vật bị che một phần.** Phần tách vùng gộp trình bày ở mục 8.8.1 đã lấy lại '
+    'được các vật không bị che, nhưng hai vật chạm nhau vẫn bị từ chối vì tỉ lệ nhìn thấy của '
+    'chúng rơi xuống 0,71–0,80 dưới ngưỡng 0,90. Ngưỡng này không nên hạ; hướng đúng là **thay đại '
+    'lượng dùng để định vị**: khi một phần vật bị che, mép trên và tâm ngang không còn đủ, nhưng '
+    'đường bao của phần còn nhìn thấy vẫn chứa thông tin — có thể khớp hình bóng dự đoán với phần '
+    'quan sát được thay vì chỉ với hai đặc trưng.',
     '**Chuyển từ mô hình "ba vật biết trước" sang "N thực thể phát hiện được".** Giả định mỗi màu '
     'ứng với đúng một vật nằm xuyên suốt toàn bộ chuỗi xử lý, từ khâu nhận dạng tới khâu lập kế '
     'hoạch gọi vật theo tên. Gỡ bỏ giả định này là điều kiện cần để xử lý nhiều vật cùng loại, và '
