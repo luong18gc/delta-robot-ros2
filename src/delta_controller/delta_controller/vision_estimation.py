@@ -113,7 +113,42 @@ def silhouette_size(camera, obj, center):
             float(hull[:, 1].max() - hull[:, 1].min()))
 
 
-def shape_matches(detection, camera, obj, center, tolerance=SHAPE_TOLERANCE):
+def _above_foot(detection, v_bottom):
+    """
+    (diện tích, (bề rộng, chiều cao)) của phần mặt nạ nằm TRÊN hàng `v_bottom`.
+
+    Cắt theo chân vật dự đoán là đủ để ảnh phản chiếu của CHÍNH vật đó không vào phép đo. Nó không
+    gỡ được trường hợp hai vật đứng cạnh nhau: hai vệt phản chiếu dính liền thành một, bị gán cho
+    một vật, và trải ngang suốt chiều cao của mảnh nên không cắt theo hàng nào mà bỏ được.
+
+    ⚠️ Đã thử đo bề rộng bằng **trung vị theo hàng** và bằng **phân vị 85–95** để né mấy hàng dị
+    thường đó: cả hai đều tệ hơn. Mặt nạ do trừ nền sinh ra có mép lởm chởm (mép tối của lon bị
+    loại) nên chỉ đặc khoảng 0,68 so với khung bao, và trung vị kéo lon LÀNH LẶN xuống −25% so với
+    dự đoán — tức nó phá đúng trường hợp thường gặp để cứu một trường hợp hiếm. Bề rộng khung bao
+    giữ được lon lành lặn trong +2…+13% (đo 2026-10-08), nên vẫn dùng nó.
+
+    Dùng `crop_mask` khi có; không có thì lùi về `row_counts`, bề rộng khi đó là của khung bao.
+    """
+    x, y, w, h = detection.bbox
+    keep = int(math.floor(v_bottom)) - y + 1
+    if keep <= 0:
+        return 0, (w, h)
+    crop = getattr(detection, 'crop_mask', None)
+    if crop is None:
+        counts = detection.row_counts
+        if not counts:
+            return detection.area, (w, h)
+        return sum(counts[:keep]), (w, min(h, keep))
+    part = crop[:keep] > 0
+    area = int(np.count_nonzero(part))
+    if area == 0:
+        return 0, (w, h)
+    cols = np.flatnonzero(part.any(axis=0))
+    rows = np.flatnonzero(part.any(axis=1))
+    return area, (int(cols[-1] - cols[0] + 1), int(rows[-1] - rows[0] + 1))
+
+
+def shape_matches(seen_size, camera, obj, center, tolerance=SHAPE_TOLERANCE):
     """
     Khung bao đo được có đúng CỠ hình bóng dự đoán tại `center` không.
 
@@ -123,7 +158,7 @@ def shape_matches(detection, camera, obj, center, tolerance=SHAPE_TOLERANCE):
     gần camera, mà ở gần thì hình bóng dự đoán cũng to hơn, nên tỉ lệ vẫn ~1 dù vị trí sai hàng
     trăm milimét.
     """
-    _, _, w, h = detection.bbox
+    w, h = seen_size
     pw, ph = silhouette_size(camera, obj, center)
     if pw <= 0 or ph <= 0:
         return False
@@ -321,15 +356,16 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
             position, method = (cx, cy, bin_center_z), 'bin_center'
 
     area, _, _ = silhouette_features(camera, obj, position)
-    seen_area = detection.area
-    if reflective_table and method == 'top_edge_table' and detection.row_counts:
-        # Mặt bàn bóng: ẢNH PHẢN CHIẾU nằm dưới chân vật và vẫn ở trong mặt nạ, nên nó thổi phồng
-        # tỉ lệ nhìn thấy (đo 2026-10-07: 1.08–1.29 thay vì ~1.00). Cờ che khuất báo khi tỉ lệ TỤT
-        # dưới VISIBLE_MIN, nên xuất phát từ 1.2 nghĩa là phải bị che ~30% mới báo. Đã biết vị trí
-        # vật nên biết chân vật đáng lẽ nằm ở hàng nào — chỉ đếm phần PHÍA TRÊN hàng đó.
+    seen_area, seen_size = detection.area, detection.bbox[2:4]
+    if reflective_table and method == 'top_edge_table':
+        # Mặt bàn bóng: ẢNH PHẢN CHIẾU nằm dưới chân vật và vẫn ở trong mặt nạ. Nó làm hỏng CẢ HAI
+        # phép đo: thổi phồng tỉ lệ nhìn thấy (đo 2026-10-07: 1.08–1.29 thay vì ~1.00) và phình
+        # khung bao. Nặng nhất là khi hai vật đứng cạnh nhau: hai vệt phản chiếu dính liền thành
+        # một, bị gán cho một vật, làm bề rộng vật đó phồng +95% và trượt phép kiểm tra hình dáng
+        # (đo 2026-10-08) — tức phần DƯỚI chân vật phá hỏng phép đo phần TRÊN.
+        # Vị trí đã suy ra từ mép trên nên biết chân vật nằm ở hàng nào: chỉ xét phần phía trên đó.
         v_bottom = float(silhouette(camera, obj, position)[:, 1].max())
-        top = detection.bbox[1]
-        seen_area = sum(c for k, c in enumerate(detection.row_counts) if top + k <= v_bottom)
+        seen_area, seen_size = _above_foot(detection, v_bottom)
     # Chia cho tỉ lệ màu danh nghĩa: vật nhiều màu (lon có nắp bạc, chữ trắng) chỉ mang màu trên
     # một phần hình bóng, nên phải so với phần ĐÁNG LẼ thấy được chứ không so với cả hình bóng.
     expected = area * getattr(obj, 'color_fraction', 1.0)
@@ -337,7 +373,7 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
     cut = touches_border(detection, image_shape)
     # Hình dáng: chỉ đòi hỏi khi vật đứng trên bàn. Vật trong khay bị thành khay che nửa dưới nên
     # khung bao đo được THẤP HƠN hình bóng đầy đủ — đúng như vậy mới phải.
-    shape_ok = method == 'top_edge' or shape_matches(detection, camera, obj, position)
+    shape_ok = method == 'top_edge' or shape_matches(seen_size, camera, obj, position)
     reliable = (not cut and method != 'bin_center' and visible <= VISIBLE_MAX and shape_ok
                 and (method == 'top_edge' or visible >= VISIBLE_MIN))
     return ObjectEstimate(position=tuple(float(c) for c in position), method=method,

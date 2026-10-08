@@ -172,6 +172,25 @@ def detect_objects(bgr, color_classes, roi=None, min_area=MIN_AREA,
 SEED_MIN_AREA = 300
 
 
+def _largest_blob(mask):
+    """
+    Chỉ giữ mảng liên thông LỚN NHẤT của một mặt nạ màu.
+
+    Nhãn lon mang nhiều màu: logo Pepsi có mảng đỏ, lon 7Up có vành đỏ. Những mảng đó nằm TRÊN vật
+    khác nhưng vẫn là "đỏ", nên nếu dùng chúng làm hạt giống thì phép gán theo khoảng cách sẽ kéo
+    cả vùng quanh lon Pepsi về phía lon Coca (đo 2026-10-08: khung bao đỏ rộng 197 px thay vì 100).
+    Trong cảnh này mỗi màu ứng với đúng một vật, nên mảng lớn nhất của màu đó chính là vật.
+
+    ⚠️ Giả định "một màu = một vật" sẽ hỏng ở bước có nhiều vật cùng màu; khi đó phải chọn hạt
+    giống theo cách khác (ví dụ mọi mảng đủ lớn và cách nhau quá một bề rộng vật).
+    """
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    if count <= 1:
+        return mask
+    biggest = max(range(1, count), key=lambda i: stats[i, cv2.CC_STAT_AREA])
+    return np.where(labels == biggest, 255, 0).astype(np.uint8)
+
+
 def _detection_from_mask(color, part, offset):
     """Dựng ObjectDetection từ một mặt nạ con; None nếu quá nhỏ."""
     area = int(cv2.countNonZero(part))
@@ -201,8 +220,14 @@ def split_by_color(bgr, detection, color_classes, seed_min_area=SEED_MIN_AREA):
     loại cả vùng theo màu chiếm ưu thế, và **mất cả hai vật** — vật bị che thì đương nhiên, nhưng
     vật KHÔNG bị che cũng mất theo vì vùng gộp trượt phép kiểm tra kích thước.
 
-    Cách làm: lấy các điểm ảnh thuộc từng lớp màu làm **hạt giống**, rồi để watershed chia nốt
-    phần không mang màu (nắp bạc, vành nhãn) về hạt giống gần nhất.
+    Cách làm: lấy điểm ảnh thuộc từng lớp màu làm **hạt giống**, rồi gán phần không mang màu (nắp
+    bạc, vành nhãn, phần tối) cho hạt giống **GẦN NHẤT THEO KHOẢNG CÁCH**.
+
+    ⚠️ Không dùng watershed, dù đó là công cụ quen tay cho bài này: watershed đi theo gradient độ
+    sáng, mà vỏ lon kim loại có vệt lóa nên biên chạy loằng ngoằng sang cả vật bên cạnh. Đo
+    2026-10-08 trên hai lon đứng cạnh nhau: mảnh thu được có khung bao rộng gấp đôi lon mà chỉ đặc
+    0,53, và nó lấy mất ~30% điểm ảnh của lon bên cạnh. Phép gán theo khoảng cách cho biên THẲNG
+    ĐỨNG, đúng với hình học hai hình trụ đứng cạnh nhau, và không phụ thuộc độ sáng.
 
     ⚠️ Chỉ gọi khi vùng ĐÃ TRƯỢT phép kiểm tra hình dáng. Gọi vô điều kiện thì vành logo đỏ trên
     lon 7Up cũng thành hạt giống và lon lành lặn bị xé làm đôi.
@@ -211,24 +236,37 @@ def split_by_color(bgr, detection, color_classes, seed_min_area=SEED_MIN_AREA):
     if crop is None:
         return []
     x0, y0, w, h = detection.bbox
-    patch = bgr[y0:y0 + h, x0:x0 + w]
-    hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
-    markers = np.zeros(crop.shape, np.int32)
-    markers[crop == 0] = 1                      # ngoài vùng = nền, để watershed có bờ
+    hsv = cv2.cvtColor(bgr[y0:y0 + h, x0:x0 + w], cv2.COLOR_BGR2HSV)
+    seed_of = np.zeros(crop.shape, np.int32)
     seeds = {}
-    for index, (name, color_class) in enumerate(color_classes.items(), start=2):
+    for index, (name, color_class) in enumerate(color_classes.items(), start=1):
         seed = cv2.bitwise_and(color_mask(hsv, color_class), crop)
         seed = cv2.morphologyEx(seed, cv2.MORPH_OPEN, _OPEN_KERNEL)
+        seed = _largest_blob(seed)
         if cv2.countNonZero(seed) < seed_min_area:
             continue
-        markers[seed > 0] = index
+        seed_of[seed > 0] = index
         seeds[index] = name
     if len(seeds) < 2:
         return []                               # chỉ một màu -> không phải vùng gộp
-    cv2.watershed(patch, markers)
+    # Khoảng cách tới hạt giống của TỪNG màu, rồi mỗi điểm ảnh về màu gần nhất.
+    # ⚠️ Không dùng distanceTransformWithLabels với DIST_LABEL_CCOMP: nó đánh nhãn theo thành phần
+    # liên thông của tập hạt giống, mà hai vật chạm nhau thì hạt giống hai màu cũng chạm nhau nên
+    # gộp làm một — cả vùng về một màu (đã gặp 2026-10-08).
+    best_distance = None
+    assigned = np.zeros(crop.shape, np.int32)
+    for index in seeds:
+        src = np.where(seed_of == index, 0, 255).astype(np.uint8)
+        distance = cv2.distanceTransform(src, cv2.DIST_L2, 3)
+        if best_distance is None:
+            best_distance, assigned[:] = distance, index
+            continue
+        closer = distance < best_distance
+        assigned[closer] = index
+        best_distance = np.minimum(best_distance, distance)
     parts = []
     for index, name in seeds.items():
-        part = np.where((markers == index) & (crop > 0), 255, 0).astype(np.uint8)
+        part = np.where((assigned == index) & (crop > 0), 255, 0).astype(np.uint8)
         found = _detection_from_mask(name, part, (x0, y0))
         if found is not None:
             parts.append(found)
