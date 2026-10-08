@@ -47,6 +47,12 @@ FIGURES = [
      'vision_error_map.png', 16.0),
     ('7.2', 'Độ bền của khối thị giác với nhiễu Gauss và với thay đổi độ sáng',
      'vision_robustness.png', 16.0),
+    ('8.1', 'Ảnh camera thật với sáu marker, vùng xét giới hạn theo hình học và ba lon đã được '
+            'nhận dạng', 'real_camera_detections.png', 16.0),
+    ('8.2', 'So sánh hai cách tách vật khỏi nền trên cùng một khung hình: (a) lấy ngưỡng theo màu '
+            'và độ sáng, (b) trừ theo ảnh nền tham chiếu', 'foreground_comparison.png', 16.0),
+    ('9.1', 'Tọa độ cùng một vật nhìn từ ba chỗ: đo trên bàn thật, quy về cảnh ảo, và vị trí vật '
+            'ảo đang nằm trong Gazebo', 'twin_coordinates.png', 15.0),
 ]
 TABLES = [
     ('1.1', 'Các bước thực hiện đề tài và trạng thái tại thời điểm viết khóa luận'),
@@ -2160,6 +2166,8 @@ T('8.1',
   ],
   widths=[4.5, 11.3])
 
+IMG('8.1')
+
 P('Góc chúc thật là 45,2°, khác hẳn góc 32° của camera mô phỏng. Sự khác biệt này được **chấp nhận '
   'có ý thức** thay vì cố ép cho giống: bàn thật không đủ dài để lùi camera thêm. Khối thị giác '
   'không bị ảnh hưởng vì nó dùng mô hình camera **đo được** chứ không giả định góc nhìn; và góc '
@@ -2290,6 +2298,13 @@ P('Ưu điểm của cách này là vân bàn, ám màu, chỗ sáng chỗ tối
   'nên tự triệt tiêu. Hiệu quả đo được rất dứt khoát: trên một cảnh không thay đổi, mặt nạ mới báo '
   '**0,00 %** diện tích khung hình là vật, trong khi phương pháp lấy ngưỡng báo **12,06 %**. Biên '
   'an toàn cũng rất rộng: nhiễu cảm biến đo được là 1 mức xám so với ngưỡng 30.')
+IMG('8.2')
+
+P('Hình 8.2 cho thấy sự khác biệt trên cùng một khung hình. Ở phương pháp lấy ngưỡng, các mảng nền '
+  'quanh lon bên trái lọt vào mặt nạ và dính liền với lon, làm hình bóng méo hẳn; ở phương pháp '
+  'trừ nền, mặt nạ chỉ còn ba lon. Phần nhô ra dưới chân mỗi lon trong ảnh (b) chính là **ảnh phản '
+  'chiếu** — nó vẫn ở trong mặt nạ, và đó là lý do mục 8.5 phải đổi sang dùng mép trên.')
+
 P('Phương pháp này có hai giới hạn phải nói rõ. Thứ nhất, **đổi điều kiện chiếu sáng hoặc xê dịch '
   'camera thì phải chụp lại ảnh chuẩn** — đó là cái giá phải trả, và nó biến một giả định ngầm '
   '(ánh sáng không đổi) thành một thao tác tường minh mà người vận hành kiểm soát được. Thứ hai, '
@@ -2492,6 +2507,14 @@ P('Điều đáng chú ý về mặt thiết kế là **chỗ nối giữa hai t
   'mục 8.1.1, phần lớn lại không cần làm gì cả vì tọa độ ảo đã được đưa vào ngay từ khâu hiệu '
   'chuẩn. Một chỗ nối mỏng như vậy dễ kiểm chứng và dễ thay thế: muốn đổi nguồn vị trí vật, chỉ '
   'cần thay node phía trước.')
+IMG('9.1')
+
+P('Hình 9.1 là công cụ quan sát dùng trong quá trình kiểm chứng. Ba cột tọa độ là cùng một vật '
+  'nhìn từ ba chỗ: camera đo được trên bàn thật; cũng số đó chia cho hệ số tỉ lệ, tức tọa độ mà '
+  'khối điều khiển thật sự dùng; và vị trí vật ảo **đang nằm** trong Gazebo đọc ngược từ odometry. '
+  'Cột cuối là khoảng cách giữa hai cột sau, thường dưới 2 mm; nó chỉ lớn khi bản sao số **cố ý '
+  'không ghi**, nên cột này không đo sai số mà cho thấy các lớp lọc ở mục 9.3 đang làm việc.')
+
 P('Về mặt kỹ thuật, việc ghi vị trí vào Gazebo được thực hiện qua **dịch vụ đã được cầu nối sang '
   'ROS**. Lựa chọn này xuất phát từ một phép đo: gọi công cụ dòng lệnh của Gazebo bằng tiến trình '
   'con mất khoảng 0,37 giây mỗi lần, nên ba vật đã mất hơn một giây — không thể theo kịp camera '

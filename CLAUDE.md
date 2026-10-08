@@ -983,7 +983,9 @@ trụ lại đã"*.
   được giao diện** (không có LibreOffice) — người dùng mở kiểm tra. Mục lục là trường TOC, Word tự
   cập nhật khi mở. Khi số liệu thay đổi phải sửa nội dung trong script rồi sinh lại.
 - `docs/Khoa_luan_tot_nghiep.docx` (2026-09-25) — **bản thảo khóa luận** (Bước 1–9) để người làm đồ án
-  viết tiếp thành khóa luận nộp. Sinh bằng `docs/tools/build_thesis_docx.py` (cùng cách chạy như trên).
+  viết tiếp thành khóa luận nộp. Sinh bằng `python3 docs/tools/build_thesis_docx.py`.
+  ✅ **`python-docx` đã cài sẵn vào `~/.local/lib/python3.12/site-packages` (2026-10-08)** —
+  không cần tải wheel và đặt `PYTHONPATH` nữa; chạy thẳng là được.
   Định dạng theo *Quy định về trình bày ĐATN* của Trường ĐH Công nghệ ĐHQGHN (bản PDF trên uet.edu.vn):
   A4, TNR 13pt, dãn dòng 1,3; lề trên 2,5 / dưới 3 / trái 3 / phải 2 cm; cách đoạn 6pt, thụt đầu dòng
   1 cm; **số trang đánh lại từ 1 ở phần Mở đầu**, đặt giữa chân trang (2 section, `pgNumType start=1`);
@@ -993,8 +995,11 @@ trụ lại đã"*.
   7 chương → Kết luận → Phụ lục A–D → TLTK. Số hiệu hình/bảng lấy từ 2 danh sách `FIGURES`/`TABLES` đầu
   script (cuối script assert mọi mục đã dùng đúng 1 lần) → **thêm hình/bảng phải khai báo ở đó**.
   Chỗ cần người làm đồ án điền: `STUDENT`, `MAJOR`, `SUPERVISOR`, `YEAR` ở đầu phần nội dung.
-  ~19 800 từ, 7 hình, 27 bảng, ước lượng ~55–60 trang; quy định yêu cầu 50–75 trang → còn phải viết thêm
-  (Bước 10–12). **Chưa xem được giao diện** (không có LibreOffice) — người dùng mở Word kiểm tra.
+  **Đã có Chương 8 (camera thật) và Chương 9 (bản sao số + bám vật), cập nhật 2026-10-08:**
+  ~31 400 từ, **10 hình, 36 bảng**. ⚠️ Ước lượng ~85–90 trang trong khi **quy định là 50–75** →
+  **có thể phải cắt**; người làm đồ án mở Word đếm số trang thật rồi quyết định. Thứ tự cắt đề xuất:
+  mục 8.3.2 (ba cái bẫy đo đạc) xuống phụ lục, rút gọn 8.5.1, rồi Chương 2.
+  **Chưa xem được giao diện** (không có LibreOffice) — người dùng mở Word kiểm tra.
 - Hình sơ đồ: `docs/figures/system_architecture.png`, `ros_graph.png`, `delta_leg_diagram.png`.
 - `docs/bao_cao_kinematics.md` — phần động học dạng báo cáo.
 
