@@ -23,6 +23,7 @@ Module thuần Python + OpenCV, không phụ thuộc ROS.
 from dataclasses import dataclass
 
 import cv2
+from delta_controller.color_detector import color_mask
 import numpy as np
 
 # Pixel được coi là "có sắc màu" (dùng cho cả tách nền lẫn phân loại).
@@ -55,6 +56,9 @@ class ObjectDetection:
     # hàng bất kỳ mà không phải giữ cả mặt nạ — dùng để bỏ ẢNH PHẢN CHIẾU ra khỏi phép tính tỉ lệ
     # nhìn thấy trên mặt bàn bóng. Rỗng khi bộ nhận dạng không cung cấp.
     row_counts: tuple = ()
+    # Mặt nạ của vùng, cắt theo khung bao (uint8 0/255). Chỉ dùng khi phải TÁCH vùng gộp, nên
+    # None với vùng bình thường. Cắt theo khung bao nên tốn vài chục KB, không phải cả khung hình.
+    crop_mask: object = None
 
 
 def foreground_mask(hsv, roi=None):
@@ -159,8 +163,76 @@ def detect_objects(bgr, color_classes, roi=None, min_area=MIN_AREA,
             color_fraction=float(fraction),
             confidence=float(confidence),
             row_counts=tuple(
-                int(c) for c in region[y:y + h, x:x + w].sum(axis=1, dtype=np.int32))))
+                int(c) for c in region[y:y + h, x:x + w].sum(axis=1, dtype=np.int32)),
+            crop_mask=(region[y:y + h, x:x + w] * 255).astype(np.uint8)))
     return sorted(found, key=lambda d: -d.area)
+
+
+# Hạt giống màu phải có bấy nhiêu pixel thì mới coi là một vật riêng trong vùng gộp.
+SEED_MIN_AREA = 300
+
+
+def _detection_from_mask(color, part, offset):
+    """Dựng ObjectDetection từ một mặt nạ con; None nếu quá nhỏ."""
+    area = int(cv2.countNonZero(part))
+    if area < MIN_AREA:
+        return None
+    x, y, w, h = cv2.boundingRect(part)
+    m = cv2.moments(part)
+    if m['m00'] <= 0:
+        return None
+    crop = part[y:y + h, x:x + w]
+    return ObjectDetection(
+        color=color,
+        centroid=(m['m10'] / m['m00'] + offset[0], m['m01'] / m['m00'] + offset[1]),
+        area=area,
+        bbox=(x + offset[0], y + offset[1], w, h),
+        color_fraction=1.0,
+        confidence=1.0,
+        row_counts=tuple(int(c) for c in (crop > 0).sum(axis=1, dtype=np.int32)),
+        crop_mask=crop.copy())
+
+
+def split_by_color(bgr, detection, color_classes, seed_min_area=SEED_MIN_AREA):
+    """
+    Tách một vùng GỘP thành các vùng con, mỗi vùng một lớp màu.
+
+    Dùng khi hai vật đứng chạm nhau trong ảnh: phép tách nền chỉ thấy một vùng liên thông, phân
+    loại cả vùng theo màu chiếm ưu thế, và **mất cả hai vật** — vật bị che thì đương nhiên, nhưng
+    vật KHÔNG bị che cũng mất theo vì vùng gộp trượt phép kiểm tra kích thước.
+
+    Cách làm: lấy các điểm ảnh thuộc từng lớp màu làm **hạt giống**, rồi để watershed chia nốt
+    phần không mang màu (nắp bạc, vành nhãn) về hạt giống gần nhất.
+
+    ⚠️ Chỉ gọi khi vùng ĐÃ TRƯỢT phép kiểm tra hình dáng. Gọi vô điều kiện thì vành logo đỏ trên
+    lon 7Up cũng thành hạt giống và lon lành lặn bị xé làm đôi.
+    """
+    crop = detection.crop_mask
+    if crop is None:
+        return []
+    x0, y0, w, h = detection.bbox
+    patch = bgr[y0:y0 + h, x0:x0 + w]
+    hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
+    markers = np.zeros(crop.shape, np.int32)
+    markers[crop == 0] = 1                      # ngoài vùng = nền, để watershed có bờ
+    seeds = {}
+    for index, (name, color_class) in enumerate(color_classes.items(), start=2):
+        seed = cv2.bitwise_and(color_mask(hsv, color_class), crop)
+        seed = cv2.morphologyEx(seed, cv2.MORPH_OPEN, _OPEN_KERNEL)
+        if cv2.countNonZero(seed) < seed_min_area:
+            continue
+        markers[seed > 0] = index
+        seeds[index] = name
+    if len(seeds) < 2:
+        return []                               # chỉ một màu -> không phải vùng gộp
+    cv2.watershed(patch, markers)
+    parts = []
+    for index, name in seeds.items():
+        part = np.where((markers == index) & (crop > 0), 255, 0).astype(np.uint8)
+        found = _detection_from_mask(name, part, (x0, y0))
+        if found is not None:
+            parts.append(found)
+    return parts
 
 
 def detect_by_color(bgr, color_classes, **kwargs):

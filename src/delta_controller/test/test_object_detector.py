@@ -47,3 +47,26 @@ def test_nguong_hinh_dang_chua_cho_cho_phan_chieu():
     from delta_controller.vision_estimation import HEIGHT_MAX, HEIGHT_MIN
     assert HEIGHT_MAX >= 1.28 * 1.2, 'chua du cho cho anh phan chieu'
     assert HEIGHT_MIN > 0.5, 'nong qua thi vanh logo bi tach ra van lot'
+
+
+def test_tach_vung_gop_thanh_hai_vat():
+    """Hai vật chạm nhau thành một vùng -> tách theo màu phải ra lại hai vật."""
+    from delta_controller.color_detector import COLOR_CLASSES
+    frame = np.full((300, 200, 3), 20, np.uint8)
+    cv2.rectangle(frame, (70, 40), (130, 160), (40, 40, 220), -1)     # "lon" do, tren
+    cv2.rectangle(frame, (70, 150), (130, 270), (220, 60, 40), -1)    # "lon" lam, duoi, cham nhau
+    found = object_detector.detect_objects(frame, COLOR_CLASSES)
+    assert len(found) == 1, 'hai vat cham nhau phai gop thanh MOT vung (tien de cua phep tach)'
+    parts = object_detector.split_by_color(frame, found[0], COLOR_CLASSES)
+    assert {p.color for p in parts} == {'red', 'blue'}
+    tall = {p.color: p.bbox for p in parts}
+    assert tall['red'][1] < tall['blue'][1], 'vat do phai nam tren vat lam'
+
+
+def test_khong_tach_vung_chi_co_mot_mau():
+    """Một vật lành lặn chỉ có một hạt giống màu -> không tách."""
+    from delta_controller.color_detector import COLOR_CLASSES
+    frame = np.full((300, 200, 3), 20, np.uint8)
+    cv2.rectangle(frame, (70, 40), (130, 260), (40, 40, 220), -1)
+    found = object_detector.detect_objects(frame, COLOR_CLASSES)
+    assert object_detector.split_by_color(frame, found[0], COLOR_CLASSES) == []

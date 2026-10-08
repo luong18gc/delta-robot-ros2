@@ -36,10 +36,10 @@ import cv2
 from cv_bridge import CvBridge
 from delta_controller import usb_camera
 from delta_controller.color_detector import COLOR_CLASSES, draw_detections
-from delta_controller.object_detector import detect_objects
+from delta_controller.object_detector import detect_objects, split_by_color
 from delta_controller.real_camera import aruco_detector, PoseTracker, table_roi_mask
 from delta_controller.scene import REAL_OBJECTS, SCALE
-from delta_controller.vision_estimation import best_detection
+from delta_controller.vision_estimation import best_detection, estimate_object
 import numpy as np
 import rclpy
 from rclpy.executors import ExternalShutdownException
@@ -152,6 +152,15 @@ class RealVisionNode(Node):
         for region in detect_objects(frame, COLOR_CLASSES, roi=self._roi,
                                      reference=self._reference):
             regions.setdefault(region.color, []).append(region)
+            # Vùng trượt phép kiểm tra hình dáng có thể là HAI vật đứng chạm nhau trong ảnh. Tách
+            # ra rồi cho các mảnh dự tuyển cùng vùng gốc; `best_detection` chọn cái hợp lệ. Không
+            # tách vô điều kiện: vành logo đỏ trên lon 7Up sẽ xé lon lành lặn làm đôi.
+            obj = OBJECT_OF_COLOR.get(region.color)
+            if obj is None or estimate_object(region, camera, obj, frame.shape,
+                                              reflective_table=True).reliable:
+                continue
+            for part in split_by_color(frame, region, COLOR_CLASSES):
+                regions.setdefault(part.color, []).append(part)
         detections, estimates = {}, {}
         for color, found in regions.items():
             obj = OBJECT_OF_COLOR.get(color)
