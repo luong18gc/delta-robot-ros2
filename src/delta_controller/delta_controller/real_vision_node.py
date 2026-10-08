@@ -36,10 +36,10 @@ import cv2
 from cv_bridge import CvBridge
 from delta_controller import usb_camera
 from delta_controller.color_detector import COLOR_CLASSES, draw_detections
-from delta_controller.object_detector import detect_by_color
+from delta_controller.object_detector import detect_objects
 from delta_controller.real_camera import aruco_detector, PoseTracker, table_roi_mask
 from delta_controller.scene import REAL_OBJECTS, SCALE
-from delta_controller.vision_estimation import estimate_object
+from delta_controller.vision_estimation import best_detection
 import numpy as np
 import rclpy
 from rclpy.executors import ExternalShutdownException
@@ -146,13 +146,24 @@ class RealVisionNode(Node):
         # TÁCH NỀN TRƯỚC rồi phân loại từng vùng, không phải lọc theo màu: mặt nạ màu của lon THẬT
         # không phải hình bóng lon (màu nằm thành vành, xen mảng trắng và logo), nên mọi phép
         # ước lượng dựng trên nó đều sai. Xem scene.REAL_OBJECTS.
-        detections = detect_by_color(frame, COLOR_CLASSES, roi=self._roi,
-                                     reference=self._reference)
+        # Giữ MỌI vùng của mỗi màu rồi mới chọn, thay vì để detect_by_color chốt ngay vùng lớn
+        # nhất: chọn theo kích cỡ là quyết định trước khi biết vùng nào hợp lệ về hình dáng.
+        regions = {}
+        for region in detect_objects(frame, COLOR_CLASSES, roi=self._roi,
+                                     reference=self._reference):
+            regions.setdefault(region.color, []).append(region)
+        detections, estimates = {}, {}
+        for color, found in regions.items():
+            obj = OBJECT_OF_COLOR.get(color)
+            if obj is None:
+                detections[color] = max(found, key=lambda r: r.area)
+                continue
+            estimate, region = best_detection(found, camera, obj, frame.shape,
+                                              reflective_table=True)
+            if region is not None:
+                detections[color], estimates[color] = region, estimate
         stamp = self.get_clock().now().to_msg()
         self._publish_pixels(detections, stamp)
-        estimates = {c: estimate_object(d, camera, OBJECT_OF_COLOR[c], frame.shape,
-                                        reflective_table=True)
-                     for c, d in detections.items() if c in OBJECT_OF_COLOR}
         self._publish_objects(estimates, stamp)
         if self._debug_pub.get_subscription_count() > 0:
             self._publish_debug(frame, detections, estimates, stamp)

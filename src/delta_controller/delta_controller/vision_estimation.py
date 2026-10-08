@@ -234,6 +234,33 @@ def touches_border(detection, image_shape):
     return x <= 0 or y <= 0 or x + w >= width or y + h >= height
 
 
+def best_detection(regions, camera, obj, image_shape, **kwargs):
+    """
+    Trong các vùng CÙNG MÀU, chọn vùng thật sự là vật — ưu tiên HÌNH DÁNG, không phải kích cỡ.
+
+    Trả về (ước lượng, vùng đã chọn), hoặc (None, None) nếu không có vùng nào.
+
+    Vì sao không lấy ngay vùng lớn nhất: chọn theo kích cỡ là quyết định TRƯỚC khi biết vùng nào
+    hợp lệ, nên một vùng rác to hơn vật sẽ loại mất chính vật đó. Gặp thật 2026-10-08 sau khi
+    camera bị dời: ảnh nền cũ sinh một vùng ma rộng gấp 2,6 lần lon; nó lớn hơn lon Coca thật nên
+    được chọn rồi bị cờ loại, và lon Coca thật nằm ngay đó, hợp lệ, thì biến mất.
+
+    Vùng lớn nhất vẫn được trả về khi KHÔNG vùng nào đạt, để tầng trên còn thấy có gì đó và báo
+    "không tin được" thay vì im lặng như thể bàn trống.
+    """
+    best = fallback = None
+    for region in regions:
+        estimate = estimate_object(region, camera, obj, image_shape, **kwargs)
+        if fallback is None or region.area > fallback[1].area:
+            fallback = (estimate, region)
+        if not estimate.reliable:
+            continue
+        if best is None or region.area > best[1].area:
+            best = (estimate, region)
+    chosen = best or fallback
+    return chosen if chosen is not None else (None, None)
+
+
 def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
                     bins=BIN_LAYOUT, reflective_table=False):
     """
