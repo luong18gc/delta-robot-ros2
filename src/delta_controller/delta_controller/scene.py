@@ -135,9 +135,16 @@ BIN_LAYOUT = BinLayout(tuple(BINS.values()), BIN_INNER_HALF, BIN_OUTER_HALF, BIN
 # Kích thước BĂNG THẬT, mét. ⚠️ Đây là số THIẾT KẾ — đo lại trên băng đã lắp rồi sửa đúng ba hằng
 # số này; mọi thứ khác tự suy ra. Sai chiều cao băng là lon ảo lơ lửng hoặc lún xuống mặt bàn đúng
 # bằng sai số đó chia cho SCALE.
-REAL_BELT_LENGTH = 0.500        # dọc theo Y, hướng lon chạy
+# ⚠️ 0.400 chứ không phải 0.500: băng dài 500 mm (y ±250) làm tia nhìn từ camera tới marker ID 2
+# và ID 3 chỉ còn hở 4 mm so với mặt băng — rung nhẹ là mất marker, mất luôn khóa tư thế. Với
+# 400 mm thì hở 66–87 mm. Quãng chạy cần chỉ 200 mm nên 400 mm là dư.
+REAL_BELT_LENGTH = 0.400        # dọc theo Y, hướng lon chạy
 REAL_BELT_WIDTH = 0.100         # ngang theo X
 REAL_BELT_HEIGHT = 0.050        # mặt băng cao hơn mặt bàn bao nhiêu
+# Băng chạy NGANG hướng nhìn camera (dọc theo Y), không phải dọc theo hướng nhìn. Đo trên camera
+# thật (chúc 45,8°): trục Y có độ phân giải 1,30–1,54 lần TỐT HƠN trục X, vì góc chúc nén trục X.
+# Tại điểm gắp, 1 pixel sai số ứng với 0,83 mm theo X nhưng chỉ 0,58 mm theo Y. Thêm nữa X là trục
+# CHIỀU SÂU — chỗ yếu nhất của camera đơn, nơi sai số vị trí và chuyển động lẫn vào nhau.
 REAL_BELT_CENTER = (0.050, 0.0)  # tâm băng trên bàn thật (x, y)
 # Lon chạy từ đầu NẠP (y dương, ngoài tầm với — chỗ tay người đặt lon) về ĐIỂM GẮP.
 REAL_BELT_PICK_Y = 0.0

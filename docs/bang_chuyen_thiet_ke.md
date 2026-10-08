@@ -74,9 +74,36 @@ tự che mình, và không chạy vào/ra theo hướng nhìn (hướng mà sai 
 
 - **điểm gắp**: x ≈ +50 mm, y ≈ 0 — nằm giữa vùng với tới, dư an toàn mọi phía;
 - **đầu nạp lon**: y ≈ +250 mm, **ngoài tầm với** — chỗ tay người đặt lon, robot không bao giờ tới;
-- **chiều dài băng**: 450–550 mm (quãng chạy ~250 mm + hai đầu con lăn);
+- **chiều dài băng**: **400 mm** — xem cảnh báo bên dưới, đừng làm dài hơn;
 - **bề rộng băng**: 90–110 mm (lon Ø 57,5 mm, cần dư hai bên để lon không rơi);
 - **chiều cao khung**: càng thấp càng tốt, dưới 40 mm.
+
+### Vì sao chạy NGANG chứ không chạy DỌC hướng nhìn camera
+
+Đo trên chính camera đã hiệu chuẩn (chúc 45,8°), số pixel ứng với mỗi 1 mm thật:
+
+| vị trí trên bàn | theo X | theo Y | Y tốt hơn |
+|---|---|---|---|
+| (−50, 0) | 1,44 | 1,88 | 1,30× |
+| (+50, 0) điểm gắp | 1,20 | 1,72 | **1,43×** |
+| (+150, 0) | 1,03 | 1,58 | 1,54× |
+
+Góc chúc **nén trục X**, nên tại điểm gắp một pixel sai số ứng với **0,83 mm theo X** nhưng chỉ
+**0,58 mm theo Y**. Bốn lý do chọn chạy ngang (dọc theo Y):
+
+1. **Trục Y đo chính xác hơn 1,3–1,5 lần** trên toàn vùng làm việc.
+2. **X là trục CHIỀU SÂU** — chỗ yếu nhất của camera đơn. Vị trí lon suy ra từ mép trên, và sai số
+   của phép suy đó rơi vào đúng trục X. Cho lon chạy dọc X là để **chuyển động và sai số lẫn vào
+   nhau**; chạy ngang thì hai thứ tách bạch.
+3. **Ảnh lon gần như không đổi kích thước** khi đi ngang → hình bóng dự đoán ổn định. Đi dọc thì
+   ảnh lon to dần, mô hình phải theo liên tục.
+4. **Ít bị robot che.** Ở Bước 9 đo được: tư thế home, platform che vật ở x ≥ 120 mm (score 0).
+   Băng ngang ở x = +50 nằm ngoài vùng đó suốt hành trình; băng dọc thì lon phải đi xuyên qua.
+
+⚠️ **ĐỪNG làm băng dài 500 mm.** Tính tia nhìn từ camera tới từng marker: với băng ngang dài
+500 mm (y ±250), tia tới **marker ID 2 và ID 3 chỉ hở 4 mm** so với mặt băng — rung nhẹ là mất
+marker, mất luôn khóa tư thế và cả hệ dừng. Với **400 mm** thì hở **66–87 mm**, an toàn. Quãng chạy
+cần chỉ 200 mm nên 400 mm là dư (4 giây ở tốc độ 50 mm/s).
 
 ⚠️ Kiểm tra trước khi khoan: băng không được che marker nào, và cả 6 marker vẫn phải trong khung
 hình. Hiện ID 4 đã sát mép trên ảnh (cách 74 px) — nếu phải dời marker thì dời, nhưng **đo lại tọa

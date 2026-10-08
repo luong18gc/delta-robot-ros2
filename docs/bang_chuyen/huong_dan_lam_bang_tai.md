@@ -1,6 +1,6 @@
 # Hướng dẫn làm băng tải mini — cho người chưa làm bao giờ
 
-Tài liệu này hướng dẫn **tự làm** một băng tải dài 50 cm, rộng 10 cm, chở lon nước 330 ml, điều
+Tài liệu này hướng dẫn **tự làm** một băng tải dài 40 cm, rộng 10 cm, chở lon nước 330 ml, điều
 khiển chạy/dừng từ máy tính. Phần thiết kế và lý do chọn vật liệu nằm ở
 [`../bang_chuyen_thiet_ke.md`](../bang_chuyen_thiet_ke.md); file này chỉ nói **làm thế nào**.
 
@@ -8,6 +8,10 @@ khiển chạy/dừng từ máy tính. Phần thiết kế và lý do chọn v�
 **Kỹ năng cần:** cưa gỗ, khoan, vặn vít. Không cần hàn, không cần tiện, không cần máy CNC.
 **Chi phí:** khoảng 600 k – 1 triệu đồng.
 
+> **Băng dài 400 mm, KHÔNG phải 500 mm.** Tính tia nhìn từ camera tới các marker hiệu chuẩn: băng
+> dài 500 mm làm tia tới marker ID 2 và ID 3 chỉ hở 4 mm so với mặt băng — rung nhẹ là mất marker và
+> cả hệ mất khóa tư thế. Với 400 mm thì hở 66–87 mm. Quãng chạy cần chỉ 200 mm nên 400 mm là dư.
+>
 > **Một điều cần yên tâm trước khi bắt đầu:** băng tải này **không cần chính xác**. Con lăn lệch tâm
 > 1 mm chỉ làm tốc độ dao động 2–3%, mắt thường không thấy và hệ thống không quan tâm. Thứ *thật sự*
 > quan trọng chỉ có ba: **băng phải căng**, **mặt băng phải phẳng và nhám**, **băng không được trôi
@@ -37,7 +41,7 @@ khiển chạy/dừng từ máy tính. Phần thiết kế và lý do chọn v�
 
 | Món | Số lượng | Nói với người bán |
 |---|---|---|
-| Băng tải PVC trơn 2 mm | khổ 10 cm × 1,2 m | *"Cho em băng tải PVC trơn dày 2 ly, khổ 10 phân, màu xanh đậm hoặc đen, loại mặt nhẵn không có vân."* |
+| Băng tải PVC trơn 2 mm | khổ 10 cm × 1 m | *"Cho em băng tải PVC trơn dày 2 ly, khổ 10 phân, màu xanh đậm hoặc đen, loại mặt nhẵn không có vân."* |
 | Ống nhựa PVC Ø 42 | 30 cm | Ống nước thường, cắt làm 2 đoạn 11 cm |
 | Thanh ren M8 (hoặc trục trơn Ø 8) | 60 cm | Cắt làm 2 đoạn 25 cm |
 | **Gối đỡ vòng bi KFL08** | **4 cái** | *"Gối đỡ vòng bi KFL08, lỗ 8 ly."* Loại bắt vít vào mặt phẳng |
@@ -70,23 +74,23 @@ khiển chạy/dừng từ máy tính. Phần thiết kế và lý do chọn v�
 ## 3. Kích thước — cắt gỗ theo bảng này
 
 ```
-        ┌──────────────────────────────────────────┐
-        │                                          │  ← thành bên (2 tấm)
-        │   ●                                  ●   │    500 × 80 × 18 mm
+        ┌───────────────────────────────────┐
+        │                                   │  ← thành bên (2 tấm)
+        │   ●                           ●   │    440 × 80 × 18 mm
         │  lỗ tròn                        lỗ RÃNH  │
         └──────────────────────────────────────────┘
          ↑                                        ↑
       con lăn chủ động                   con lăn bị động
       (gắn động cơ)                      (trượt để căng băng)
 
-        khoảng cách tâm hai trục: 410 mm (chỉnh được tới 430)
+        khoảng cách tâm hai trục: 310 mm (chỉnh được tới 330)
 ```
 
 | Chi tiết | Kích thước | Số lượng |
 |---|---|---|
-| Thành bên | 500 × 80 × 18 mm | 2 |
+| Thành bên | 440 × 80 × 18 mm | 2 |
 | Thanh ngang dưới (nối 2 thành) | 110 × 60 × 18 mm | 2 |
-| Tấm đỡ | 420 × 104 × 10 mm (ván mỏng) | 1 |
+| Tấm đỡ | 320 × 104 × 10 mm (ván mỏng) | 1 |
 | Con lăn (ống PVC) | dài 110 mm | 2 |
 | Trục (thanh ren M8) | dài 250 mm | 2 |
 
@@ -133,7 +137,7 @@ khiển chạy/dừng từ máy tính. Phần thiết kế và lý do chọn v�
 
 ## 6. Bước 3 — Tấm đỡ
 
-1. Cắt ván mỏng 420 × 104 mm.
+1. Cắt ván mỏng 320 × 104 mm.
 2. Dán mica/formica lên mặt trên cho trơn. Không có thì **đánh giấy nhám thật nhẵn rồi xoa nến**.
 3. Đặt tấm đỡ nằm giữa hai con lăn, mặt trên **ngang bằng đỉnh con lăn** (sai 1–2 mm không sao,
    nhưng tấm đỡ **không được cao hơn** đỉnh con lăn).
@@ -152,11 +156,11 @@ khiển chạy/dừng từ máy tính. Phần thiết kế và lý do chọn v�
 
 ```
 chiều dài vòng = 2 × khoảng cách tâm trục + 3,14 × đường kính con lăn
-               = 2 × 410 + 3,14 × 42
-               = 820 + 132 = 952 mm
+               = 2 × 310 + 3,14 × 42
+               = 620 + 132 = 752 mm
 ```
 
-Cắt băng dài **950 mm** (ngắn hơn một chút để còn căng được bằng cách trượt con lăn bị động ra).
+Cắt băng dài **750 mm** (ngắn hơn một chút để còn căng được bằng cách trượt con lăn bị động ra).
 
 ### Nếu tự nối — dùng mối nối ĐỐI ĐẦU, miếng vá nằm DƯỚI
 
