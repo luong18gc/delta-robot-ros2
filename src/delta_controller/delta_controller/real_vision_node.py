@@ -45,6 +45,7 @@ import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from sensor_msgs.msg import Image
+from std_srvs.srv import Trigger
 from vision_msgs.msg import (
     Detection2D,
     Detection2DArray,
@@ -57,6 +58,7 @@ import yaml
 WS = os.path.expanduser('~/ros2_closed_loop_ws')
 DEFAULT_INTRINSICS = os.path.join(WS, 'calibration', 'c270_intrinsics.yaml')
 DEFAULT_REFERENCE = os.path.join(WS, 'calibration', 'table_reference.png')
+REFERENCE_FRAMES = 20
 # Dùng REAL_OBJECTS (tỉ lệ màu của lon THẬT), không phải OBJECTS của cảnh mô phỏng.
 COLOR_TO_OBJECT = {o.color: o.name for o in REAL_OBJECTS}
 OBJECT_OF_COLOR = {o.color: o for o in REAL_OBJECTS}
@@ -111,7 +113,11 @@ class RealVisionNode(Node):
         self._det_pub = self.create_publisher(Detection2DArray, '/vision/detections', 10)
         self._obj_pub = self.create_publisher(Detection3DArray, '/vision/objects', 10)
         self._debug_pub = self.create_publisher(Image, '/vision/debug_image', 10)
+        self._reference_file = reference
         self._frames = self._busy_sec = 0
+        self._recapture = 0          # số khung còn phải gom cho ảnh nền mới
+        self._shots = []
+        self.create_service(Trigger, '/vision/capture_reference', self._on_capture)
         self._last_seen = None
         self.create_timer(1.0 / rate, self._tick)
         self.create_timer(10.0, self._report)
@@ -124,6 +130,8 @@ class RealVisionNode(Node):
     def _tick(self):
         ok, frame = self._cap.read()
         if not ok:
+            return
+        if self._recapture > 0 and self._collect_reference(frame):
             return
         start = time.perf_counter()
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -162,6 +170,43 @@ class RealVisionNode(Node):
                 'Chua khoa duoc tu the camera — co thay du marker khong? '
                 'Dung view_camera.py de ngam.')
             self._last_seen = 'no-pose'
+
+    # ------------------------------------------------------------------ chụp lại ảnh nền
+
+    def _on_capture(self, request, response):
+        """
+        Chụp lại ảnh mặt bàn trống NGAY TRONG LÚC CHẠY, không phải tắt cả hệ.
+
+        Ảnh nền gắn với điều kiện chiếu sáng lúc chụp, nên đổi đèn, kéo rèm hay sang ngày khác là
+        phải chụp lại (gặp 2026-10-08: ảnh nền hôm trước làm cả ba lon gộp thành một vùng). Trước
+        khi có dịch vụ này thì phải tắt node mới giải phóng được camera.
+
+        ⚠️ Người gọi phải DỌN HẾT VẬT khỏi bàn trước — node không tự biết bàn có trống hay không.
+        """
+        self._shots = []
+        self._recapture = REFERENCE_FRAMES
+        response.success = True
+        response.message = (f'Dang chup {REFERENCE_FRAMES} khung lam anh nen moi '
+                            f'(ban phai dang TRONG).')
+        self.get_logger().info(response.message)
+        return response
+
+    def _collect_reference(self, frame):
+        """Gom khung cho ảnh nền mới; trả về True khi đang gom (bỏ qua nhận dạng khung này)."""
+        self._shots.append(frame)
+        self._recapture -= 1
+        if self._recapture > 0:
+            return True
+        # Trung vị nhiều khung: nhiễu cảm biến không được đi vào chính cái chuẩn.
+        self._reference = np.median(np.array(self._shots), axis=0).astype(np.uint8)
+        self._shots = []
+        try:
+            cv2.imwrite(self._reference_file, self._reference)
+            where = self._reference_file
+        except OSError as err:                         # noqa: BLE001 — chỉ để ghi log
+            where = f'(khong ghi duoc file: {err})'
+        self.get_logger().info(f'Da co anh nen moi -> {where}. Dat vat tro lai ban.')
+        return True
 
     # ------------------------------------------------------------------ phát tin
 
@@ -210,7 +255,10 @@ class RealVisionNode(Node):
         labels = {c: COLOR_TO_OBJECT.get(c, c) for c in detections}
         for c, est in estimates.items():
             x, y, _ = est.position
-            labels[c] += (f' {x * 1000 * SCALE:+.0f},{y * 1000 * SCALE:+.0f}mm that'
+            # Hiện CẢ HAI hệ tọa độ: milimét trên bàn thật, và milimét trong cảnh ảo (= thật
+            # chia cho SCALE). Nhìn hai số cạnh nhau là thấy ngay phép ánh xạ tỉ lệ đang làm gì.
+            labels[c] += (f' that {x * 1000 * SCALE:+.0f},{y * 1000 * SCALE:+.0f}'
+                          f' | ao {x * 1000:+.0f},{y * 1000:+.0f} mm'
                           f' {100 * est.visible_fraction:.0f}%')
             if est.method != 'centroid':
                 labels[c] += f' [{est.method}]'
