@@ -29,6 +29,7 @@ Ba khác biệt so với node mô phỏng, đều có lý do đo được:
    đặt về 1 khung (bớt 2 trong 5 khung trễ, xem probe_camera.open_camera).
 """
 
+from dataclasses import replace
 import os
 import time
 
@@ -39,7 +40,11 @@ from delta_controller.color_detector import COLOR_CLASSES, draw_detections
 from delta_controller.object_detector import detect_objects, split_by_color
 from delta_controller.real_camera import aruco_detector, PoseTracker, table_roi_mask
 from delta_controller.scene import REAL_OBJECTS, SCALE
-from delta_controller.vision_estimation import best_detection, estimate_object
+from delta_controller.vision_estimation import (
+    best_detection,
+    estimate_object,
+    silhouette,
+)
 import numpy as np
 import rclpy
 from rclpy.executors import ExternalShutdownException
@@ -284,7 +289,12 @@ class RealVisionNode(Node):
                 labels[c] += f' [{est.method}]'
             if not est.reliable:
                 labels[c] += ' BI CHE?'
-        debug = draw_detections(frame, detections, labels=labels)
+        # Vẽ khung bao của PHẦN VẬT, không gồm ảnh phản chiếu dưới chân: hệ thống đo trên chân vật
+        # nên khung hiển thị phải khớp thứ đang dùng, nếu không người xem tưởng nó nhận nhầm cả
+        # vệt phản chiếu (đo 2026-10-08: phản chiếu thò xuống 25–102 px tùy lon gần hay xa camera).
+        shown = {c: replace(d, bbox=self._object_bbox(d, estimates.get(c), c))
+                 for c, d in detections.items()}
+        debug = draw_detections(frame, shown, labels=labels)
         if self._roi is not None:                      # viền vùng xét, để ngắm cho dễ
             edges = cv2.morphologyEx(self._roi, cv2.MORPH_GRADIENT, np.ones((3, 3), np.uint8))
             debug[edges > 0] = (80, 80, 255)
@@ -297,6 +307,24 @@ class RealVisionNode(Node):
         msg = self._bridge.cv2_to_imgmsg(debug, 'bgr8')
         msg.header.stamp = stamp
         self._debug_pub.publish(msg)
+
+    def _object_bbox(self, detection, estimate, color):
+        """Khung bao phần nằm TRÊN chân vật dự đoán; nguyên khung bao nếu chưa ước lượng được."""
+        obj = OBJECT_OF_COLOR.get(color)
+        if estimate is None or obj is None or detection.crop_mask is None:
+            return detection.bbox
+        v_bottom = float(silhouette(self._tracker.model, obj, estimate.position)[:, 1].max())
+        x, y, w, h = detection.bbox
+        keep = int(v_bottom) - y + 1
+        if keep <= 0 or keep >= h:
+            return detection.bbox
+        part = detection.crop_mask[:keep] > 0
+        if not part.any():
+            return detection.bbox
+        rows = np.flatnonzero(part.any(axis=1))
+        cols = np.flatnonzero(part.any(axis=0))
+        return (x + int(cols[0]), y + int(rows[0]),
+                int(cols[-1] - cols[0] + 1), int(rows[-1] - rows[0] + 1))
 
     def _report(self):
         if self._frames:
