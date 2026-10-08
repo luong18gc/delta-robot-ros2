@@ -130,6 +130,41 @@ class BinLayout:
 
 BIN_LAYOUT = BinLayout(tuple(BINS.values()), BIN_INNER_HALF, BIN_OUTER_HALF, BIN_FLOOR_Z)
 
+# ---------------------------------------------------------------- BĂNG CHUYỀN (Bước 10d)
+#
+# Kích thước BĂNG THẬT, mét. ⚠️ Đây là số THIẾT KẾ — đo lại trên băng đã lắp rồi sửa đúng ba hằng
+# số này; mọi thứ khác tự suy ra. Sai chiều cao băng là lon ảo lơ lửng hoặc lún xuống mặt bàn đúng
+# bằng sai số đó chia cho SCALE.
+REAL_BELT_LENGTH = 0.500        # dọc theo Y, hướng lon chạy
+REAL_BELT_WIDTH = 0.100         # ngang theo X
+REAL_BELT_HEIGHT = 0.050        # mặt băng cao hơn mặt bàn bao nhiêu
+REAL_BELT_CENTER = (0.050, 0.0)  # tâm băng trên bàn thật (x, y)
+# Lon chạy từ đầu NẠP (y dương, ngoài tầm với — chỗ tay người đặt lon) về ĐIỂM GẮP.
+REAL_BELT_PICK_Y = 0.0
+
+# Quy về hệ ảo: chia cho SCALE. Băng ảo không cần chuyển động — lon ảo dịch vì CAMERA nói nó dịch,
+# không phải vì mặt băng ảo đẩy. Mặt băng ảo chạy còn có hại: ma sát đánh nhau với lệnh đặt pose.
+BELT_LENGTH = REAL_BELT_LENGTH / SCALE
+BELT_WIDTH = REAL_BELT_WIDTH / SCALE
+BELT_HEIGHT = REAL_BELT_HEIGHT / SCALE
+BELT_CENTER = (REAL_BELT_CENTER[0] / SCALE, REAL_BELT_CENTER[1] / SCALE)
+# Cao độ MẶT băng trong hệ robot. Vật đứng trên băng thì tâm ở BELT_TOP_Z + nửa chiều cao vật,
+# không phải TABLE_Z + nửa chiều cao như vật đứng trên bàn.
+BELT_TOP_Z = TABLE_Z + BELT_HEIGHT
+BELT_PICK_XY = (BELT_CENTER[0], REAL_BELT_PICK_Y / SCALE)
+
+
+def on_belt(x, y, margin=0.0):
+    """Điểm (x, y) hệ ảo có nằm trên mặt băng không — vật tựa trên băng hay trên bàn."""
+    return (abs(x - BELT_CENTER[0]) <= BELT_WIDTH / 2 + margin
+            and abs(y - BELT_CENTER[1]) <= BELT_LENGTH / 2 + margin)
+
+
+def support_z(x, y, margin=0.0):
+    """Cao độ mặt đỡ tại (x, y): mặt băng nếu ở trên băng, mặt bàn nếu không."""
+    return BELT_TOP_Z if on_belt(x, y, margin) else TABLE_Z
+
+
 # Khoảng rơi từ đáy vật tới bề mặt (đáy khay / mặt bàn) lúc nhả (m).
 DROP_GAP = 0.005
 

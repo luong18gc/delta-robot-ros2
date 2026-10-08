@@ -1,0 +1,660 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <!-- Thế giới cho Bước 10b: ba LON NƯỚC NGỌT + ba KHAY riêng theo chủng loại.
+       Giữ nguyên tên world "delta_world" vì 3dof_delta.launch.py hardcode topic
+       /world/delta_world/model/delta_3dof/joint_state.
+       Chạy: ros2 launch closed_loop_bringup 3dof_delta.launch.py world_name:=delta_cans_world
+
+       ⚠️ KHÔNG thay thế delta_objects_world.sdf — world khối vuông đó vẫn giữ để tái lập mọi kết
+       quả đã đo ở Bước 6–9.
+
+       BẢN SAO SỐ THEO TỈ LỆ k = 3.0 (chốt 2026-09-30):
+         lon thật Ø 57.5 mm, cao 147 mm  ->  lon ảo Ø 19.2 mm, cao 49.0 mm
+         vùng làm việc thật Ø 58 cm      ->  vùng làm việc ảo Ø 19.2 cm
+         dung sai giác hút thật 30 mm    ->  12 mm trong không gian ảo
+       Giữ nguyên TỈ LỆ HÌNH DẠNG của lon (cao/đường kính = 2.56) nên lon ảo trông đúng như lon
+       thật — đó là điểm làm hình minh họa bản sao số thuyết phục.
+
+       Quy đổi tọa độ: base_link tại world (0, 0, 1.0)  =>  (x, y, z)_robot = (x, y, z - 1.0)_world
+       Mặt bàn robot z = -0.22 (world 0.78). Tâm lon robot z = -0.2206 (world 0.8045).
+
+       LON ẢO GHÉP TỪ 4 KHỐI để tái tạo đúng ba vấn đề đo được trên ảnh lon thật (2026-09-30):
+         1. thân trụ màu chính
+         2. ĐĨA TRẮNG NHÁM trên đỉnh -> nắp nhôm (đo thật: 9–13% diện tích nhìn thấy).
+            ⚠️ KHÔNG đặt specular cao: mặt trên hình trụ được chia thành nhiều tam giác, độ bóng
+            cao làm mỗi tam giác bắt sáng khác nhau -> hoa văn cánh quạt đổi theo góc nhìn, trông
+            như nắp đang QUAY. Trắng nhám (specular 0) thì phẳng đều.
+         3. VÀNH TRẮNG quanh thân  -> mảng chữ/nhãn trắng
+         4. VÀNH ĐỎ nhỏ (chỉ Pepsi và 7Up) -> logo đỏ nằm trên lon KHÔNG phải màu đỏ.
+            Đo thật: mảng đỏ 683–893 px trên lon Pepsi và 314–884 px trên lon 7Up, so với
+            7347–8651 px của lon Coca. Đây là thứ làm hỏng cách lọc màu toàn ảnh.
+         Dùng vành tròn kín thay vì miếng dán một phía để kết quả không phụ thuộc hướng xoay lon. -->
+  <world name="delta_world">
+
+    <physics name="fast" type="dart">
+      <max_step_size>0.0005</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <dart>
+        <solver>
+          <solver_type>pgs</solver_type>
+        </solver>
+        <collision_detector>ode</collision_detector>
+      </dart>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system"
+            name="gz::sim::systems::Contact"/>
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <specular>0.8 0.8 0.8 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===================== Bàn làm việc ===================== -->
+    <!-- Mặt bàn ĐEN NHÁM, khớp bàn thật của người làm đồ án (đo trên ảnh thật: S trung bình 20–38,
+         0.0% pixel vượt S = 90 -> tách vật khỏi nền rất sạch). specular thấp = nhám, không phản
+         chiếu vật. Đỉnh bàn world z = 0.78 <=> robot z = -0.22. -->
+    <!-- BANG CHUYEN — ban sao hinh hoc bang tai THAT, thu nho 3 lan.
+         SINH TU DONG boi scripts/make_conveyor_world.py; dung sua tay.
+
+         TINH, KHONG chuyen dong, va do la chu y: lon ao dich vi CAMERA noi lon that dich, khong
+         phai vi mat bang ao day no. Cho mat bang ao chay thi ma sat se danh nhau voi lenh dat
+         pose cua ban sao so. Bang ao chi can la MAT DO dung cao do — thieu no thi lon ao roi
+         xuong mat ban va ban sao so sai dung bang chieu cao bang chia cho ti le. -->
+    <model name="conveyor">
+      <static>true</static>
+      <link name="link">
+        <collision name="belt_collision">
+          <pose>0.01667 0.00000 0.78833 0 0 0</pose>
+          <geometry><box><size>0.03333 0.16667 0.01667</size></box></geometry>
+        </collision>
+        <visual name="belt_visual">
+          <pose>0.01667 0.00000 0.78833 0 0 0</pose>
+          <geometry><box><size>0.03333 0.16667 0.01667</size></box></geometry>
+          <material>
+            <ambient>0.02 0.05 0.03 1</ambient>
+            <diffuse>0.04 0.10 0.06 1</diffuse>
+            <specular>0.01 0.01 0.01 1</specular>
+          </material>
+        </visual>
+        <!-- Hai con lan: chi de nhin ra day la bang tai trong video bao ve. -->
+        <visual name="roller_load">
+          <pose>0.01667 0.08333 0.78833 0 1.5708 0</pose>
+          <geometry><cylinder><radius>0.00833</radius><length>0.03333</length></cylinder></geometry>
+          <material><ambient>0.15 0.15 0.15 1</ambient>
+            <diffuse>0.25 0.25 0.25 1</diffuse></material>
+        </visual>
+        <visual name="roller_pick">
+          <pose>0.01667 -0.08333 0.78833 0 1.5708 0</pose>
+          <geometry><cylinder><radius>0.00833</radius><length>0.03333</length></cylinder></geometry>
+          <material><ambient>0.15 0.15 0.15 1</ambient>
+            <diffuse>0.25 0.25 0.25 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="work_table">
+      <static>true</static>
+      <link name="link">
+        <collision name="top_collision">
+          <pose>0 0 0.77 0 0 0</pose>
+          <geometry><box><size>0.40 0.40 0.02</size></box></geometry>
+        </collision>
+        <visual name="top_visual">
+          <pose>0 0 0.77 0 0 0</pose>
+          <geometry><box><size>0.40 0.40 0.02</size></box></geometry>
+          <material>
+            <ambient>0.03 0.03 0.03 1</ambient>
+            <diffuse>0.06 0.06 0.06 1</diffuse>
+            <specular>0.02 0.02 0.02 1</specular>
+          </material>
+        </visual>
+        <visual name="leg1"><pose>0.18 0.18 0.38 0 0 0</pose>
+          <geometry><box><size>0.02 0.02 0.76</size></box></geometry></visual>
+        <visual name="leg2"><pose>-0.18 0.18 0.38 0 0 0</pose>
+          <geometry><box><size>0.02 0.02 0.76</size></box></geometry></visual>
+        <visual name="leg3"><pose>0.18 -0.18 0.38 0 0 0</pose>
+          <geometry><box><size>0.02 0.02 0.76</size></box></geometry></visual>
+        <visual name="leg4"><pose>-0.18 -0.18 0.38 0 0 0</pose>
+          <geometry><box><size>0.02 0.02 0.76</size></box></geometry></visual>
+        <!-- Vòng đánh dấu vùng với tới ở ĐỘ CAO GẮP LON (tool0 robot z = -0.1582 -> r_max ≈ 0.119).
+             Khác world khối vuông (r 0.096 ở z = -0.19) vì lon cao hơn nên gắp ở cao hơn.
+             Chỉ có visual, không va chạm. -->
+        <visual name="reach_marker">
+          <pose>0 0 0.7805 0 0 0</pose>
+          <geometry><cylinder><radius>0.119</radius><length>0.001</length></cylinder></geometry>
+          <transparency>0.7</transparency>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===================== Ba lon ===================== -->
+    <!-- Lon ảo: bán kính 0.00958, cao 0.0490. Tâm world z = 0.78 + 0.0294 = 0.8045.
+         Vị trí xuất phát nằm phía -X (gần camera), đều trong tầm với ở độ cao gắp:
+           coca     ( 0.060, -0.075)  r = 0.096
+           pepsi    ( 0.090,  0.000)  r = 0.090
+           sevenup  ( 0.060,  0.075)  r = 0.096
+         Quán tính trụ m = 0.05: Ixx = Iyy = 1.6e-5, Izz = 3.3e-6. -->
+
+    <!-- Lon Coca — ĐỎ. Tâm robot: (-0.06, 0.075, -0.1906); đỉnh: z = -0.1612 -->
+    <model name="coca_can">
+      <plugin filename="gz-sim-odometry-publisher-system"
+              name="gz::sim::systems::OdometryPublisher">
+        <dimensions>3</dimensions>
+        <odom_frame>world</odom_frame>
+        <robot_base_frame>coca_can</robot_base_frame>
+        <odom_topic>/objects/coca_can/odometry</odom_topic>
+        <tf_topic>/objects/coca_can/tf</tf_topic>
+        <odom_publish_frequency>30</odom_publish_frequency>
+      </plugin>
+      <pose>0.06 -0.075 0.8045 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.05</mass>
+          <inertia>
+            <ixx>1.12e-5</ixx><iyy>1.12e-5</iyy><izz>2.3e-6</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><cylinder><radius>0.00958</radius><length>0.0490</length></cylinder></geometry>
+        </collision>
+        <visual name="body">
+          <geometry><cylinder><radius>0.00958</radius><length>0.0490</length></cylinder></geometry>
+          <material>
+            <ambient>0.80 0.05 0.07 1</ambient>
+            <diffuse>0.85 0.06 0.08 1</diffuse>
+          </material>
+        </visual>
+        <!-- nắp nhôm: TRẮNG NHÁM, không thuộc lớp màu nào (S ≈ 0) -->
+        <visual name="lid">
+          <pose>0 0 0.02365 0 0 0</pose>
+          <geometry><cylinder><radius>0.00968</radius><length>0.0017</length></cylinder></geometry>
+          <material>
+            <ambient>0.88 0.88 0.88 1</ambient>
+            <diffuse>0.94 0.94 0.94 1</diffuse>
+            <specular>0 0 0 1</specular>
+          </material>
+        </visual>
+        <!-- vành trắng: mảng chữ/nhãn trắng -->
+        <visual name="label_band">
+          <pose>0 0 -0.00167 0 0 0</pose>
+          <geometry><cylinder><radius>0.00978</radius><length>0.00583</length></cylinder></geometry>
+          <material>
+            <ambient>0.90 0.90 0.90 1</ambient>
+            <diffuse>0.94 0.94 0.94 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Lon Pepsi — XANH LAM + vành ĐỎ (logo). Tâm robot: (0, 0.09, -0.1906) -->
+    <model name="pepsi_can">
+      <plugin filename="gz-sim-odometry-publisher-system"
+              name="gz::sim::systems::OdometryPublisher">
+        <dimensions>3</dimensions>
+        <odom_frame>world</odom_frame>
+        <robot_base_frame>pepsi_can</robot_base_frame>
+        <odom_topic>/objects/pepsi_can/odometry</odom_topic>
+        <tf_topic>/objects/pepsi_can/tf</tf_topic>
+        <odom_publish_frequency>30</odom_publish_frequency>
+      </plugin>
+      <pose>0.09 0 0.8045 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.05</mass>
+          <inertia>
+            <ixx>1.12e-5</ixx><iyy>1.12e-5</iyy><izz>2.3e-6</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><cylinder><radius>0.00958</radius><length>0.0490</length></cylinder></geometry>
+        </collision>
+        <visual name="body">
+          <geometry><cylinder><radius>0.00958</radius><length>0.0490</length></cylinder></geometry>
+          <material>
+            <ambient>0.04 0.12 0.62 1</ambient>
+            <diffuse>0.05 0.15 0.70 1</diffuse>
+          </material>
+        </visual>
+        <visual name="lid">
+          <pose>0 0 0.02365 0 0 0</pose>
+          <geometry><cylinder><radius>0.00968</radius><length>0.0017</length></cylinder></geometry>
+          <material>
+            <ambient>0.88 0.88 0.88 1</ambient>
+            <diffuse>0.94 0.94 0.94 1</diffuse>
+            <specular>0 0 0 1</specular>
+          </material>
+        </visual>
+        <visual name="label_band">
+          <pose>0 0 -0.00167 0 0 0</pose>
+          <geometry><cylinder><radius>0.00978</radius><length>0.00583</length></cylinder></geometry>
+          <material>
+            <ambient>0.90 0.90 0.90 1</ambient>
+            <diffuse>0.94 0.94 0.94 1</diffuse>
+          </material>
+        </visual>
+        <!-- VÀNH ĐỎ: logo đỏ trên lon không phải màu đỏ — cái bẫy của cách lọc màu toàn ảnh.
+             Cao 5 mm ≈ 8.5% diện tích mặt bên, khớp tỉ lệ đo được trên lon thật. -->
+        <visual name="logo_ring">
+          <pose>0 0 0.00833 0 0 0</pose>
+          <geometry><cylinder><radius>0.00988</radius><length>0.00417</length></cylinder></geometry>
+          <material>
+            <ambient>0.80 0.05 0.07 1</ambient>
+            <diffuse>0.85 0.06 0.08 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Lon 7Up — XANH LỤC + vành ĐỎ (logo). Tâm robot: (0.06, 0.075, -0.1906) -->
+    <model name="sevenup_can">
+      <plugin filename="gz-sim-odometry-publisher-system"
+              name="gz::sim::systems::OdometryPublisher">
+        <dimensions>3</dimensions>
+        <odom_frame>world</odom_frame>
+        <robot_base_frame>sevenup_can</robot_base_frame>
+        <odom_topic>/objects/sevenup_can/odometry</odom_topic>
+        <tf_topic>/objects/sevenup_can/tf</tf_topic>
+        <odom_publish_frequency>30</odom_publish_frequency>
+      </plugin>
+      <pose>0.06 0.075 0.8045 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.05</mass>
+          <inertia>
+            <ixx>1.12e-5</ixx><iyy>1.12e-5</iyy><izz>2.3e-6</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><cylinder><radius>0.00958</radius><length>0.0490</length></cylinder></geometry>
+        </collision>
+        <visual name="body">
+          <geometry><cylinder><radius>0.00958</radius><length>0.0490</length></cylinder></geometry>
+          <material>
+            <ambient>0.04 0.52 0.20 1</ambient>
+            <diffuse>0.05 0.60 0.25 1</diffuse>
+          </material>
+        </visual>
+        <visual name="lid">
+          <pose>0 0 0.02365 0 0 0</pose>
+          <geometry><cylinder><radius>0.00968</radius><length>0.0017</length></cylinder></geometry>
+          <material>
+            <ambient>0.88 0.88 0.88 1</ambient>
+            <diffuse>0.94 0.94 0.94 1</diffuse>
+            <specular>0 0 0 1</specular>
+          </material>
+        </visual>
+        <visual name="label_band">
+          <pose>0 0 -0.00167 0 0 0</pose>
+          <geometry><cylinder><radius>0.00978</radius><length>0.00583</length></cylinder></geometry>
+          <material>
+            <ambient>0.90 0.90 0.90 1</ambient>
+            <diffuse>0.94 0.94 0.94 1</diffuse>
+          </material>
+        </visual>
+        <visual name="logo_ring">
+          <pose>0 0 0.00833 0 0 0</pose>
+          <geometry><cylinder><radius>0.00988</radius><length>0.00417</length></cylinder></geometry>
+          <material>
+            <ambient>0.80 0.05 0.07 1</ambient>
+            <diffuse>0.85 0.06 0.08 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===================== Ba khay phân loại ===================== -->
+    <!-- Mỗi loại lon một khay riêng (thay cho một khay 3 ô ở world cũ) -> bài toán thành PHÂN LOẠI
+         THEO CHỦNG LOẠI. Lòng khay 45x45 mm cho lon Ø 23 mm (dư 11 mm mỗi bên), thành dày 3 mm cao
+         15 mm (đỉnh robot z = -0.205), đáy dày 3 mm (mặt đáy robot z = -0.217).
+         Tâm khay (robot): coca (-0.06, -0.075), pepsi (-0.06, 0), sevenup (-0.06, 0.075).
+         ⚠️ KHAY đặt phía -X (PHÍA CAMERA), LON đặt phía +X. Đã thử hai bố trí sai trước đó
+         (đo 2026-09-29):
+           - khay xếp theo trục Y tại x = +0.075: khay giữa nằm đúng sau thân robot -> platform
+             che phần trên lon, mép trên lệch 41 px, ước lượng sai 18–33 mm;
+           - khay xếp theo trục X tại y = -0.08: ba khay gần như nằm trên cùng hướng nhìn nên
+             LON TRONG KHAY CHE NHAU, sai 7–18 mm.
+         Đặt khay ở phía camera thì tia nhìn tới khay không bao giờ đi qua robot (chỉ quét khoảng
+         x từ -0.40 tới -0.06), còn lon ở phía xa vẫn thấy rõ khi robot lên tư thế quan sát.
+         Điểm nhả tool0 = -0.217 + 0.005 + 0.0588 + 0.003 = -0.1502; tầm với tại đó ≈ 0.123 > 0.106.
+         Đáy lon khi mang ngang ở safe_z_holding = -0.13 nằm tại -0.192, cao hơn đỉnh thành 13 mm.
+
+         ⚠️ MÀU XÁM TRUNG TÍNH, KHÔNG dùng đỏ/lục/lam: khay màu sẽ bị camera nhận nhầm là lon.
+         Khay cam ở world cũ (H ≈ 20) đã nằm sát ngưỡng đỏ. Ba khay giống hệt nhau, phân biệt
+         bằng VỊ TRÍ. -->
+
+    <model name="bin_coca">
+      <static>true</static>
+      <pose>-0.06 -0.075 0.78 0 0 0</pose>
+      <link name="link">
+        <collision name="floor_collision">
+          <pose>0 0 0.0015 0 0 0</pose>
+          <geometry><box><size>0.051 0.051 0.003</size></box></geometry>
+        </collision>
+        <visual name="floor_visual">
+          <pose>0 0 0.0015 0 0 0</pose>
+          <geometry><box><size>0.051 0.051 0.003</size></box></geometry>
+          <material><ambient>0.18 0.18 0.20 1</ambient><diffuse>0.18 0.18 0.20 1</diffuse></material>
+        </visual>
+        <collision name="wall_px_collision">
+          <pose>0.024 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.003 0.051 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_px_visual">
+          <pose>0.024 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.003 0.051 0.015</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+        <collision name="wall_nx_collision">
+          <pose>-0.024 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.003 0.051 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_nx_visual">
+          <pose>-0.024 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.003 0.051 0.015</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+        <collision name="wall_py_collision">
+          <pose>0 0.024 0.0075 0 0 0</pose>
+          <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_py_visual">
+          <pose>0 0.024 0.0075 0 0 0</pose>
+          <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+        <collision name="wall_ny_collision">
+          <pose>0 -0.024 0.0075 0 0 0</pose>
+          <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_ny_visual">
+          <pose>0 -0.024 0.0075 0 0 0</pose>
+          <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="bin_pepsi">
+      <static>true</static>
+      <pose>-0.06 0 0.78 0 0 0</pose>
+      <link name="link">
+        <collision name="floor_collision">
+          <pose>0 0 0.0015 0 0 0</pose>
+          <geometry><box><size>0.051 0.051 0.003</size></box></geometry>
+        </collision>
+        <visual name="floor_visual">
+          <pose>0 0 0.0015 0 0 0</pose>
+          <geometry><box><size>0.051 0.051 0.003</size></box></geometry>
+          <material><ambient>0.18 0.18 0.20 1</ambient><diffuse>0.18 0.18 0.20 1</diffuse></material>
+        </visual>
+        <collision name="wall_px_collision">
+          <pose>0.024 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.003 0.051 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_px_visual">
+          <pose>0.024 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.003 0.051 0.015</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+        <collision name="wall_nx_collision">
+          <pose>-0.024 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.003 0.051 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_nx_visual">
+          <pose>-0.024 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.003 0.051 0.015</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+        <collision name="wall_py_collision">
+          <pose>0 0.024 0.0075 0 0 0</pose>
+          <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_py_visual">
+          <pose>0 0.024 0.0075 0 0 0</pose>
+          <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+        <collision name="wall_ny_collision">
+          <pose>0 -0.024 0.0075 0 0 0</pose>
+          <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_ny_visual">
+          <pose>0 -0.024 0.0075 0 0 0</pose>
+          <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="bin_sevenup">
+      <static>true</static>
+      <pose>-0.06 0.075 0.78 0 0 0</pose>
+      <link name="link">
+        <collision name="floor_collision">
+          <pose>0 0 0.0015 0 0 0</pose>
+          <geometry><box><size>0.051 0.051 0.003</size></box></geometry>
+        </collision>
+        <visual name="floor_visual">
+          <pose>0 0 0.0015 0 0 0</pose>
+          <geometry><box><size>0.051 0.051 0.003</size></box></geometry>
+          <material><ambient>0.18 0.18 0.20 1</ambient><diffuse>0.18 0.18 0.20 1</diffuse></material>
+        </visual>
+        <collision name="wall_px_collision">
+          <pose>0.024 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.003 0.051 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_px_visual">
+          <pose>0.024 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.003 0.051 0.015</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+        <collision name="wall_nx_collision">
+          <pose>-0.024 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.003 0.051 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_nx_visual">
+          <pose>-0.024 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.003 0.051 0.015</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+        <collision name="wall_py_collision">
+          <pose>0 0.024 0.0075 0 0 0</pose>
+          <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_py_visual">
+          <pose>0 0.024 0.0075 0 0 0</pose>
+          <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+        <collision name="wall_ny_collision">
+          <pose>0 -0.024 0.0075 0 0 0</pose>
+          <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
+        </collision>
+        <visual name="wall_ny_visual">
+          <pose>0 -0.024 0.0075 0 0 0</pose>
+          <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Marker ArUco hiệu chuẩn camera — GIỮ NGUYÊN vị trí như world cũ để kết quả hiệu chuẩn
+         (RMS 0.14 px, lệch vị trí 0.35 mm) còn so sánh được. -->
+    <model name="calib_markers">
+      <static>true</static>
+      <link name="link">
+        <visual name="aruco_0">
+          <pose>-0.13 0.075 0.7805 0 0 0</pose>
+          <geometry><box><size>0.06667 0.06667 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/aruco_0.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
+        <visual name="aruco_1">
+          <pose>-0.13 -0.075 0.7805 0 0 0</pose>
+          <geometry><box><size>0.06667 0.06667 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/aruco_1.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
+        <visual name="aruco_2">
+          <pose>-0.025 0.145 0.7805 0 0 0</pose>
+          <geometry><box><size>0.06667 0.06667 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/aruco_2.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
+        <visual name="aruco_3">
+          <pose>-0.025 -0.145 0.7805 0 0 0</pose>
+          <geometry><box><size>0.06667 0.06667 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/aruco_3.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
+        <visual name="aruco_4">
+          <pose>0.14 0.085 0.7805 0 0 0</pose>
+          <geometry><box><size>0.06667 0.06667 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/aruco_4.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
+        <visual name="aruco_5">
+          <pose>0.14 -0.085 0.7805 0 0 0</pose>
+          <geometry><box><size>0.06667 0.06667 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/aruco_5.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===================== Camera nhìn xiên ===================== -->
+    <!-- GIỮ NGUYÊN pose và nội tham số như world cũ để file hiệu chuẩn cũ còn dùng được và để so
+         sánh sai số giữa hai thế giới. -->
+    <model name="side_camera">
+      <static>true</static>
+      <pose>-0.40 0 1.03 0 0.558599 0</pose>
+      <link name="link">
+        <visual name="body">
+          <geometry><box><size>0.04 0.06 0.04</size></box></geometry>
+          <material><ambient>0.12 0.12 0.14 1</ambient><diffuse>0.12 0.12 0.14 1</diffuse></material>
+        </visual>
+        <visual name="lens">
+          <pose>0.025 0 0 0 1.5708 0</pose>
+          <geometry><cylinder><radius>0.012</radius><length>0.012</length></cylinder></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+        <sensor name="side_camera" type="camera">
+          <always_on>true</always_on>
+          <update_rate>10</update_rate>
+          <visualize>true</visualize>
+          <topic>side_camera/image</topic>
+          <gz_frame_id>side_camera</gz_frame_id>
+          <camera>
+            <horizontal_fov>0.785398</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.05</near>
+              <far>3.0</far>
+            </clip>
+          </camera>
+        </sensor>
+      </link>
+    </model>
+
+    <!-- Chân đế camera (chỉ hiển thị). -->
+    <model name="side_camera_stand">
+      <static>true</static>
+      <pose>-0.40 0 0.9 0 0 0</pose>
+      <link name="link">
+        <visual name="post">
+          <geometry><cylinder><radius>0.008</radius><length>0.24</length></cylinder></geometry>
+          <material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>
