@@ -92,15 +92,63 @@ Giá tham khảo tại Việt Nam, 2026. Tổng ước tính **500 – 900 nghì
 | Hạng mục | Gợi ý cụ thể | Ghi chú |
 |---|---|---|
 | Mặt băng | Băng tải PVC trơn 2 mm, xanh đậm/đen nhám, khổ 10 cm × 1,2 m | Mua dư để nối thử vài lần |
-| Con lăn | Ống nhựa PVC Ø 40–50 mm, dài 12 cm, 2 cái | Hoặc trục gỗ tròn |
+| Con lăn | Ống nhựa PVC **Ø 32–40 mm**, dài 12 cm, **2 cái** | 1 chủ động + 1 bị động; quấn băng dính giữa để phình |
 | Trục | Thanh ren M8 hoặc trục thép Ø 8 mm | Xuyên tâm ống PVC |
 | Bạc đạn | Vòng bi 608ZZ, 4 cái | Loại dùng cho ván trượt, rất sẵn |
-| Khung | Nhôm định hình 2020, hoặc gỗ thông 1,5 cm | Gỗ rẻ và dễ làm hơn |
-| Động cơ | **DC giảm tốc JGB37-520, 12 V, 30–60 vòng/phút** | Phải CÓ hộp số: tốc độ thấp + mô-men đủ |
+| Khung | **Gỗ thông 15–18 mm** | Đủ cứng ở kích thước này; xem 3.3 |
+| Tấm đỡ | Ván mỏng + mica/formica phủ mặt | Bắt buộc, nếu không băng võng dưới lon |
+| Động cơ | **DC giảm tốc JGB37-520, 12 V, 30–60 vòng/phút** — **chỉ 1 cái** | Phải CÓ hộp số: tốc độ thấp + mô-men đủ |
 | Mạch lái | **L298N** (hoặc BTS7960 nếu muốn êm hơn) | L298N dư sức cho tải này |
 | Vi điều khiển | **Arduino Uno hoặc Nano** | Nối USB với máy tính, ROS nói chuyện qua serial |
-| Nguồn | Adapter 12 V – 2 A | Dùng chung cho động cơ |
+| Nguồn | **Adapter 12 V – 3 A**, jack tròn | KHÔNG lấy điện từ Arduino — xem 3.1 |
 | Lặt vặt | Dây, ốc, keo dán băng tải, công tắc hành trình dự phòng | |
+
+### 3.1. Nguồn điện — nơi dễ cháy mạch nhất
+
+**Adapter 12 V – 3 A cắm điện lưới**, jack tròn. 2 A cũng chạy được, nhưng 3 A dư an toàn:
+JGB37-520 không tải ~0,2 A, có tải ~0,5 A, **khởi động hoặc kẹt băng vọt 2–3 A**.
+
+⚠️ **Tuyệt đối không lấy nguồn động cơ từ Arduino.** Chân 5 V của Arduino chịu ~0,5 A tổng; động cơ
+giảm tốc kẹt một cái là cháy mạch. Đây là lỗi kinh điển của người mới làm.
+
+```
+điện lưới ──► adapter 12V/3A ──► L298N (chân 12V, GND)
+                                   │
+máy tính ──USB──► Arduino ─────────┤ nối GND chung  ← BẮT BUỘC
+                  (Arduino lấy điện từ USB)
+```
+
+- **Nối GND của L298N với GND của Arduino.** Không chung đất thì PWM không có mốc tham chiếu,
+  động cơ chạy loạn hoặc không chạy.
+- **Đừng nối chân 5 V của L298N vào chân 5 V Arduino** khi Arduino đang cắm USB — hai nguồn 5 V
+  đánh nhau. Arduino phải cắm USB để nói chuyện với ROS nên đã có điện rồi; chỉ cần nối GND.
+
+### 3.2. Chỉ cần MỘT động cơ
+
+Một **con lăn chủ động**, con lăn kia **bị động**. Động cơ thứ hai không lợi gì mà còn sinh vấn đề
+hai động cơ không đồng tốc kéo giãn băng.
+
+⚠️ Nhưng **một con lăn phải chỉnh được** để căng băng: bắt vào **lỗ rãnh dài**, trượt ra rồi siết.
+Băng chùng thì **trượt trên con lăn** — hỏng đúng giả định cốt lõi của đồ án: *ra lệnh dừng thì lon
+dừng*. Băng trượt thì lon trôi thêm một đoạn không đoán trước được.
+
+### 3.3. Khung bằng GỖ, và ba chi tiết cơ khí quyết định thành bại
+
+Với kích thước 500 × 100 mm, **gỗ thông 15–18 mm đủ cứng**, rẻ nhất, làm được bằng dụng cụ cầm tay.
+Nhôm định hình 2020 đẹp và chỉnh được nhưng đắt gấp 3, cần thêm ke góc — không đáng ở kích thước này.
+
+**a) Phải có TẤM ĐỠ dưới mặt băng trên.** Lon 330 ml nặng ~340 g; không có tấm đỡ thì băng võng
+giữa hai con lăn, lon nghiêng và vị trí đo được sai. Ván mỏng phủ **mica/formica** cho trơn.
+
+**b) Con lăn phải PHÌNH GIỮA (dạng tang trống).** Băng phẳng chạy trên con lăn hình trụ **luôn trôi
+dần sang một bên** rồi tuột. Cách chuẩn công nghiệp: đường kính giữa lớn hơn hai đầu ~1 mm. Với ống
+PVC chỉ cần **quấn 2–3 vòng băng dính ở chính giữa**. Mẹo này tiết kiệm vài giờ loay hoay.
+
+**c) Con lăn nhỏ thôi — Ø 32–40 mm.** Mặt băng càng thấp càng ít bị khung che và càng ít sai số khi
+quy đổi cao độ. Ø 40 cho mặt băng cao ~50 mm so với mặt bàn.
+
+**d) Khung đừng sáng bóng.** Khung nằm trong khung hình camera; gỗ sơn đen nhám hoặc để mộc đều
+được, tránh sơn bóng và nhôm sáng phản chiếu.
 
 **Vì sao động cơ phải có hộp số:** camera chạy 10 hình/giây. Băng chạy 50 mm/s thì mỗi khung lon đi
 5 mm — bám tốt. Động cơ DC trần quay 3000 vòng/phút với con lăn Ø 45 mm cho 7 m/s, nhanh gấp 140
