@@ -1051,6 +1051,22 @@ ngả đỏ rộng gấp 2,6 lần lon, nó lớn hơn lon Coca thật nên đư
   **có thể phải cắt**; người làm đồ án mở Word đếm số trang thật rồi quyết định. Thứ tự cắt đề xuất:
   mục 8.3.2 (ba cái bẫy đo đạc) xuống phụ lục, rút gọn 8.5.1, rồi Chương 2.
   **Chưa xem được giao diện** (không có LibreOffice) — người dùng mở Word kiểm tra.
+- `docs/Khoa_luan_v2.docx` (2026-10-11) — **BẢN VIẾT LẠI**, hiện có **Chương 1 + Chương 2**
+  (~4 700 từ, 12 hình, 6 bảng, 16 công thức). Sinh bằng `python3 docs/tools/build_thesis_v2.py`.
+  Người làm đồ án tự viết bìa/mở đầu; bản này chỉ để tham khảo. Viết lại theo nhận xét sau khi đọc
+  `docs/BachelorThesis_HaiNN.pdf` (khóa luận điểm cao khóa trên): **bản 1 nhiều chữ, ít hình, công
+  thức xấu**.
+  - **`docs/tools/omml.py`** — dựng công thức Word THẬT (OMML). Bản 1 chỉ ghi chữ thường rồi đổi
+    phông sang Cambria Math nên phân số thành "a/b", ma trận thành mấy dòng lệch nhau, và Word
+    không coi đó là công thức. OMML cho phân số có gạch ngang, ngoặc giãn theo chiều cao, và mở
+    trong Word bấm vào sửa được. `EQ()` dùng **hai điểm dừng tab** (CENTER giữa vùng chữ, RIGHT ở
+    mép) nên công thức luôn đúng giữa và số hiệu luôn đúng lề.
+  - **`docs/tools/make_thesis_figures.py`** — sinh 10 hình từ THÔNG SỐ THẬT trong
+    `delta_kinematics`, không vẽ phác tay, nên hình luôn khớp công thức trong bài. Tên tệp bắt đầu
+    bằng `kl_`.
+    ⚠️ `fill_between` KHÔNG dùng được cho đường cong tham số (biên vùng làm việc) — miền tô ra
+    lung tung; phải dựng đa giác khép kín.
+  - Còn lại: Chương 3 (mô phỏng), 4 (thị giác), 5 (tích hợp + thực nghiệm), 6 (kết luận).
 - Hình sơ đồ: `docs/figures/system_architecture.png`, `ros_graph.png`, `delta_leg_diagram.png`.
 - `docs/bao_cao_kinematics.md` — phần động học dạng báo cáo.
 
