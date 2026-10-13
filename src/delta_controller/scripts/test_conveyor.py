@@ -127,7 +127,7 @@ def main():
                 print('      tren mot chan DIEU HUONG, chan dieu huong kia bi giu muc cao:')
                 print('      hai chan lech muc = chay, cung muc cao = phanh. Nen PWM 0 la chay')
                 print('      het toc do, PWM 255 la dung.')
-                print('      Da bat che do dao nguoc. Dat INVERTED = true trong sketch cho lan sau.')
+                print('      Da bat che do dao nguoc. Dat inverted = true trong sketch.')
             else:
                 talk(port, 'I')                    # lật về như cũ, không để lại trạng thái lạ
                 print('   -> Khong phai do dao nguoc. Thu tha noi D8...')
@@ -137,7 +137,7 @@ def main():
                 talk(port, 'B')
                 if d8_controls:
                     print('   => CHAN D8 moi la chan CHO PHEP, khong phai D9.')
-                    print('      Hai day cam nguoc vai tro: doi cho hai day o chan 8 va chan 9.')
+                    print('      Hai day cam nguoc vai tro: doi cho day o chan 8 va chan 9.')
                 else:
                     print('   => Ca D8 lan D9 deu khong khong che duoc mach.')
                     print('      Chan cho phep bi ghim cung len 5V. Phai xem lai dau noi.')
