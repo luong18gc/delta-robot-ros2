@@ -78,10 +78,43 @@ def talk(port, command, wait=0.35):
     return port.read(port.in_waiting or 1).decode(errors='replace').strip()
 
 
+def tune(port):
+    """
+    Chạy băng ở từng mức PWM rồi hỏi mức nào vừa.
+
+    Đo thay vì đoán: quan hệ giữa PWM và tốc độ băng phụ thuộc động cơ, hộp số, lực căng dây và
+    điện áp nguồn — không công thức nào nói trước được. Mà cũng không cần: chỉ việc thử.
+    """
+    print('Do toc do. Moi muc chay 3 giay, tra loi khi da xem.')
+    print('⚠️ Nhanh qua thi lon do khi bang DUNG DOT NGOT (quan tinh), nen muc dung la')
+    print('   muc CHAM NHAT ma ban thay van du nhanh — khong phai muc nhanh nhat lon chiu duoc.\n')
+    chosen = None
+    for pwm in (120, 150, 180, 210, 255):
+        talk(port, f'V{pwm}')
+        talk(port, 'R')
+        with KeepAlive(port):
+            time.sleep(3.0)
+            enough = ask(f'PWM {pwm}: da du nhanh chua?')
+        talk(port, 'S')
+        if enough:
+            chosen = pwm
+            break
+    if chosen is None:
+        print('\nHet muc 255 van chua du. Bang da chay het kha nang;')
+        print('muon nhanh hon phai doi puly/hop so hoac nang dien ap nguon.')
+        return 1
+    print(f'\n=> Chon PWM {chosen}. Dat vao HAI cho:')
+    print(f'   docs/bang_chuyen/conveyor_arduino/conveyor_arduino.ino -> DEFAULT_SPEED = {chosen}')
+    print(f'   ros2 run delta_controller conveyor --ros-args -p speed:={chosen}')
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--port', default='auto')
+    ap.add_argument('--tune', action='store_true',
+                    help='chi do toc do: chay thu tung muc PWM roi hoi muc nao vua')
     args = ap.parse_args()
 
     port_name = args.port
@@ -96,6 +129,9 @@ def main():
         print('Cho Arduino khoi dong lai (no tu reset khi mo cong)...')
         time.sleep(2.5)
         port.reset_input_buffer()
+
+        if args.tune:
+            return tune(port)
 
         print('\n[1] Arduino co chay dung chuong trinh khong?')
         reply = talk(port, '?')

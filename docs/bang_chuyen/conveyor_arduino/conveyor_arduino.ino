@@ -56,7 +56,7 @@ const int PIN_PWM = 9;    // ENB
 const int PIN_DIR = 8;    // xem ghi chú ở trên: CHỈ đặt mức cao
 
 const unsigned long RUN_TIMEOUT = 3000;   // ms không nhận "R" thì tự dừng
-const int DEFAULT_SPEED = 120;            // PWM 0-255
+const int DEFAULT_SPEED = 180;            // PWM 0-255 (do 2026-10-13: 120 chay cham)
 
 // true: PWM 255 là dừng, PWM 0 là chạy hết tốc độ (xem ĐIỀU KHIỂN ĐẢO NGƯỢC ở trên).
 // Đổi bằng lệnh I khi thử trên bố trí khác, không phải nạp lại chương trình.

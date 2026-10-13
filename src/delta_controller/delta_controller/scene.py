@@ -155,10 +155,14 @@ REAL_BELT_HEIGHT = 0.050        # mặt băng cao hơn mặt bàn bao nhiêu
 # ⚠️ Tâm x = +94 chứ không phải +50 như ước ban đầu từ khung ngoài: phần gần camera là bệ và động
 # cơ, MẶT BĂNG nằm ở nửa xa của khung.
 REAL_BELT_CENTER = (0.094, -0.006)  # tâm băng trên bàn thật (x, y)
-# Lon chạy từ đầu NẠP (y dương, ngoài tầm với — chỗ tay người đặt lon) về ĐIỂM GẮP.
-# Điểm gắp = đầu băng mà lon CHẠY TỚI. Lon chạy tới đầu −Y (đo được tâm lon ở y = −94.5 khi lon
-# tì sát con lăn đầu đó). ⚠️ Nếu đấu ngược cực động cơ, băng chạy chiều kia thì đổi dấu số này.
-REAL_BELT_PICK_Y = -0.0945
+# Lon chạy từ đầu NẠP (chỗ tay người đặt lon) về ĐIỂM GẮP = đầu băng mà lon CHẠY TỚI.
+# ĐỔI SANG ĐẦU +Y (2026-10-13): băng lắp xong chạy về đầu +Y, không phải −Y như dự tính. Dây đã
+# hàn cứng vào động cơ nên KHÔNG đảo cực; chỉ đổi QUY ƯỚC đầu nào là đầu nạp, đầu nào là điểm gắp.
+# Đây là chỗ thể hiện lợi ích của việc giữ mọi hằng số cảnh ở một nơi: chiều chạy của một động cơ
+# đã hàn cứng được xử lý bằng cách sửa MỘT con số, không mối hàn nào bị gỡ.
+# Cả hai đầu đều trong tầm với nên đổi đầu không mất gì: đầu +Y cách tâm robot 41,6 mm ảo,
+# đầu −Y cách 44,4 mm (tầm với 119 mm).
+REAL_BELT_PICK_Y = 0.0821       # đo được tâm lon ở y = +82.1 khi lon tì sát con lăn đầu +Y
 
 # Quy về hệ ảo: chia cho SCALE. Băng ảo không cần chuyển động — lon ảo dịch vì CAMERA nói nó dịch,
 # không phải vì mặt băng ảo đẩy. Mặt băng ảo chạy còn có hại: ma sát đánh nhau với lệnh đặt pose.
