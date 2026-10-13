@@ -8,8 +8,11 @@ Chạy một chuỗi phép thử và hỏi bạn băng phản ứng thế nào. 
 triệu chứng "băng chạy mãi" gộp lại làm một:
 
 1. Arduino có chạy đúng chương trình không -> xem nó có trả lời không
-2. Chân PWM có điều khiển được băng không  -> cho tốc độ 0 rồi 255, hỏi bạn có khác không
-3. Lưới an toàn hết hạn có chạy không      -> ngừng gửi lệnh, đợi, hỏi băng có tự dừng không
+2. Chân NÀO thật sự cho phép mạch chạy     -> thả nổi từng chân, hỏi bạn băng có dừng không
+3. PWM có đổi được tốc độ không            -> cho 40 rồi 255, hỏi bạn nhanh chậm thế nào
+
+Phép dò ở bước 2 THẢ NỔI chân chứ không kéo xuống mức thấp, nên an toàn kể cả khi chân đó hóa ra
+đang nối vào ngõ ra 5V của module — và không phải rút dây rồi cắm lại (rất dễ nhầm chỗ).
 
 Không đoán gì về nhãn chân của module; chỉ hỏi những điều quan sát được bằng mắt.
 """
@@ -69,43 +72,45 @@ def main():
             return 1
         print(f'   Arduino tra loi: "{reply}"  -> chuong trinh DANG CHAY, giao tiep OK')
 
-        print('\n[2] Chan PWM co dieu khien duoc bang khong?')
+        print('\n[2] Chan nao thuc su cho phep mach chay?')
+        talk(port, 'B')
         talk(port, 'S')
-        time.sleep(0.5)
-        running_while_stopped = ask('Bang co DANG CHAY khong (dang le phai dung)?')
-        if running_while_stopped:
-            print('   -> Chan tren D9 KHONG dieu khien duoc bang.')
-            print('      Bang chay du lenh da bao dung, nghia la mach luon duoc cho phep:')
-            print('      hoac day tin hieu khong nam dung chan cho phep, hoac module ghim cung.')
-            print('      PHEP THU TIEP: rut day o chan 9, roi rut day o chan 8, xem cai nao dung.')
-            return 1
-        print('   -> Lenh dung co tac dung. Tot.')
+        time.sleep(0.6)
+        d9_controls = not ask('Bang co DANG CHAY khong (da ra lenh dung)?')
+        if d9_controls:
+            print('   -> D9 khong che duoc mach. Tot, dung nhu thiet ke.')
+        else:
+            print('   -> D9 KHONG khong che duoc. Thu tha noi D8...')
+            talk(port, 'A')
+            time.sleep(0.8)
+            d8_controls = ask('Bay gio bang da DUNG chua?')
+            talk(port, 'B')
+            if d8_controls:
+                print('   => CHAN D8 moi la chan CHO PHEP, khong phai D9.')
+                print('      Hai day dang cam nguoc vai tro. Cach sua: DOI CHO hai day o Arduino')
+                print('      (day dang o chan 8 chuyen sang chan 9 va nguoc lai).')
+            else:
+                print('   => Ca D8 lan D9 deu khong khong che duoc mach.')
+                print('      Chan cho phep cua module dang bi ghim cung len 5V, hoac day tin hieu')
+                print('      khong nam tren chan cho phep. Phai xem lai dau noi tren module.')
 
-        talk(port, 'V60')
+        print('\n[3] Toc do co doi duoc khong?')
+        talk(port, 'B')
+        talk(port, 'V40')
         talk(port, 'R')
-        time.sleep(1.2)
+        time.sleep(1.5)
         slow = ask('Bang dang chay CHAM phai khong?')
         talk(port, 'V255')
-        time.sleep(1.2)
-        fast = ask('Bay gio no co chay NHANH HON han khong?')
+        time.sleep(1.5)
+        fast = ask('Bay gio co chay NHANH HON han khong?')
         talk(port, 'S')
         if slow and fast:
-            print('   -> Dieu khien toc do chay dung.')
+            print('   -> PWM tren D9 dieu khien toc do dung chieu.')
+        elif not slow and fast:
+            print('   -> NGUOC CHIEU: so nho lai chay nhanh. D9 dang cam vao chan DIEU HUONG')
+            print('      chu khong phai chan cho phep; chan con lai bi ghim muc cao.')
         else:
-            print('   -> Toc do khong doi: chan PWM dang bi ghim o muc cao,')
-            print('      hoac day dang cam vao chan chi bat/tat chu khong nhan PWM.')
-
-        print('\n[3] Luoi an toan het han co hoat dong khong?')
-        talk(port, 'R')
-        print('   Da cho chay. Bay gio NGUNG gui lenh trong 4 giay...')
-        time.sleep(4.0)
-        leftover = port.read(port.in_waiting or 1).decode(errors='replace').strip()
-        stopped = ask('Bang da TU DUNG chua?')
-        if stopped:
-            print(f'   -> Luoi an toan chay dung. Arduino bao: "{leftover}"')
-        else:
-            print('   -> Bang KHONG tu dung. Xem lai muc [2]: chan PWM chua dieu khien duoc.')
-        talk(port, 'S')
+            print('   -> Toc do khong doi: D9 khong nhan PWM (bi ghim, hoac la chan so).')
 
     print('\nXong. Gui ket qua nay cho tro ly de biet buoc tiep theo.')
     return 0

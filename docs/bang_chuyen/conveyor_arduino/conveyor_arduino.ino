@@ -15,11 +15,18 @@
  * quay; nếu là chân 5V thì hai bên cùng điện áp nên không có dòng chạy qua.
  * Vì vậy việc DỪNG băng làm bằng cách đưa PWM trên D9 về 0 — cách này đúng với mọi kiểu đấu nối.
  *
+ * LỆNH DÒ "A": đặt D8 thành ngõ VÀO, tức THẢ NỔI, không phải kéo xuống mức thấp. Thả nổi thì an
+ * toàn trong cả hai trường hợp — là ngõ vào điều hướng thì nó chỉ mất tín hiệu, là chân 5V thì
+ * không có dòng nào chạy qua. Nhờ vậy dò được chân nào thật sự cho phép mạch chạy mà không phải
+ * rút dây (rút rồi cắm lại dễ nhầm chỗ) và không có nguy cơ chập.
+ *
  * Giao thức serial 115200. Mỗi lệnh xử lý NGAY khi nhận được ký tự, KHÔNG chờ xuống dòng:
  *   R        chạy  (phải nhắc lại ít nhất mỗi 3 giây — xem bên dưới)
  *   S        dừng
  *   V<0-255> đặt tốc độ   (áp dụng khi gặp ký tự không phải chữ số, hoặc sau 150 ms không gõ tiếp)
  *   ?        in trạng thái
+ *   A        THẢ NỔI chân D8 (chỉ để dò đấu nối — xem ghi chú bên dưới)
+ *   B        đưa D8 về mức cao như bình thường
  *
  * ⚠️ Vì sao không chờ ký tự xuống dòng: Serial Monitor của Arduino IDE mặc định có thể đang đặt
  * "No Line Ending", khi đó gõ S rồi Enter cũng KHÔNG gửi ký tự xuống dòng nào. Chương trình chờ
@@ -105,6 +112,15 @@ void handleChar(char c) {
       pending = 0;
       digits = 0;
       lastCharAt = millis();
+      break;
+    case 'A': case 'a':
+      pinMode(PIN_DIR, INPUT);          // thả nổi — KHÔNG BAO GIỜ kéo xuống mức thấp
+      Serial.println("OK D8 tha noi");
+      break;
+    case 'B': case 'b':
+      pinMode(PIN_DIR, OUTPUT);
+      digitalWrite(PIN_DIR, HIGH);
+      Serial.println("OK D8 muc cao");
       break;
     case '?':
       Serial.print("chay=");
