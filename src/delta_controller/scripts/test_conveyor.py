@@ -104,28 +104,43 @@ def main():
             print('   -> Chua nap chuong trinh, hoac nap vao board khac, hoac sai toc do baud.')
             return 1
         print(f'   Arduino tra loi: "{reply}"  -> chuong trinh DANG CHAY, giao tiep OK')
+        if 'dao nguoc' not in reply:
+            print('   !! Day la BAN CODE CU. Ban moi tra loi kem "dao nguoc=".')
+            print('      Nap lai chuong trinh roi chay lai, neu khong ket luan ben duoi se sai.')
 
         print('\n[2] Chan nao thuc su cho phep mach chay?')
         talk(port, 'B')
         talk(port, 'S')
         time.sleep(0.6)
-        d9_controls = not ask('Bang co DANG CHAY khong (da ra lenh dung)?')
-        if d9_controls:
-            print('   -> D9 khong che duoc mach. Tot, dung nhu thiet ke.')
+        if not ask('Bang co DANG CHAY khong (da ra lenh dung)?'):
+            print('   -> Lenh dung co tac dung. Tot, dung nhu thiet ke.')
         else:
-            print('   -> D9 KHONG khong che duoc. Thu tha noi D8...')
-            talk(port, 'A')
+            # Thử ĐẢO NGƯỢC trước tiên: chỉ là một phép lật dấu trong chương trình, không đụng
+            # gì tới mạch, nên vừa an toàn nhất vừa là nguyên nhân thường gặp nhất.
+            print('   -> Ra lenh dung ma bang van chay. Thu LAT NGUOC dieu khien...')
+            if not talk(port, 'I').startswith('OK'):
+                print('   !! Ban code cu khong co lenh I. Nap lai chuong trinh roi chay lai.')
+                return 1
             time.sleep(0.8)
-            d8_controls = ask('Bay gio bang da DUNG chua?')
-            talk(port, 'B')
-            if d8_controls:
-                print('   => CHAN D8 moi la chan CHO PHEP, khong phai D9.')
-                print('      Hai day dang cam nguoc vai tro. Cach sua: DOI CHO hai day o Arduino')
-                print('      (day dang o chan 8 chuyen sang chan 9 va nguoc lai).')
+            if ask('Bay gio bang da DUNG chua?'):
+                print('   => MACH DAU KIEU DAO NGUOC. D9 khong nam tren chan cho phep ma nam')
+                print('      tren mot chan DIEU HUONG, chan dieu huong kia bi giu muc cao:')
+                print('      hai chan lech muc = chay, cung muc cao = phanh. Nen PWM 0 la chay')
+                print('      het toc do, PWM 255 la dung.')
+                print('      Da bat che do dao nguoc. Dat INVERTED = true trong sketch cho lan sau.')
             else:
-                print('   => Ca D8 lan D9 deu khong khong che duoc mach.')
-                print('      Chan cho phep cua module dang bi ghim cung len 5V, hoac day tin hieu')
-                print('      khong nam tren chan cho phep. Phai xem lai dau noi tren module.')
+                talk(port, 'I')                    # lật về như cũ, không để lại trạng thái lạ
+                print('   -> Khong phai do dao nguoc. Thu tha noi D8...')
+                talk(port, 'A')
+                time.sleep(0.8)
+                d8_controls = ask('Bay gio bang da DUNG chua?')
+                talk(port, 'B')
+                if d8_controls:
+                    print('   => CHAN D8 moi la chan CHO PHEP, khong phai D9.')
+                    print('      Hai day cam nguoc vai tro: doi cho hai day o chan 8 va chan 9.')
+                else:
+                    print('   => Ca D8 lan D9 deu khong khong che duoc mach.')
+                    print('      Chan cho phep bi ghim cung len 5V. Phai xem lai dau noi.')
 
         print('\n[3] Toc do co doi duoc khong?')
         talk(port, 'B')
@@ -140,9 +155,10 @@ def main():
         talk(port, 'S')
         if slow and fast:
             print('   -> PWM tren D9 dieu khien toc do dung chieu.')
-        elif not slow and fast:
-            print('   -> NGUOC CHIEU: so nho lai chay nhanh. D9 dang cam vao chan DIEU HUONG')
-            print('      chu khong phai chan cho phep; chan con lai bi ghim muc cao.')
+        elif slow and not fast:
+            print('   -> So nho chay cham that, nhung so to KHONG nhanh hon.')
+            print('      Neu luc do bang DUNG HAN thi day la dau hieu mach dau dao nguoc')
+            print('      (PWM 255 = phanh) — quay lai muc [2] va bat che do dao nguoc.')
         else:
             print('   -> Toc do khong doi: D9 khong nhan PWM (bi ghim, hoac la chan so).')
 
