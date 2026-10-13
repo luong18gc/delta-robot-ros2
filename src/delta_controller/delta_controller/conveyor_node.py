@@ -2,7 +2,7 @@
 Node điều khiển BĂNG TẢI thật qua cổng serial (Bước 10d).
 
     ros2 run delta_controller conveyor
-    ros2 run delta_controller conveyor --ros-args -p port:=/dev/ttyUSB0 -p speed:=180
+    ros2 run delta_controller conveyor --ros-args -p port:=/dev/ttyUSB0 -p speed:=255
 
 Dịch vụ : /conveyor/run, /conveyor/stop (std_srvs/Trigger)
 Topic ra: /conveyor/running (std_msgs/Bool, latched)
@@ -47,7 +47,7 @@ class ConveyorNode(Node):
     def __init__(self):
         super().__init__('delta_conveyor')
         port = self.declare_parameter('port', 'auto').value
-        speed = int(self.declare_parameter('speed', 180).value)
+        speed = int(self.declare_parameter('speed', 255).value)
         self._heartbeat = float(self.declare_parameter('heartbeat_sec', HEARTBEAT_SEC).value)
 
         if port == 'auto':

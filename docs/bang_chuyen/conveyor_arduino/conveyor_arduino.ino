@@ -56,7 +56,11 @@ const int PIN_PWM = 9;    // ENB
 const int PIN_DIR = 8;    // xem ghi chú ở trên: CHỈ đặt mức cao
 
 const unsigned long RUN_TIMEOUT = 3000;   // ms không nhận "R" thì tự dừng
-const int DEFAULT_SPEED = 180;            // PWM 0-255 (do 2026-10-13: 120 chay cham)
+// Đo 2026-10-13 bằng chế độ --tune: 120/150/180/210 đều còn chậm, 255 mới vừa. Nghĩa là động cơ
+// đã chạy HẾT khả năng, KHÔNG còn dư địa tăng tốc — muốn nhanh hơn phải đổi puly/hộp số hoặc
+// nâng điện áp nguồn. Vẫn còn dư địa GIẢM, và máy trạng thái dùng điều đó: chạy nhanh rồi chậm
+// lại ngay trước khi dừng, để lon không đổ vì quán tính của cú dừng.
+const int DEFAULT_SPEED = 255;            // PWM 0-255
 
 // true: PWM 255 là dừng, PWM 0 là chạy hết tốc độ (xem ĐIỀU KHIỂN ĐẢO NGƯỢC ở trên).
 // Đổi bằng lệnh I khi thử trên bố trí khác, không phải nạp lại chương trình.
