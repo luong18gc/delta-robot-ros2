@@ -20,11 +20,44 @@ Không đoán gì về nhãn chân của module; chỉ hỏi những điều qua
 import argparse
 import glob
 import sys
+import threading
 import time
 
 import serial
 
 BAUD = 115200
+
+
+class KeepAlive:
+    """
+    Gửi "R" đều đặn trong lúc chờ người dùng trả lời.
+
+    Không có nó thì lưới an toàn 3 giây hết hạn NGAY TRONG LÚC đang hỏi, băng đổi trạng thái giữa
+    chừng, và câu trả lời nói về một trạng thái khác với trạng thái đang định thử. Đúng lỗi này đã
+    làm phép đo tốc độ 2026-10-13 cho kết quả sai: người dùng thấy băng chậm lại rồi nhanh trở lại,
+    mà cái nhanh trở lại là do hết hạn chứ không phải do lệnh.
+    """
+
+    def __init__(self, port):
+        self._port = port
+        self._stop = threading.Event()
+        self._thread = None
+
+    def __enter__(self):
+        self._thread = threading.Thread(target=self._beat, daemon=True)
+        self._thread.start()
+        return self
+
+    def _beat(self):
+        while not self._stop.wait(0.5):
+            try:
+                self._port.write(b'R')
+            except Exception:                      # noqa: BLE001 — đang dò lỗi, không cứu được gì
+                return
+
+    def __exit__(self, *_):
+        self._stop.set()
+        self._thread.join(timeout=1.0)
 
 
 def ask(question):
@@ -98,11 +131,12 @@ def main():
         talk(port, 'B')
         talk(port, 'V40')
         talk(port, 'R')
-        time.sleep(1.5)
-        slow = ask('Bang dang chay CHAM phai khong?')
-        talk(port, 'V255')
-        time.sleep(1.5)
-        fast = ask('Bay gio co chay NHANH HON han khong?')
+        with KeepAlive(port):                      # giữ băng chạy trong lúc hỏi
+            time.sleep(1.5)
+            slow = ask('Bang dang chay CHAM phai khong?')
+            talk(port, 'V255')
+            time.sleep(1.5)
+            fast = ask('Bay gio co chay NHANH HON han khong?')
         talk(port, 'S')
         if slow and fast:
             print('   -> PWM tren D9 dieu khien toc do dung chieu.')

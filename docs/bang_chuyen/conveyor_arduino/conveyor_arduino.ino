@@ -15,6 +15,17 @@
  * quay; nếu là chân 5V thì hai bên cùng điện áp nên không có dòng chạy qua.
  * Vì vậy việc DỪNG băng làm bằng cách đưa PWM trên D9 về 0 — cách này đúng với mọi kiểu đấu nối.
  *
+ * ĐIỀU KHIỂN ĐẢO NGƯỢC (đo được 2026-10-13 trên bố trí thật, nên để INVERTED = true):
+ * Trên cách đấu hiện tại, D9 KHÔNG nằm trên chân cho phép mà nằm trên một chân ĐIỀU HƯỚNG, còn
+ * chân điều hướng kia bị giữ mức cao. Hệ quả là quan hệ bị lật ngược:
+ *     PWM 0   -> hai chân lệch mức -> động cơ CHẠY HẾT TỐC ĐỘ
+ *     PWM 255 -> hai chân cùng mức cao -> PHANH, dừng
+ * Triệu chứng dẫn tới kết luận này: ra lệnh dừng mà băng chạy hết tốc độ; đặt tốc độ thấp thì băng
+ * chậm lại thật nhưng chỉ 1–2 giây rồi nhanh trở lại — đúng lúc lưới an toàn hết hạn và đưa PWM
+ * về 0. Nếu PWM 0 là "tắt" thì băng phải dừng; nó lại chạy nhanh nhất, nên PWM 0 chính là "chạy".
+ * Vì vậy chương trình tự lật ngược giá trị ghi ra, và mọi lệnh bên ngoài giữ nguyên ý nghĩa thông
+ * thường: S là dừng, V255 là nhanh nhất.
+ *
  * LỆNH DÒ "A": đặt D8 thành ngõ VÀO, tức THẢ NỔI, không phải kéo xuống mức thấp. Thả nổi thì an
  * toàn trong cả hai trường hợp — là ngõ vào điều hướng thì nó chỉ mất tín hiệu, là chân 5V thì
  * không có dòng nào chạy qua. Nhờ vậy dò được chân nào thật sự cho phép mạch chạy mà không phải
@@ -27,6 +38,7 @@
  *   ?        in trạng thái
  *   A        THẢ NỔI chân D8 (chỉ để dò đấu nối — xem ghi chú bên dưới)
  *   B        đưa D8 về mức cao như bình thường
+ *   I        đảo/bỏ đảo chiều điều khiển (xem ĐIỀU KHIỂN ĐẢO NGƯỢC bên dưới)
  *
  * ⚠️ Vì sao không chờ ký tự xuống dòng: Serial Monitor của Arduino IDE mặc định có thể đang đặt
  * "No Line Ending", khi đó gõ S rồi Enter cũng KHÔNG gửi ký tự xuống dòng nào. Chương trình chờ
@@ -46,6 +58,10 @@ const int PIN_DIR = 8;    // xem ghi chú ở trên: CHỈ đặt mức cao
 const unsigned long RUN_TIMEOUT = 3000;   // ms không nhận "R" thì tự dừng
 const int DEFAULT_SPEED = 120;            // PWM 0-255
 
+// true: PWM 255 là dừng, PWM 0 là chạy hết tốc độ (xem ĐIỀU KHIỂN ĐẢO NGƯỢC ở trên).
+// Đổi bằng lệnh I khi thử trên bố trí khác, không phải nạp lại chương trình.
+bool inverted = true;
+
 int speedPwm = DEFAULT_SPEED;
 bool running = false;
 unsigned long lastRunCommand = 0;
@@ -57,16 +73,23 @@ int digits = 0;
 unsigned long lastCharAt = 0;
 
 void applyOutput() {
-  // Dừng = PWM 0. KHÔNG đụng tới PIN_DIR.
-  analogWrite(PIN_PWM, running ? speedPwm : 0);
+  // KHÔNG đụng tới PIN_DIR. Chỉ ghi ra PIN_PWM; lật ngược nếu mạch đấu kiểu đảo.
+  int duty = running ? speedPwm : 0;
+  analogWrite(PIN_PWM, inverted ? 255 - duty : duty);
 }
 
 void setup() {
-  pinMode(PIN_PWM, OUTPUT);
+  // Phanh TRƯỚC KHI làm bất cứ việc gì khác. Với mạch đấu đảo ngược, chân thả nổi nghĩa là CHẠY,
+  // nên thứ tự ở đây không phải chuyện thẩm mỹ: mỗi dòng chậm lại là thêm một quãng băng tự chạy.
   pinMode(PIN_DIR, OUTPUT);
   digitalWrite(PIN_DIR, HIGH);   // đặt một lần, giữ nguyên suốt chương trình
-  applyOutput();
+  pinMode(PIN_PWM, OUTPUT);
+  applyOutput();                 // running = false -> phanh
   Serial.begin(115200);
+  // ⚠️ Vẫn còn ~1,5 giây băng tự chạy ở MỖI LẦN ARDUINO RESET (kể cả khi mở cổng serial), vì lúc
+  // đó bộ nạp khởi động đang chạy và các chân còn thả nổi — chương trình chưa có quyền. Không sửa
+  // được bằng code trên chân này. Muốn hết hẳn thì phải nối chân cho phép của module tới Arduino
+  // và để điện trở kéo xuống giữ nó ở mức thấp khi chân thả nổi.
 }
 
 void run(bool on) {
@@ -122,11 +145,19 @@ void handleChar(char c) {
       digitalWrite(PIN_DIR, HIGH);
       Serial.println("OK D8 muc cao");
       break;
+    case 'I': case 'i':
+      inverted = !inverted;
+      applyOutput();
+      Serial.print("OK dao nguoc=");
+      Serial.println(inverted ? 1 : 0);
+      break;
     case '?':
       Serial.print("chay=");
       Serial.print(running ? 1 : 0);
       Serial.print(" toc do=");
-      Serial.println(speedPwm);
+      Serial.print(speedPwm);
+      Serial.print(" dao nguoc=");
+      Serial.println(inverted ? 1 : 0);
       break;
     case '\r': case '\n': case ' ': break;      // bỏ qua, không phải lỗi
     default: Serial.println("ERR lenh la"); break;
