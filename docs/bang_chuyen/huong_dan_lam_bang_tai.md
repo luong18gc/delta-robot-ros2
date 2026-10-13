@@ -243,7 +243,7 @@ Trên module L298N giữ nguyên **jumper ENA** đã tháo (để dùng PWM), v�
 ## 11. Bước 8 — Nạp chương trình Arduino
 
 Mở Arduino IDE, chọn board Nano, dán chương trình trong
-[`conveyor_arduino.ino`](conveyor_arduino.ino), nạp vào.
+[`conveyor_arduino/conveyor_arduino.ino`](conveyor_arduino/conveyor_arduino.ino), nạp vào.
 
 **Thử bằng Serial Monitor** (tốc độ 115200, chọn "Newline"):
 
