@@ -35,6 +35,7 @@ setup(
             'real_vision = delta_controller.real_vision_node:main',
             'digital_twin = delta_controller.digital_twin_node:main',
             'follow = delta_controller.follow_node:main',
+            'conveyor = delta_controller.conveyor_node:main',
         ],
     },
 )

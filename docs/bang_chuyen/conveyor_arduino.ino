@@ -1,10 +1,19 @@
 /*
  * Điều khiển băng tải cho đồ án robot delta.
  *
- * Phần cứng: Arduino Nano + mạch cầu H L298N + động cơ DC giảm tốc 12 V.
- *   D9 -> ENA (PWM)      D8 -> IN1      D7 -> IN2
- *   GND của L298N PHẢI nối với GND của Arduino.
- *   KHÔNG nối 5V của L298N vào 5V của Arduino (Arduino lấy điện từ USB).
+ * ĐẤU NỐI THỰC TẾ (xác nhận 2026-10-13, băng đã chạy được):
+ *   động cơ (+) -> OUTD,  động cơ (−) -> OUTC   (kênh B của L298N)
+ *   ENB  -> Arduino D9    (PWM: vừa là tốc độ, vừa là công tắc chạy/dừng)
+ *   D8   -> chân đã nối sẵn, chương trình GIỮ MỨC CAO và không bao giờ kéo xuống
+ *   GND Arduino + (−) adapter -> GND của L298N;  (+) adapter -> VDD
+ *
+ * ⚠️ VÌ SAO D8 CHỈ ĐƯỢC ĐẶT MỨC CAO, KHÔNG BAO GIỜ MỨC THẤP:
+ * Module L298N "V3" của người dùng không có nhãn IN3/IN4, nên chưa rõ chân nối với D8 là ngõ VÀO
+ * điều hướng hay là chân 5V (ngõ RA của bộ ổn áp trên module). Nếu là chân 5V mà chương trình đặt
+ * D8 xuống mức thấp thì nguồn 5V bị nối thẳng xuống đất QUA chân Arduino — chập, hỏng chân.
+ * Đặt mức cao thì AN TOÀN trong cả hai trường hợp: nếu là ngõ vào điều hướng thì đó là mức cần để
+ * quay; nếu là chân 5V thì hai bên cùng điện áp nên không có dòng chạy qua.
+ * Vì vậy việc DỪNG băng làm bằng cách đưa PWM trên D9 về 0 — cách này đúng với mọi kiểu đấu nối.
  *
  * Giao thức serial 115200, mỗi lệnh một dòng, trả lời "OK" hoặc "ERR":
  *   R        chạy  (phải nhắc lại ít nhất mỗi 3 giây — xem bên dưới)
@@ -19,28 +28,25 @@
  * cách rẻ nhất để loại bỏ nó — không cần nút dừng khẩn, không cần cảm biến.
  */
 
-const int PIN_PWM = 9;
-const int PIN_IN1 = 8;
-const int PIN_IN2 = 7;
+const int PIN_PWM = 9;    // ENB
+const int PIN_DIR = 8;    // xem ghi chú ở trên: CHỈ đặt mức cao
 
 const unsigned long RUN_TIMEOUT = 3000;   // ms không nhận "R" thì tự dừng
-const int DEFAULT_SPEED = 120;            // PWM 0-255; ~50 mm/s với con lăn 42 mm
+const int DEFAULT_SPEED = 120;            // PWM 0-255
 
 int speedPwm = DEFAULT_SPEED;
 bool running = false;
 unsigned long lastRunCommand = 0;
 
 void applyOutput() {
-  // IN1 cao / IN2 thấp = một chiều. Băng chạy ngược thì đảo hai dòng này.
-  digitalWrite(PIN_IN1, running ? HIGH : LOW);
-  digitalWrite(PIN_IN2, LOW);
+  // Dừng = PWM 0. KHÔNG đụng tới PIN_DIR.
   analogWrite(PIN_PWM, running ? speedPwm : 0);
 }
 
 void setup() {
   pinMode(PIN_PWM, OUTPUT);
-  pinMode(PIN_IN1, OUTPUT);
-  pinMode(PIN_IN2, OUTPUT);
+  pinMode(PIN_DIR, OUTPUT);
+  digitalWrite(PIN_DIR, HIGH);   // đặt một lần, giữ nguyên suốt chương trình
   applyOutput();
   Serial.begin(115200);
   Serial.setTimeout(50);

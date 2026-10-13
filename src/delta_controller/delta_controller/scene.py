@@ -135,11 +135,14 @@ BIN_LAYOUT = BinLayout(tuple(BINS.values()), BIN_INNER_HALF, BIN_OUTER_HALF, BIN
 # Kích thước BĂNG THẬT, mét. ⚠️ Đây là số THIẾT KẾ — đo lại trên băng đã lắp rồi sửa đúng ba hằng
 # số này; mọi thứ khác tự suy ra. Sai chiều cao băng là lon ảo lơ lửng hoặc lún xuống mặt bàn đúng
 # bằng sai số đó chia cho SCALE.
-# ⚠️ 0.400 chứ không phải 0.500: băng dài 500 mm (y ±250) làm tia nhìn từ camera tới marker ID 2
-# và ID 3 chỉ còn hở 4 mm so với mặt băng — rung nhẹ là mất marker, mất luôn khóa tư thế. Với
-# 400 mm thì hở 66–87 mm. Quãng chạy cần chỉ 200 mm nên 400 mm là dư.
-REAL_BELT_LENGTH = 0.400        # dọc theo Y, hướng lon chạy
+# ĐO TRÊN BĂNG ĐÃ LẮP (2026-10-13). Băng ngắn hơn thiết kế nên càng không có nguy cơ che marker
+# (đã kiểm tra qua camera: nhận đủ 6/6 marker với băng tại chỗ).
+REAL_BELT_LENGTH = 0.230        # dọc theo Y, hướng lon chạy
 REAL_BELT_WIDTH = 0.100         # ngang theo X
+# ⚠️ SỐ QUAN TRỌNG NHẤT của cả nhóm này. Camera chúc 47° nên sai chiều cao bị khuếch đại khi
+# chiếu xuống mặt phẳng: đo 2026-10-13 trên CÙNG MỘT ẢNH, cùng một lon, giả định nó đứng trên mặt
+# BÀN cho (+167, +13) mm còn giả định đứng trên mặt BĂNG cho (+91, +14) — lệch 76 mm chỉ vì sai
+# 50 mm chiều cao. Đo lại bằng thước mỗi khi kê lại băng.
 REAL_BELT_HEIGHT = 0.050        # mặt băng cao hơn mặt bàn bao nhiêu
 # Băng chạy NGANG hướng nhìn camera (dọc theo Y), không phải dọc theo hướng nhìn. Đo trên camera
 # thật (chúc 45,8°): trục Y có độ phân giải 1,30–1,54 lần TỐT HƠN trục X, vì góc chúc nén trục X.
