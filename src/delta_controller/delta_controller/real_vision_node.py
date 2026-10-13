@@ -78,6 +78,9 @@ class RealVisionNode(Node):
         intrinsics = os.path.expanduser(
             self.declare_parameter('intrinsics_file', DEFAULT_INTRINSICS).value)
         rate = float(self.declare_parameter('rate_hz', 10.0).value)
+        # Cảnh có băng chuyền thì vật có thể đứng trên MẶT BĂNG, cao hơn mặt bàn. Mặc định tắt để
+        # cảnh không có băng không phải trả giá cho một giả thuyết thừa.
+        self._belt = bool(self.declare_parameter('belt', False).value)
         reference = os.path.expanduser(
             self.declare_parameter('reference_file', DEFAULT_REFERENCE).value)
 
@@ -162,7 +165,8 @@ class RealVisionNode(Node):
             # tách vô điều kiện: vành logo đỏ trên lon 7Up sẽ xé lon lành lặn làm đôi.
             obj = OBJECT_OF_COLOR.get(region.color)
             if obj is None or estimate_object(region, camera, obj, frame.shape,
-                                              reflective_table=True).reliable:
+                                              reflective_table=True,
+                                              belt=self._belt).reliable:
                 continue
             for part in split_by_color(frame, region, COLOR_CLASSES):
                 regions.setdefault(part.color, []).append(part)
@@ -173,7 +177,7 @@ class RealVisionNode(Node):
                 detections[color] = max(found, key=lambda r: r.area)
                 continue
             estimate, region = best_detection(found, camera, obj, frame.shape,
-                                              reflective_table=True)
+                                              reflective_table=True, belt=self._belt)
             if region is not None:
                 detections[color], estimates[color] = region, estimate
         stamp = self.get_clock().now().to_msg()

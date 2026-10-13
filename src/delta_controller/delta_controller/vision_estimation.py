@@ -18,7 +18,7 @@ from dataclasses import dataclass, replace
 import math
 
 import cv2
-from delta_controller.scene import BIN_LAYOUT, TABLE_Z
+from delta_controller.scene import BELT_TOP_Z, BIN_LAYOUT, on_belt, TABLE_Z
 import numpy as np
 
 # Tỉ lệ nhìn thấy tối thiểu để tin vị trí tâm khối. Trên bộ dữ liệu 8.4: 0.85 bỏ sót 1/29 ước lượng
@@ -296,8 +296,32 @@ def best_detection(regions, camera, obj, image_shape, **kwargs):
     return chosen if chosen is not None else (None, None)
 
 
+def _stand_on(detection, camera, obj, support_z, reflective_table):
+    """
+    (vị trí, cách khớp) với giả thiết vật ĐỨNG TRÊN mặt phẳng cao độ `support_z`.
+
+    Tách riêng ra vì cùng một phép tính dùng cho hai giả thiết — đứng trên mặt bàn hay đứng trên
+    mặt băng chuyền — chỉ khác cao độ mặt đỡ.
+    """
+    u, v = detection.centroid
+    center_z = support_z + obj.half_height
+    x, y, _ = camera.pixel_to_plane(u, v, center_z)
+    position, method = (x, y, center_z), 'centroid'
+    if obj.half_height >= TALL_RATIO * obj.half_width:
+        bx, by, bw, bh = detection.bbox
+        if reflective_table:
+            fit = fit_top_edge(camera, obj, u, by - 0.5, center_z, (x, y))
+            if fit is not None:
+                position, method = (fit[0], fit[1], center_z), 'top_edge_table'
+        else:
+            fit = fit_bottom_edge(camera, obj, u, by + bh - 0.5, center_z, (x, y))
+            if fit is not None:
+                position, method = (fit[0], fit[1], center_z), 'bottom_edge'
+    return position, method
+
+
 def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
-                    bins=BIN_LAYOUT, reflective_table=False):
+                    bins=BIN_LAYOUT, reflective_table=False, belt=False):
     """
     Vị trí tâm vật từ một Detection.
 
@@ -308,29 +332,19 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
     3. Tỉ lệ nhìn thấy so với hình bóng dự đoán tại vị trí cuối -> cờ tin cậy.
     """
     u, v = detection.centroid
-    table_center_z = TABLE_Z + obj.half_height
-    x, y, _ = camera.pixel_to_plane(u, v, table_center_z)
 
-    # --- Giả thuyết 1: vật ĐỨNG TRÊN BÀN ---------------------------------------------------
-    position, method = (x, y, table_center_z), 'centroid'
-    if obj.half_height >= TALL_RATIO * obj.half_width:
-        # Vật cao (lon): tâm khối lệch khỏi hình chiếu tâm 3D — với mặt nạ MÀU thì lệch xuống
-        # dưới 32 px ≈ 28 mm (phần trên là nắp bạc), với HÌNH BÓNG thì lệch lên trên (nhìn xiên
-        # nên thấy cả mặt trên). Mép đáy thì tì trên mặt bàn nên không bị lệch kiểu nào.
-        bx, by, bw, bh = detection.bbox
-        if reflective_table:
-            # Mặt bàn BÓNG: nó phản chiếu vật, và ảnh phản chiếu dính liền chân vật nên mép đáy
-            # của mặt nạ không còn là chỗ vật chạm bàn. Đo trên bàn thật 2026-10-07 (18 phép đo,
-            # đã trừ nền tham chiếu nên mặt nạ sạch): mép đáy lệch ĐỀU −31.7…−34.3 mm thật ở cả
-            # ba lon, tức đúng chiều cao ảnh phản chiếu; mép trên 4.50 mm ảo, tệ nhất 6.31 —
-            # trong dung sai giác hút 12 mm. Phản chiếu luôn nằm DƯỚI nên mép trên không dính.
-            fit = fit_top_edge(camera, obj, u, by - 0.5, table_center_z, (x, y))
-            if fit is not None:
-                position, method = (fit[0], fit[1], table_center_z), 'top_edge_table'
-        else:
-            fit = fit_bottom_edge(camera, obj, u, by + bh - 0.5, table_center_z, (x, y))
-            if fit is not None:
-                position, method = (fit[0], fit[1], table_center_z), 'bottom_edge'
+    # --- Giả thuyết 1: vật ĐỨNG TRÊN BÀN, hoặc TRÊN BĂNG CHUYỀN ----------------------------
+    # Mỗi giả thuyết chỉ được nhận nếu KẾT QUẢ CỦA NÓ tự nhất quán với chính giả thiết: khớp theo
+    # mặt băng mà ra điểm nằm trên băng thì vật đứng trên băng. Không thể thử theo thứ tự "khớp
+    # mặt bàn trước rồi xem có rơi vào vùng băng không" — đo 2026-10-13: lon đứng trên băng mà
+    # giả định đứng trên bàn cho vị trí lệch +76 mm, RA NGOÀI vùng băng, nên phép thử đó không bao
+    # giờ kích hoạt. Camera chúc 47° khuếch đại sai số cao độ 50 mm thành 76 mm ngang.
+    position, method = _stand_on(detection, camera, obj, TABLE_Z, reflective_table)
+    if belt:
+        on_belt_position, on_belt_method = _stand_on(detection, camera, obj, BELT_TOP_Z,
+                                                     reflective_table)
+        if on_belt(on_belt_position[0], on_belt_position[1]):
+            position, method = on_belt_position, on_belt_method
 
     # --- Giả thuyết 2: vật NẰM TRONG KHAY --------------------------------------------------
     # Chọn giả thuyết theo TÍNH KHẢ THI VẬT LÝ: không vật nào đứng được trên mặt bàn ở chỗ đang bị

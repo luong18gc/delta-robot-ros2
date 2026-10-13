@@ -70,3 +70,16 @@ def test_khong_tach_vung_chi_co_mot_mau():
     cv2.rectangle(frame, (70, 40), (130, 260), (40, 40, 220), -1)
     found = object_detector.detect_objects(frame, COLOR_CLASSES)
     assert object_detector.split_by_color(frame, found[0], COLOR_CLASSES) == []
+
+
+def test_gia_thuyet_bang_chuyen_chi_nhan_khi_tu_nhat_quan():
+    """Khớp theo mặt băng chỉ được nhận nếu KẾT QUẢ rơi vào đúng vùng băng."""
+    from delta_controller import scene
+    from delta_controller.vision_estimation import BELT_TOP_Z
+    assert BELT_TOP_Z > scene.TABLE_Z, 'mat bang phai cao hon mat ban'
+    cx, cy = scene.BELT_CENTER
+    assert scene.on_belt(cx, cy), 'tam bang phai nam tren bang'
+    assert not scene.on_belt(cx + scene.BELT_WIDTH, cy), 'ra ngoai be rong thi khong con tren bang'
+    assert not scene.on_belt(cx, cy + scene.BELT_LENGTH), 'ra ngoai chieu dai thi khong con'
+    assert scene.support_z(cx, cy) == BELT_TOP_Z
+    assert scene.support_z(cx + scene.BELT_WIDTH, cy) == scene.TABLE_Z

@@ -111,11 +111,11 @@
       <static>true</static>
       <link name="link">
         <collision name="belt_collision">
-          <pose>0.01667 0.00000 0.78833 0 0 0</pose>
+          <pose>0.03133 -0.00200 0.78833 0 0 0</pose>
           <geometry><box><size>0.03333 0.07667 0.01667</size></box></geometry>
         </collision>
         <visual name="belt_visual">
-          <pose>0.01667 0.00000 0.78833 0 0 0</pose>
+          <pose>0.03133 -0.00200 0.78833 0 0 0</pose>
           <geometry><box><size>0.03333 0.07667 0.01667</size></box></geometry>
           <material>
             <ambient>0.02 0.05 0.03 1</ambient>
@@ -125,13 +125,13 @@
         </visual>
         <!-- Hai con lan: chi de nhin ra day la bang tai trong video bao ve. -->
         <visual name="roller_load">
-          <pose>0.01667 0.03833 0.78833 0 1.5708 0</pose>
+          <pose>0.03133 0.03633 0.78833 0 1.5708 0</pose>
           <geometry><cylinder><radius>0.00833</radius><length>0.03333</length></cylinder></geometry>
           <material><ambient>0.15 0.15 0.15 1</ambient>
             <diffuse>0.25 0.25 0.25 1</diffuse></material>
         </visual>
         <visual name="roller_pick">
-          <pose>0.01667 -0.03833 0.78833 0 1.5708 0</pose>
+          <pose>0.03133 -0.04033 0.78833 0 1.5708 0</pose>
           <geometry><cylinder><radius>0.00833</radius><length>0.03333</length></cylinder></geometry>
           <material><ambient>0.15 0.15 0.15 1</ambient>
             <diffuse>0.25 0.25 0.25 1</diffuse></material>

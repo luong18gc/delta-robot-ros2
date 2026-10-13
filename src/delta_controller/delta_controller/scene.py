@@ -148,9 +148,17 @@ REAL_BELT_HEIGHT = 0.050        # mặt băng cao hơn mặt bàn bao nhiêu
 # thật (chúc 45,8°): trục Y có độ phân giải 1,30–1,54 lần TỐT HƠN trục X, vì góc chúc nén trục X.
 # Tại điểm gắp, 1 pixel sai số ứng với 0,83 mm theo X nhưng chỉ 0,58 mm theo Y. Thêm nữa X là trục
 # CHIỀU SÂU — chỗ yếu nhất của camera đơn, nơi sai số vị trí và chuyển động lẫn vào nhau.
-REAL_BELT_CENTER = (0.050, 0.0)  # tâm băng trên bàn thật (x, y)
+# ĐO BẰNG CAMERA (2026-10-13): đặt lon giữa bề rộng băng ở hai đầu, khớp mép trên trên MẶT BĂNG
+# -> đầu 1 (+91.8, +82.1), đầu 2 (+96.2, −94.5) mm thật. Lệch theo X giữa hai đầu chỉ 4.4 mm nên
+# băng chạy đúng dọc Y. Cách đo này chính xác hơn đo thước trên bàn nhiều, vì nó dùng chính khối
+# thị giác đã hiệu chuẩn thay vì phải dóng thước tới gốc tọa độ do marker định nghĩa.
+# ⚠️ Tâm x = +94 chứ không phải +50 như ước ban đầu từ khung ngoài: phần gần camera là bệ và động
+# cơ, MẶT BĂNG nằm ở nửa xa của khung.
+REAL_BELT_CENTER = (0.094, -0.006)  # tâm băng trên bàn thật (x, y)
 # Lon chạy từ đầu NẠP (y dương, ngoài tầm với — chỗ tay người đặt lon) về ĐIỂM GẮP.
-REAL_BELT_PICK_Y = 0.0
+# Điểm gắp = đầu băng mà lon CHẠY TỚI. Lon chạy tới đầu −Y (đo được tâm lon ở y = −94.5 khi lon
+# tì sát con lăn đầu đó). ⚠️ Nếu đấu ngược cực động cơ, băng chạy chiều kia thì đổi dấu số này.
+REAL_BELT_PICK_Y = -0.0945
 
 # Quy về hệ ảo: chia cho SCALE. Băng ảo không cần chuyển động — lon ảo dịch vì CAMERA nói nó dịch,
 # không phải vì mặt băng ảo đẩy. Mặt băng ảo chạy còn có hại: ma sát đánh nhau với lệnh đặt pose.
