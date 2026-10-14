@@ -38,7 +38,9 @@ from cv_bridge import CvBridge
 from delta_controller import usb_camera
 from delta_controller.color_detector import COLOR_CLASSES, draw_detections
 from delta_controller.object_detector import detect_objects, split_by_color
-from delta_controller.real_camera import aruco_detector, PoseTracker, table_roi_mask
+from delta_controller.real_camera import (
+    aruco_detector, detect_marker_centers, PoseTracker, table_roi_mask,
+)
 from delta_controller.scene import REAL_OBJECTS, SCALE
 from delta_controller.vision_estimation import (
     best_detection,
@@ -64,6 +66,12 @@ WS = os.path.expanduser('~/ros2_closed_loop_ws')
 DEFAULT_INTRINSICS = os.path.join(WS, 'calibration', 'c270_intrinsics.yaml')
 DEFAULT_REFERENCE = os.path.join(WS, 'calibration', 'table_reference.png')
 REFERENCE_FRAMES = 20
+# Ảnh nền so từng ĐIỂM ẢNH nên nó gắn cứng với vị trí camera. Tư thế thì giải lại mỗi khung nên
+# camera xê dịch không ai nhắc; ảnh nền thì hỏng lặng lẽ. Đo 2026-10-14: camera dịch làm tâm
+# marker lệch 8,7 px -> nền trước vọt lên 17% và sinh vùng ma bao cả lon lẫn mép băng, khung lon
+# Coca to bất thường. Ngưỡng 3 px: ảnh nền còn tươi cho dưới 1 px.
+REFERENCE_DRIFT_PX = 3.0
+DRIFT_CHECK_EVERY = 30         # khung
 # Dùng REAL_OBJECTS (tỉ lệ màu của lon THẬT), không phải OBJECTS của cảnh mô phỏng.
 COLOR_TO_OBJECT = {o.color: o.name for o in REAL_OBJECTS}
 OBJECT_OF_COLOR = {o.color: o for o in REAL_OBJECTS}
@@ -119,6 +127,8 @@ class RealVisionNode(Node):
             self.get_logger().info(f'Tru nen theo {reference}')
         self._tracker = PoseTracker(self._K, self._dist)
         self._detector = aruco_detector()
+        self._ref_centers = self._centers_of(self._reference)
+        self._drift_warned = False
         self._bridge = CvBridge()
         self._roi = None
         self._det_pub = self.create_publisher(Detection2DArray, '/vision/detections', 10)
@@ -136,6 +146,38 @@ class RealVisionNode(Node):
             f'Camera {mode[0]}x{mode[1]} @ {rate:.0f} Hz, noi tham so RMS '
             f'{meta.get("rms_px", 0):.3f} px. Ngoai tham so giai lai moi khung tu marker.')
 
+    # ------------------------------------------------------------------ ảnh nền
+
+    def _centers_of(self, image):
+        """Tâm marker trên một ảnh, dùng để biết ảnh nền có còn khớp vị trí camera không."""
+        if image is None:
+            return {}
+        return detect_marker_centers(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY),
+                                     self._detector, self._tracker.markers)
+
+    def _check_drift(self):
+        """
+        Cảnh báo nếu camera đã dời khỏi chỗ lúc chụp ảnh nền.
+
+        Không tự chụp lại: ảnh nền phải là mặt bàn TRỐNG, mà lúc đang chạy thì trên bàn có vật.
+        Tự chụp sẽ nướng luôn mấy cái lon vào chuẩn nền và chúng biến mất vĩnh viễn.
+        """
+        if self._drift_warned or not self._ref_centers:
+            return
+        now = self._tracker.centers
+        shared = set(now) & set(self._ref_centers)
+        if len(shared) < 3:
+            return
+        drift = sum(float(np.hypot(*(np.asarray(now[i]) - np.asarray(self._ref_centers[i]))))
+                    for i in shared) / len(shared)
+        if drift > REFERENCE_DRIFT_PX:
+            self._drift_warned = True
+            self.get_logger().warning(
+                f'ANH NEN DA LECH: tam marker dich {drift:.1f} px so voi luc chup anh nen '
+                f'(nguong {REFERENCE_DRIFT_PX:.0f}). Camera da xe dich -> moi duong bien trong '
+                f'canh se bi coi la vat, khung bao phong to, vi tri sai. Nhac HET vat ra khoi ban '
+                f'roi goi: ros2 service call /vision/capture_reference std_srvs/srv/Trigger')
+
     # ------------------------------------------------------------------ vòng xử lý
 
     def _tick(self):
@@ -151,6 +193,8 @@ class RealVisionNode(Node):
             self._warn_no_pose()
             return
         camera = self._tracker.model
+        if self._frames % DRIFT_CHECK_EVERY == 0:
+            self._check_drift()
         # Vùng xét đổi theo tư thế camera; dựng lại mỗi khung (dưới 1 ms) để camera xê dịch là
         # vùng xét đi theo, không bị lệch dần.
         self._roi = table_roi_mask(camera, frame.shape)
@@ -232,6 +276,8 @@ class RealVisionNode(Node):
         # Trung vị nhiều khung: nhiễu cảm biến không được đi vào chính cái chuẩn.
         self._reference = np.median(np.array(self._shots), axis=0).astype(np.uint8)
         self._shots = []
+        self._ref_centers = self._centers_of(self._reference)
+        self._drift_warned = False
         try:
             cv2.imwrite(self._reference_file, self._reference)
             where = self._reference_file

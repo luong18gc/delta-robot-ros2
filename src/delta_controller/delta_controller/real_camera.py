@@ -161,12 +161,15 @@ class PoseTracker:
         self.z = z
         self.model = None          # CameraModel đã làm trơn, None khi chưa khóa được lần nào
         self.last = None           # Extrinsics của khung gần nhất dùng được
+        self.centers = {}          # {id -> (u, v)} của khung gần nhất, để đối chiếu ảnh nền
         self.updates = 0
         self.skipped = 0
 
     def update(self, gray, detector=None):
         """Cập nhật từ một khung ảnh xám. Trả về Extrinsics vừa dùng, hoặc None nếu bỏ qua."""
         centers = detect_marker_centers(gray, detector, self.markers)
+        if centers:
+            self.centers = centers
         if len(centers) < MIN_MARKERS:
             self.skipped += 1
             return None
