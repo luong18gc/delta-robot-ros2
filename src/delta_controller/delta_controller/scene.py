@@ -270,6 +270,25 @@ REAL_TABLE = (0.600, 1.200)     # (bề rộng theo Y, chiều dài theo X)
 REAL_OBJECT_AREA_X = (-0.060, 0.160)    # ảo: -0.020 .. 0.053
 REAL_OBJECT_AREA_Y = (-0.180, 0.180)    # ảo: -0.060 .. 0.060
 # Góc xa nhất quy về ảo là r = 103 mm, còn dư so với tầm với 119 mm ở độ cao gắp.
+# Lề cho phép lon đặt hơi lệch ra ngoài vùng thiết kế vẫn được nhận — vùng này là chỗ ĐỊNH đặt
+# lon, không phải hàng rào.
+OBJECT_AREA_MARGIN = 0.020      # m ảo = 60 mm thật
+
+
+def in_object_area(x, y, margin=OBJECT_AREA_MARGIN):
+    """
+    Điểm (x, y) hệ ẢO có nằm trong vùng đặt lon không.
+
+    Lọc theo HÌNH HỌC, để loại những thứ trong khung hình mà chắc chắn không phải lon: dây động
+    cơ, mép bàn, sàn nhà, bàn tay thò vào từ bên. Đo 2026-10-14: một sợi dây động cơ màu cam bị
+    phân loại là lon Coca ở x = −173 mm thật, ngoài hẳn vùng này. Phép kiểm hình dáng đã loại nó
+    (tỉ lệ cao/rộng 1,70 so với 2,5 của lon thật), nhưng loại bằng hình học thì rẻ hơn và không
+    phụ thuộc vào việc vật nhiễu tình cờ có hình dáng thế nào.
+    """
+    return (REAL_OBJECT_AREA_X[0] / SCALE - margin <= x <= REAL_OBJECT_AREA_X[1] / SCALE + margin
+            and REAL_OBJECT_AREA_Y[0] / SCALE - margin <= y
+            <= REAL_OBJECT_AREA_Y[1] / SCALE + margin)
+
 
 # Marker trên bàn THẬT — bao quanh vùng đặt lon, cách mép bàn >= 10 mm.
 # ⚠️ KHÔNG phải CALIB_MARKERS nhân SCALE: bố trí ảo nhân 3 trải 810 x 870 mm, không vừa bàn rộng

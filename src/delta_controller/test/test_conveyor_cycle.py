@@ -222,3 +222,22 @@ def test_mot_vong_tron_ven_roi_quay_lai_dau():
         cycle.step(8.0 + i, {})
     assert cycle.state == CHO_LON
     assert cycle.step(20.0, loading_end()).track is not None     # sẵn sàng lon kế tiếp
+
+
+def test_vung_dat_lon_loai_day_dong_co_nhung_giu_mat_bang():
+    """Lọc hình học: dây động cơ ngoài vùng bị loại, cả mặt băng vẫn nằm trong vùng."""
+    from delta_controller.scene import (
+        BELT_LENGTH, BELT_WIDTH, in_object_area, SCALE,
+    )
+
+    def at_real(x_mm, y_mm):
+        return in_object_area(x_mm / 1000.0 / SCALE, y_mm / 1000.0 / SCALE)
+
+    assert not at_real(-173, 123), 'day dong co mau cam phai bi loai'
+    assert at_real(88, 95), 'lon that tren bang phai duoc giu'
+    assert in_object_area(*BELT_PICK_XY), 'diem gap phai nam trong vung'
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            corner = (BELT_CENTER[0] + sx * BELT_WIDTH / 2,
+                      BELT_CENTER[1] + sy * BELT_LENGTH / 2)
+            assert in_object_area(*corner), f'goc mat bang {corner} phai nam trong vung'

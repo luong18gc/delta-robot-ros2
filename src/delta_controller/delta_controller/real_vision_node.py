@@ -41,7 +41,7 @@ from delta_controller.object_detector import detect_objects, split_by_color
 from delta_controller.real_camera import (
     aruco_detector, detect_marker_centers, PoseTracker, table_roi_mask,
 )
-from delta_controller.scene import REAL_OBJECTS, SCALE
+from delta_controller.scene import in_object_area, REAL_OBJECTS, SCALE
 from delta_controller.vision_estimation import (
     best_detection,
     estimate_object,
@@ -129,6 +129,7 @@ class RealVisionNode(Node):
         self._detector = aruco_detector()
         self._ref_centers = self._centers_of(self._reference)
         self._drift_warned = False
+        self._outside_warned = set()
         self._bridge = CvBridge()
         self._roi = None
         self._det_pub = self.create_publisher(Detection2DArray, '/vision/detections', 10)
@@ -225,8 +226,21 @@ class RealVisionNode(Node):
                 continue
             estimate, region = best_detection(found, camera, obj, frame.shape,
                                               reflective_table=True, belt=self._belt)
-            if region is not None:
-                detections[color], estimates[color] = region, estimate
+            if region is None:
+                continue
+            # Lọc theo HÌNH HỌC: thứ nằm ngoài vùng đặt lon thì không phải lon, bất kể nó trông
+            # thế nào. Rẻ hơn và chắc hơn trông vào phép kiểm hình dáng, vốn chỉ loại được vật
+            # nhiễu nào TÌNH CỜ có hình dáng khác lon. Xem scene.in_object_area.
+            x, y = estimate.position[0], estimate.position[1]
+            if not in_object_area(x, y):
+                if color not in self._outside_warned:
+                    self._outside_warned.add(color)
+                    self.get_logger().info(
+                        f'Bo mot vung mau {color} o ({SCALE * x * 1000:+.0f},'
+                        f'{SCALE * y * 1000:+.0f}) mm that — ngoai vung dat lon.')
+                continue
+            self._outside_warned.discard(color)
+            detections[color], estimates[color] = region, estimate
         stamp = self.get_clock().now().to_msg()
         self._publish_pixels(detections, stamp)
         self._publish_objects(estimates, stamp)
