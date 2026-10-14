@@ -80,7 +80,10 @@ class RealVisionNode(Node):
         rate = float(self.declare_parameter('rate_hz', 10.0).value)
         # Cảnh có băng chuyền thì vật có thể đứng trên MẶT BĂNG, cao hơn mặt bàn. Mặc định tắt để
         # cảnh không có băng không phải trả giá cho một giả thuyết thừa.
-        self._belt = bool(self.declare_parameter('belt', False).value)
+        # Mặc định BẬT: bàn thật có băng tải. Bật khi không có băng thì vô hại — giả thuyết mặt
+        # băng chỉ được NHẬN nếu vị trí suy ra rơi đúng vào mặt băng, không thì giữ giả thuyết
+        # mặt bàn. Mặc định tắt mới là cái bẫy: lon trên băng lặng lẽ bị quy về mặt bàn.
+        self._belt = bool(self.declare_parameter('belt', True).value)
         reference = os.path.expanduser(
             self.declare_parameter('reference_file', DEFAULT_REFERENCE).value)
 

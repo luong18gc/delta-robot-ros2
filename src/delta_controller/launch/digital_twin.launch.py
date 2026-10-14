@@ -79,6 +79,12 @@ def generate_launch_description():
         package='delta_controller',
         executable='real_vision',
         output='screen',
+        # Bàn thật CÓ băng tải -> phải xét giả thuyết "lon đứng trên mặt băng". Không bật thì lon
+        # trên băng bị quy về mặt bàn, thấp hơn 50 mm, và vì camera chúc 46° nên sai số đó khuếch
+        # đại thành ~76 mm theo X (đo 2026-10-13: cùng một ảnh, giả định bàn cho +167 mm còn giả
+        # định băng cho +91 mm). Hình bóng dự đoán ở chỗ sai cũng sai kích thước nên phép kiểm hình
+        # dáng loại luôn -> score 0 -> lon "không nhận ra được".
+        parameters=[{'belt': True}],
     )
 
     twin = Node(
