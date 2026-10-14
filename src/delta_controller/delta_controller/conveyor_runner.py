@@ -11,6 +11,7 @@ import threading
 import time
 
 from delta_controller.conveyor_cycle import ConveyorCycle, DANG_GAP
+from delta_controller.task_planner import object_states
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
@@ -104,6 +105,10 @@ class ConveyorRunner:
                     # điểm lệnh bám là chỗ robot đang được kéo tới — để lẫn thì quỹ đạo gắp bắt
                     # đầu từ một điểm không ai đang ở.
                     self._node.servo_reset()
+                    # Đưa luôn chỗ vừa nhìn thấy cho bộ gắp. Không có bước này thì nó tự quan sát
+                    # lại: robot đang đứng ngay trên nắp lon lại chạy ra tư thế quan sát rồi mò
+                    # về — thừa một quãng đi, và thừa cả rủi ro lon xê dịch trong lúc đó.
+                    self._hand_over_observation()
                     # Gắp chạy ĐỒNG BỘ ngay trong vòng này: nó mất vài giây và trong lúc đó không
                     # có quyết định nào cần ra. Lon đã đóng băng từ trước khi robot chạm vào.
                     self._node.task_executor.pick_place(action.pick)
@@ -115,6 +120,13 @@ class ConveyorRunner:
         finally:
             self._safe_stop()
         return done
+
+    def _hand_over_observation(self):
+        """Chuyển kết quả nhìn thấy mới nhất cho `task_executor`, để nó khỏi quan sát lại."""
+        seen = {name: (x, y, z) for name, (x, y, z, score) in self._node.latest_vision().items()
+                if score > 0.0}
+        if seen:
+            self._node.task_executor.use_observation(object_states(seen))
 
     def _safe_stop(self):
         try:

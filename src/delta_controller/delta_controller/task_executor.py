@@ -60,6 +60,7 @@ class TaskExecutor:
         self._node = node
         self._log = log
         self._last_seen = {}      # lần quan sát camera gần nhất (dùng khi đang giữ vật)
+        self._given = None        # quan sát do tầng trên đưa vào, dùng MỘT lần thay cho _observe
         self._last_unclear = {}   # vật camera thấy nhưng không tin cậy: tên -> score
         self._memory = {}         # vị trí lần gần nhất thấy RÕ, theo tên vật
         self._remembered = set()  # vật lấy từ trí nhớ ở lần quan sát vừa rồi
@@ -213,6 +214,12 @@ class TaskExecutor:
         """
         if self.camera_mode:
             held = self._node.held_object
+            if self._given is not None:
+                # Tầng trên vừa nhìn rõ vật và đưa kết quả vào -> khỏi quan sát lại. Dùng một lần
+                # rồi bỏ, để lệnh sau không vô tình chạy trên số liệu cũ.
+                states, self._given = self._given, None
+                self._last_seen = states
+                return {n: o for n, o in states.items() if n != held}
             if held and self._last_seen:
                 return {n: o for n, o in self._last_seen.items() if n != held}
             return self._observe()
@@ -226,6 +233,16 @@ class TaskExecutor:
                 raise TaskError(f'Chua nhan duoc vi tri {", ".join(missing)} '
                                 f'(da chay pick_place.launch.py chua?)')
             time.sleep(0.05)
+
+    def use_observation(self, states):
+        """
+        Dùng quan sát này cho lệnh kế tiếp, thay vì tự quan sát lại.
+
+        Vòng băng tải đã bám lon suốt hành trình nên nó biết chính xác lon ở đâu; bắt robot chạy
+        về tư thế quan sát rồi quay lại chỉ để đo một thứ vừa đo xong là thừa, và nhìn rất vụng —
+        đầu hút đang ở ngay trên nắp lon lại nhấc ra xa rồi mò về.
+        """
+        self._given = dict(states)
 
     def _observe(self):
         """

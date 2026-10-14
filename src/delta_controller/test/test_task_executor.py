@@ -136,3 +136,30 @@ def test_memory_is_dropped_once_the_gripper_touches_the_object():
     robot.hidden.add(name)
     with pytest.raises(TaskError, match='khong kiem chung duoc'):
         ex.place()                      # thả xong camera không thấy -> phải báo lỗi kiểm chứng
+
+
+def test_use_observation_skips_the_detour_to_the_observe_pose():
+    """
+    Vòng băng tải đã bám lon nên nó biết lon ở đâu — không được bắt robot đi quan sát lại.
+
+    Đây chính là cú "nhấc đầu hút ra xa rồi mò về" nhìn thấy khi chạy thật: robot đang lơ lửng
+    ngay trên nắp lon lại chạy về OBSERVE_XYZ chỉ để đo một thứ vừa đo xong.
+    """
+    robot = FakeRobot()
+    ex = te.TaskExecutor(robot, log=lambda s: None)
+    ex.use_observation(robot.observe_camera(0.0)[0])
+    ex.pick('coca_can')
+    assert OBSERVE_XYZ not in robot.moves, 'khong duoc chay ve tu the quan sat'
+    assert robot.held_object == 'coca_can'
+
+
+def test_use_observation_chi_dung_mot_lan():
+    """Lệnh sau phải tự quan sát lại, không chạy tiếp trên số liệu cũ."""
+    robot = FakeRobot()
+    ex = te.TaskExecutor(robot, log=lambda s: None)
+    ex.use_observation(robot.observe_camera(0.0)[0])
+    ex.goto('coca_can')
+    assert OBSERVE_XYZ not in robot.moves
+    robot.moves.clear()
+    ex.goto('pepsi_can')
+    assert robot.moves[0] == OBSERVE_XYZ, 'lenh sau phai quan sat lai'
