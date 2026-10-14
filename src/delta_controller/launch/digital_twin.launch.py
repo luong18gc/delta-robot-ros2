@@ -26,7 +26,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-WORLD = 'delta_world'          # tên world bên trong delta_cans_world.sdf (giữ nguyên từ repo gốc)
+WORLD = 'delta_world'          # tên world bên trong file SDF (giữ nguyên từ repo gốc)
 
 
 def generate_launch_description():
@@ -40,7 +40,7 @@ def generate_launch_description():
     simulation = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(bringup, 'launch', '3dof_delta.launch.py')),
         launch_arguments={
-            'world_name': 'delta_cans_world',
+            'world_name': 'delta_conveyor_world',
             'gui': LaunchConfiguration('gui'),
         }.items(),
     )
