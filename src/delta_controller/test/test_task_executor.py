@@ -153,13 +153,32 @@ def test_use_observation_skips_the_detour_to_the_observe_pose():
     assert robot.held_object == 'coca_can'
 
 
-def test_use_observation_chi_dung_mot_lan():
-    """Lệnh sau phải tự quan sát lại, không chạy tiếp trên số liệu cũ."""
+def test_use_observation_du_cho_ca_pick_place():
+    """
+    `pick_place` hoi vi tri vat HAI lan (mot lan cho minh, mot lan trong `pick`).
+
+    Neu quan sat dua vao chi dung duoc mot lan thi lan hoi thu hai lai chay ra tu the quan sat —
+    dung cu di vong ma viec dua quan sat vao dinh xoa bo.
+    """
     robot = FakeRobot()
     ex = te.TaskExecutor(robot, log=lambda s: None)
     ex.use_observation(robot.observe_camera(0.0)[0])
-    ex.goto('coca_can')
-    assert OBSERVE_XYZ not in robot.moves
+    ex.pick_place('coca_can')
+    # Nuoc di DAU TIEN phai la ha xuong lon, khong phai chay ra tu the quan sat.
+    assert robot.moves[0] != OBSERVE_XYZ, 'van di vong qua tu the quan sat truoc khi gap'
+    grip_at = robot.moves.index((0.06, -0.075, -0.13))      # nhac len ngay sau khi hut
+    assert OBSERVE_XYZ not in robot.moves[:grip_at], 'khong duoc quan sat lai truoc khi hut'
+    # Lan quan sat o CUOI la hop le: thuc su phai nhin de kiem chung lon da vao khay.
+    assert OBSERVE_XYZ in robot.moves[grip_at:]
+
+
+def test_use_observation_het_hieu_luc_sau_khi_hut():
+    """Hut xong thi vat da roi cho cu, nen lenh sau phai tu quan sat lai."""
+    robot = FakeRobot()
+    ex = te.TaskExecutor(robot, log=lambda s: None)
+    ex.use_observation(robot.observe_camera(0.0)[0])
+    ex.pick('coca_can')
+    ex.place()
     robot.moves.clear()
     ex.goto('pepsi_can')
     assert robot.moves[0] == OBSERVE_XYZ, 'lenh sau phai quan sat lai'

@@ -17,6 +17,11 @@ from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
 TICK_SEC = 0.3          # nhịp máy trạng thái; camera 10 Hz nên nhanh hơn cũng chẳng biết thêm gì
+# Nhịp BÁM phải nhanh hơn hẳn nhịp quyết định. `servo_step` nhích một đoạn cỡ `max_speed/rate_hz`
+# = 1 mm ảo mỗi lần gọi; gọi nó theo nhịp máy trạng thái (0,3 s) thì robot đi 3,3 mm/s và giật
+# từng nấc 1 mm. Hai nhịp này không liên quan gì nhau: một bên hỏi "giờ phải làm gì", bên kia chỉ
+# kéo robot về phía đích cho mượt.
+SERVO_HZ = 50.0
 SERVICE_WAIT = 2.0
 
 
@@ -86,35 +91,45 @@ class ConveyorRunner:
         """
         done = 0
         last_message = None
+        track = None
+        next_tick = 0.0
         self._log('Vong bang tai. Dat MOT lon len dau nap. Ctrl+C de dung.')
         try:
             while rounds is None or done < rounds:
-                before = self.cycle.state
-                action = self.cycle.step(time.monotonic(), self._node.latest_vision(),
-                                         self._node.held_object,
-                                         tool=self._node.current_position())
-                self._set_belt(action.belt)
-                self._set_frozen(action.frozen)
-                if action.track is not None and self._node.servo_step(action.track) is None:
+                now = time.monotonic()
+                if now >= next_tick:
+                    next_tick = now + TICK_SEC
+                    before = self.cycle.state
+                    action = self.cycle.step(now, self._node.latest_vision(),
+                                             self._node.held_object,
+                                             tool=self._node.current_position())
+                    self._set_belt(action.belt)
+                    self._set_frozen(action.frozen)
+                    # Giữ điểm bám cũ khi khung này không thấy lon: một khung nhiễu không phải lý
+                    # do để thả robot đứng lại giữa chừng.
+                    if action.track is not None:
+                        track = action.track
+                    if action.message and action.message != last_message:
+                        self._log(f'[{self.cycle.state}] {action.message}')
+                        last_message = action.message
+                    if action.pick:
+                        # Trả điểm lệnh bám về trước khi gắp: `move` xuất phát từ vị trí ĐO ĐƯỢC,
+                        # còn điểm lệnh bám là chỗ robot đang được kéo tới — để lẫn thì quỹ đạo
+                        # gắp bắt đầu từ một điểm không ai đang ở.
+                        self._node.servo_reset()
+                        track = None
+                        # Đưa luôn chỗ vừa nhìn thấy cho bộ gắp. Không có bước này thì nó tự quan
+                        # sát lại: robot đang đứng ngay trên nắp lon lại chạy ra tư thế quan sát
+                        # rồi mò về — thừa một quãng đi, và thừa cả rủi ro lon xê dịch lúc đó.
+                        self._hand_over_observation()
+                        self._node.task_executor.pick_place(action.pick)
+                        next_tick = time.monotonic()
+                    if before == DANG_GAP and self.cycle.state != DANG_GAP:
+                        done += 1
+                if track is not None and self._node.servo_step(track) is None:
                     self._log('Canh bao: diem bam ngoai tam voi, robot dung tai cho.')
-                if action.message and action.message != last_message:
-                    self._log(f'[{self.cycle.state}] {action.message}')
-                    last_message = action.message
-                if action.pick:
-                    # Trả điểm lệnh bám về trước khi gắp: `move` xuất phát từ vị trí ĐO ĐƯỢC, còn
-                    # điểm lệnh bám là chỗ robot đang được kéo tới — để lẫn thì quỹ đạo gắp bắt
-                    # đầu từ một điểm không ai đang ở.
-                    self._node.servo_reset()
-                    # Đưa luôn chỗ vừa nhìn thấy cho bộ gắp. Không có bước này thì nó tự quan sát
-                    # lại: robot đang đứng ngay trên nắp lon lại chạy ra tư thế quan sát rồi mò
-                    # về — thừa một quãng đi, và thừa cả rủi ro lon xê dịch trong lúc đó.
-                    self._hand_over_observation()
-                    # Gắp chạy ĐỒNG BỘ ngay trong vòng này: nó mất vài giây và trong lúc đó không
-                    # có quyết định nào cần ra. Lon đã đóng băng từ trước khi robot chạm vào.
-                    self._node.task_executor.pick_place(action.pick)
-                if before == DANG_GAP and self.cycle.state != DANG_GAP:
-                    done += 1
-                time.sleep(TICK_SEC)
+                    track = None
+                time.sleep(1.0 / SERVO_HZ)
         except KeyboardInterrupt:
             self._log('\nDung vong bang tai.')
         finally:

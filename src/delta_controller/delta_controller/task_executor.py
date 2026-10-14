@@ -60,7 +60,7 @@ class TaskExecutor:
         self._node = node
         self._log = log
         self._last_seen = {}      # lần quan sát camera gần nhất (dùng khi đang giữ vật)
-        self._given = None        # quan sát do tầng trên đưa vào, dùng MỘT lần thay cho _observe
+        self._given = None        # quan sát do tầng trên đưa vào, dùng tới khi hút được vật
         self._last_unclear = {}   # vật camera thấy nhưng không tin cậy: tên -> score
         self._memory = {}         # vị trí lần gần nhất thấy RÕ, theo tên vật
         self._remembered = set()  # vật lấy từ trí nhớ ở lần quan sát vừa rồi
@@ -214,12 +214,17 @@ class TaskExecutor:
         """
         if self.camera_mode:
             held = self._node.held_object
-            if self._given is not None:
-                # Tầng trên vừa nhìn rõ vật và đưa kết quả vào -> khỏi quan sát lại. Dùng một lần
-                # rồi bỏ, để lệnh sau không vô tình chạy trên số liệu cũ.
-                states, self._given = self._given, None
-                self._last_seen = states
-                return {n: o for n, o in states.items() if n != held}
+            if self._given is not None and not held:
+                # Tầng trên vừa nhìn rõ vật và đưa kết quả vào -> khỏi quan sát lại.
+                # Giữ tới khi HÚT ĐƯỢC vật, không phải dùng một lần: `pick_place` gọi `_objects()`
+                # rồi `pick()` gọi tiếp, nên "một lần" làm lần thứ hai lại đi quan sát — đúng cú
+                # nhấc đầu hút ra xa rồi mò về mà việc đưa quan sát vào định xóa bỏ.
+                self._last_seen = dict(self._given)
+                return dict(self._given)
+            if held:
+                # Đã hút: vật đã rời chỗ cũ nên quan sát đưa vào hết giá trị. Từ đây dùng
+                # `_last_seen` như mọi khi.
+                self._given = None
             if held and self._last_seen:
                 return {n: o for n, o in self._last_seen.items() if n != held}
             return self._observe()
