@@ -90,13 +90,20 @@ class ConveyorRunner:
             while rounds is None or done < rounds:
                 before = self.cycle.state
                 action = self.cycle.step(time.monotonic(), self._node.latest_vision(),
-                                         self._node.held_object)
+                                         self._node.held_object,
+                                         tool=self._node.current_position())
                 self._set_belt(action.belt)
                 self._set_frozen(action.frozen)
+                if action.track is not None and self._node.servo_step(action.track) is None:
+                    self._log('Canh bao: diem bam ngoai tam voi, robot dung tai cho.')
                 if action.message and action.message != last_message:
                     self._log(f'[{self.cycle.state}] {action.message}')
                     last_message = action.message
                 if action.pick:
+                    # Trả điểm lệnh bám về trước khi gắp: `move` xuất phát từ vị trí ĐO ĐƯỢC, còn
+                    # điểm lệnh bám là chỗ robot đang được kéo tới — để lẫn thì quỹ đạo gắp bắt
+                    # đầu từ một điểm không ai đang ở.
+                    self._node.servo_reset()
                     # Gắp chạy ĐỒNG BỘ ngay trong vòng này: nó mất vài giây và trong lúc đó không
                     # có quyết định nào cần ra. Lon đã đóng băng từ trước khi robot chạm vào.
                     self._node.task_executor.pick_place(action.pick)
@@ -114,6 +121,7 @@ class ConveyorRunner:
             self._set_belt(False)
         except ConveyorError as err:                 # noqa: BLE001 — đang dọn dẹp, báo rồi đi tiếp
             self._log(f'Canh bao: khong dung duoc bang ({err})')
+        self._node.servo_reset()
         self._frozen_sent = None
         self._frozen_pub.publish(String(data=''))
         self._log('Bang da dung, quyen vi tri da tra lai cho camera.')

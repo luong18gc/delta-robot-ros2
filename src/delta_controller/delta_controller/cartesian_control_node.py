@@ -148,6 +148,7 @@ class CartesianController(Node):
         # riêng sau 'nhat' vẫn biết ô nào đã có vật.
         self.task_executor = TaskExecutor(self)
         self._conveyor_runner = None
+        self._servo_at = None        # điểm lệnh của vòng bám, None = chưa bám
 
     def _on_vision(self, msg):
         estimates = {}
@@ -321,6 +322,36 @@ class CartesianController(Node):
             time.sleep(max(0.0, next_time - time.monotonic()))
         self.wait_until_arrived(goal)
         return waypoints, len(plan), len(plan) * period
+
+    def servo_step(self, goal):
+        """
+        Nhích MỘT bước về phía `goal`, dài tối đa `max_speed / rate_hz`. Trả về vị trí lệnh mới.
+
+        Khác `move` ở chỗ không lập quỹ đạo: `move` giải trọn đường đi rồi mới chạy, đúng cho
+        "đi tới đó" nhưng sai cho bám đuổi, vì đích đổi ngay trong lúc đang đi. Mỗi lần gọi chỉ
+        kéo điểm lệnh về phía đích một đoạn có giới hạn; chính giới hạn đó làm chuyển động mượt.
+        Ngoài tầm với thì đứng tại chỗ hợp lệ gần nhất, trả về None để tầng trên biết.
+        """
+        here = self._servo_at or self.current_position()
+        if here is None:
+            return None
+        delta = [g - h for g, h in zip(goal, here)]
+        dist = math.sqrt(sum(d * d for d in delta))
+        if dist < 1e-6:
+            return here
+        step = min(self.max_speed / self.rate_hz, dist)
+        goal_now = tuple(h + (step / dist) * d for h, d in zip(here, delta))
+        try:
+            thetas = inverse_kinematics(*goal_now)
+        except UnreachableError:
+            return None
+        self._servo_at = goal_now
+        self._send(thetas)
+        return goal_now
+
+    def servo_reset(self):
+        """Quên điểm lệnh đang giữ — gọi khi chuyển từ bám sang lệnh thường."""
+        self._servo_at = None
 
     def wait_until_arrived(self, goal, tolerance=0.002, timeout_sec=3.0):
         """

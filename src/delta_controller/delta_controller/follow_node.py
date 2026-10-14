@@ -130,7 +130,10 @@ class FollowNode(Node):
                 if name != self._name:
                     return
                 self._target = here
-                self._z = self._hover_over(p.z)
+                # TRỪ BASE_Z: odometry phát pose trong hệ THẾ GIỚI, đế robot nằm ở z = 1.0. Quên
+                # trừ thì cao độ bám thành ~0.87 m, IK hỏng mọi nhịp và robot đứng im — đúng kiểu
+                # hỏng khó thấy, vì không có gì báo lỗi, chỉ là robot không nhúc nhích.
+                self._z = self._hover_over(p.z - BASE_Z)
                 self._target_at = self.get_clock().now().nanoseconds * 1e-9
         return callback
 
