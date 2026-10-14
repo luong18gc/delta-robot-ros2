@@ -10,6 +10,7 @@ import statistics
 import threading
 import time
 
+from delta_controller.conveyor_runner import ConveyorError, ConveyorRunner
 from delta_controller.delta_kinematics import (
     forward_kinematics,
     inverse_kinematics,
@@ -66,6 +67,9 @@ Lenh cap cao (vat: coca_can/coca, pepsi_can/pepsi, sevenup_can/7up; moi loai mot
   nguon camera | nguon that   -> vi tri vat lay tu CAMERA (mac dinh) hoac vi tri THAT cua Gazebo
                                  (source camera | source gt). Che do camera: truoc khi do, robot
                                  len tu the quan sat de khong che camera.
+
+Vong bang tai (can node `conveyor` + camera that):
+  bang [n]        -> chay vong BANG TAI -> GAP, n lon roi dung (bo trong = chay mai, Ctrl+C dung)
 
 Lenh khac:
   where           -> vi tri platform hien tai (FK tu goc khop do duoc)
@@ -143,6 +147,7 @@ class CartesianController(Node):
         # Một executor cho cả phiên: giữ lần quan sát camera trước khi nhặt, để lệnh 'tha' gõ
         # riêng sau 'nhat' vẫn biết ô nào đã có vật.
         self.task_executor = TaskExecutor(self)
+        self._conveyor_runner = None
 
     def _on_vision(self, msg):
         estimates = {}
@@ -152,6 +157,20 @@ class CartesianController(Node):
             estimates[d.id] = ((p.x, p.y, p.z), score)
         with self._lock:
             self._vision_frames = (self._vision_frames + [(time.monotonic(), estimates)])[-30:]
+
+    def latest_vision(self):
+        """
+        Khung `/vision/objects` MỚI NHẤT: {tên -> (x, y, z, score)}.
+
+        Khác `observe_camera` ở chỗ không lấy trung vị nhiều khung và không chờ: vòng băng tải chỉ
+        cần biết lon đang ở quãng nào của băng, sai vài mm không đổi quyết định nào. Việc gắp thì
+        vẫn dùng `observe_camera` vì ở đó vài mm là trúng hay trượt.
+        """
+        with self._lock:
+            if not self._vision_frames:
+                return {}
+            entry = self._vision_frames[-1][1]
+        return {name: (xyz[0], xyz[1], xyz[2], score) for name, (xyz, score) in entry.items()}
 
     def observe_camera(self, after, frames=5, timeout_sec=6.0):
         """
@@ -250,6 +269,14 @@ class CartesianController(Node):
     def measured(self):
         with self._lock:
             return self._measured
+
+    @property
+    def conveyor_runner(self):
+        return self._conveyor_runner
+
+    @conveyor_runner.setter
+    def conveyor_runner(self, runner):
+        self._conveyor_runner = runner
 
     @property
     def last_command(self):
@@ -362,6 +389,20 @@ def _handle(node, raw):
         return False
     if command in TASK_ALIASES:
         _handle_task(node, command, rest.split())
+        return True
+    if command in ('bang', 'conveyor'):
+        if node.object_source != 'camera':
+            raise TaskError('Vong bang tai chi chay o che do camera. Go: nguon camera')
+        # Một ConveyorRunner cho cả phiên: tạo mới mỗi lệnh thì máy trạng thái mất hết trạng thái
+        # và lon đang đóng băng được thả quyền oan — cùng lý do task_executor dùng chung một thể.
+        if node.conveyor_runner is None:
+            node.conveyor_runner = ConveyorRunner(node, log=print)
+        rounds = int(rest) if rest.strip() else None
+        try:
+            done = node.conveyor_runner.run(rounds)
+        except ConveyorError as err:
+            raise TaskError(str(err)) from err
+        print(f'-> Da chuyen {done} lon.')
         return True
     if command == 'help':
         print(HELP_TEXT)

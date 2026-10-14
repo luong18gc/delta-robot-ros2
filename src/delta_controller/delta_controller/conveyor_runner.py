@@ -1,0 +1,119 @@
+"""
+Nối `ConveyorCycle` (logic thuần) với thế giới ROS: băng tải, camera, robot, bản sao số.
+
+Tách khỏi `conveyor_cycle.py` có chủ đích. Mọi quyết định "khi nào chạy băng, khi nào giao quyền
+cho mô phỏng, khi nào nhận lại" nằm bên kia và test được không cần phần cứng; file này chỉ làm cái
+việc tẻ nhạt là gọi dịch vụ và phát topic. Hỏng ở đây là hỏng dây nối, hỏng ở kia là hỏng suy luận
+— hai loại lỗi rất khác nhau, nên để lẫn vào một chỗ thì tốn công tìm.
+"""
+
+import threading
+import time
+
+from delta_controller.conveyor_cycle import ConveyorCycle, DANG_GAP
+from rclpy.qos import DurabilityPolicy, QoSProfile
+from std_msgs.msg import String
+from std_srvs.srv import Trigger
+
+TICK_SEC = 0.3          # nhịp máy trạng thái; camera 10 Hz nên nhanh hơn cũng chẳng biết thêm gì
+SERVICE_WAIT = 2.0
+
+
+class ConveyorError(RuntimeError):
+    """Không chạy được vòng băng tải (thiếu node băng tải, thiếu camera...)."""
+
+
+class ConveyorRunner:
+    """Chạy vòng băng tải → gắp trên node `cartesian_control`."""
+
+    def __init__(self, node, log=print):
+        self._node = node
+        self._log = log
+        self.cycle = ConveyorCycle()
+        self._run_client = node.create_client(Trigger, '/conveyor/run')
+        self._stop_client = node.create_client(Trigger, '/conveyor/stop')
+        latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self._frozen_pub = node.create_publisher(String, '/twin/frozen', latched)
+        self._belt_sent = None          # trạng thái băng đã gửi, để không gửi lại mỗi nhịp
+        self._frozen_sent = None
+
+    # ------------------------------------------------------------------ dây nối
+
+    def _call(self, client, what):
+        if not client.wait_for_service(timeout_sec=SERVICE_WAIT):
+            raise ConveyorError(
+                f'Khong thay dich vu {what}. Chay node bang tai: '
+                f'ros2 run delta_controller conveyor')
+        done = threading.Event()
+        future = client.call_async(Trigger.Request())
+        future.add_done_callback(lambda _: done.set())
+        if not done.wait(SERVICE_WAIT + 3.0):
+            raise ConveyorError(f'Dich vu {what} khong tra loi')
+        result = future.result()
+        if not result.success:
+            raise ConveyorError(f'{what}: {result.message}')
+
+    def _set_belt(self, want):
+        if want is None or want == self._belt_sent:
+            return
+        self._call(self._run_client if want else self._stop_client,
+                   '/conveyor/run' if want else '/conveyor/stop')
+        self._belt_sent = want
+
+    def _set_frozen(self, names):
+        """
+        Công bố lon nào do mô phỏng nắm quyền vị trí.
+
+        Phát mỗi khi ĐỔI, trên topic latched: node bản sao số khởi động lại giữa chừng vẫn nhận
+        được danh sách hiện hành, thay vì tưởng không lon nào bị đóng băng rồi kéo lon trong khay
+        về lại mặt băng.
+        """
+        names = tuple(sorted(names))
+        if names == self._frozen_sent:
+            return
+        self._frozen_pub.publish(String(data=','.join(names)))
+        self._frozen_sent = names
+
+    # ------------------------------------------------------------------ vòng chạy
+
+    def run(self, rounds=None):
+        """
+        Chạy tới khi xong `rounds` lon (None = chạy mãi, Ctrl+C để dừng).
+
+        Dừng kiểu nào cũng DỪNG BĂNG và TRẢ LẠI QUYỀN. Thoát mà để băng chạy là nguy hiểm; thoát
+        mà còn đóng băng thì lon ảo đứng im vĩnh viễn và không ai đoán ra vì sao.
+        """
+        done = 0
+        last_message = None
+        self._log('Vong bang tai. Dat MOT lon len dau nap. Ctrl+C de dung.')
+        try:
+            while rounds is None or done < rounds:
+                before = self.cycle.state
+                action = self.cycle.step(time.monotonic(), self._node.latest_vision(),
+                                         self._node.held_object)
+                self._set_belt(action.belt)
+                self._set_frozen(action.frozen)
+                if action.message and action.message != last_message:
+                    self._log(f'[{self.cycle.state}] {action.message}')
+                    last_message = action.message
+                if action.pick:
+                    # Gắp chạy ĐỒNG BỘ ngay trong vòng này: nó mất vài giây và trong lúc đó không
+                    # có quyết định nào cần ra. Lon đã đóng băng từ trước khi robot chạm vào.
+                    self._node.task_executor.pick_place(action.pick)
+                if before == DANG_GAP and self.cycle.state != DANG_GAP:
+                    done += 1
+                time.sleep(TICK_SEC)
+        except KeyboardInterrupt:
+            self._log('\nDung vong bang tai.')
+        finally:
+            self._safe_stop()
+        return done
+
+    def _safe_stop(self):
+        try:
+            self._set_belt(False)
+        except ConveyorError as err:                 # noqa: BLE001 — đang dọn dẹp, báo rồi đi tiếp
+            self._log(f'Canh bao: khong dung duoc bang ({err})')
+        self._frozen_sent = None
+        self._frozen_pub.publish(String(data=''))
+        self._log('Bang da dung, quyen vi tri da tra lai cho camera.')

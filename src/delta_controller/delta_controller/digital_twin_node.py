@@ -44,6 +44,7 @@ from geometry_msgs.msg import Pose
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile
 from ros_gz_interfaces.srv import SetEntityPose
 from std_msgs.msg import String
 from vision_msgs.msg import Detection3DArray
@@ -74,11 +75,18 @@ class DigitalTwinNode(Node):
         self._placed = {}        # tên lon -> (x, y) ảo đã ra lệnh lần cuối
         self._candidate = {}     # tên lon -> ((x, y) chỗ mới đang chờ, số khung đã xác nhận)
         self._held = ''
+        # Lon mà MÔ PHỎNG đang nắm quyền quyết định vị trí — camera không được ghi đè. Khác với
+        # `_held` ở chỗ nó còn giữ SAU KHI robot đã thả: lon thật vẫn nằm trên băng cho tới khi
+        # tay người nhấc ra, nên nếu nhận lại quyền ngay lúc thả thì camera sẽ kéo lon ảo từ
+        # trong khay về lại mặt băng. Xem conveyor_cycle.NHA_QUYEN.
+        self._frozen = frozenset()
         self._pending = set()    # lon đang có lệnh chưa nhận phản hồi
         self._moves = self._rejected = 0
 
         self.create_subscription(Detection3DArray, '/vision/objects', self._on_objects, 10)
         self.create_subscription(String, '/gripper/held_object', self._on_held, 10)
+        latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.create_subscription(String, '/twin/frozen', self._on_frozen, latched)
         self.create_timer(10.0, self._report)
 
         self.get_logger().info(f'Cho dich vu /world/{world}/set_pose (ros_gz_bridge)...')
@@ -93,10 +101,18 @@ class DigitalTwinNode(Node):
     def _on_held(self, msg):
         self._held = msg.data
 
+    def _on_frozen(self, msg):
+        """Danh sách lon do mô phỏng nắm quyền, phân tách bằng dấu phẩy; rỗng = trả hết quyền."""
+        names = frozenset(n.strip() for n in msg.data.split(',') if n.strip())
+        if names != self._frozen:
+            self.get_logger().info(
+                f'Quyen vi tri: mo phong giu {sorted(names) if names else "(khong lon nao)"}')
+        self._frozen = names
+
     def _on_objects(self, msg):
         for det in msg.detections:
             name = det.id
-            if name not in self._known or name == self._held:
+            if name not in self._known or name == self._held or name in self._frozen:
                 continue
             if not det.results or det.results[0].hypothesis.score <= 0.0:
                 continue        # cờ tin cậy nói không nhìn rõ -> giữ nguyên chỗ cũ
