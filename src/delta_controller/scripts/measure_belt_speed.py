@@ -26,7 +26,7 @@ import time
 sys.path.insert(0, __file__.rsplit('/scripts/', 1)[0])
 
 from delta_controller.scene import (            # noqa: E402
-    BELT_PICK_XY, OBJECTS, REAL_BELT_PICK_Y, SCALE,
+    BELT_CENTER, BELT_LENGTH, BELT_PICK_XY, OBJECTS, REAL_BELT_PICK_Y, SCALE,
 )
 import rclpy                                    # noqa: E402
 from rclpy.node import Node                     # noqa: E402
@@ -37,6 +37,12 @@ BAUD = 115200
 SETTLED_SEC = 1.5          # đứng yên bao lâu thì coi là đã tới cuối
 MOVE_EPS = 0.0015          # m ảo: dịch dưới mức này coi như đứng yên (nhiễu đo 0.5-0.9 mm thật)
 MAX_RUN_SEC = 30.0
+# Dừng băng khi lon còn cách mép băng chừng này. Cuối băng KHÔNG có vật chặn: 2026-10-14 lon chạy
+# quá đầu băng và rơi xuống bàn. Không chờ lon "tự dừng" được, vì nó không bao giờ tự dừng.
+# 25 mm thật = quãng cho camera 10 Hz kịp thấy + lệnh kịp tới + lon kịp trôi nốt theo quán tính.
+STOP_MARGIN = 0.025 / SCALE          # m ảo
+DIRECTION_FRAMES = 4       # số khung để biết lon chạy về phía nào
+SETTLE_AFTER_STOP = 2.5    # giây chờ lon trôi nốt sau khi băng dừng
 
 
 class BeltWatcher(Node):
@@ -112,27 +118,49 @@ def main():
     run_start = time.monotonic()
     node.track.clear()
 
+    # Biết lon chạy về phía nào rồi mới biết mép nào là mép nguy hiểm — không giả định chiều,
+    # vì chiều băng là thứ vừa mới đổi quy ước hôm qua.
+    far_end = None
     last_move = time.monotonic()
     last_pos = None
+    reason = 'het gio'
     while time.monotonic() - run_start < MAX_RUN_SEC:
-        time.sleep(0.1)
+        time.sleep(0.05)
         if not node.track:
             continue
         _, x, y = node.track[-1]
+
+        if far_end is None and len(node.track) >= DIRECTION_FRAMES:
+            moved = node.track[-1][2] - node.track[0][2]
+            if abs(moved) > MOVE_EPS:
+                sign = 1.0 if moved > 0 else -1.0
+                far_end = BELT_CENTER[1] + sign * BELT_LENGTH / 2.0
+                print(f'  lon chay ve phia {"+Y" if sign > 0 else "-Y"}, '
+                      f'mep bang o y={far_end * SCALE * 1000:+.0f} mm that')
+
+        if far_end is not None:
+            remaining = (far_end - y) if far_end > BELT_CENTER[1] else (y - far_end)
+            if remaining <= STOP_MARGIN:
+                reason = 'lon sap toi mep bang'
+                break
+
         if last_pos is None or abs(y - last_pos) > MOVE_EPS:
             if last_pos is not None:
                 last_move = time.monotonic()
             last_pos = y
         if time.monotonic() - last_move > SETTLED_SEC and len(node.track) > 5:
-            print('Lon da dung lai.')
+            reason = 'lon da dung lai'
             break
-    else:
-        print(f'Het {MAX_RUN_SEC:.0f}s ma lon chua dung. Dung bang.')
+    print(f'Dung bang: {reason}.')
 
     stop_flag.set()
     time.sleep(0.1)
     port.write(b'S')
-    time.sleep(0.3)
+    at_stop = node.track[-1] if node.track else None
+    # Lon KHÔNG đứng ngay khi băng dừng — nó còn trôi. Quãng trôi đó là số máy trạng thái cần:
+    # muốn lon dừng ĐÚNG điểm gắp thì phải ra lệnh dừng sớm trước đúng quãng này.
+    print('Cho lon dung han...')
+    time.sleep(SETTLE_AFTER_STOP)
     port.close()
 
     track = list(node.track)
@@ -158,6 +186,11 @@ def main():
         print(f'  quang duong quan sat duoc: {travel:.0f} mm that')
     else:
         print('Lon dich qua it de do toc do — co the no da o cuoi bang san.')
+
+    if at_stop is not None:
+        coast = abs(track[-1][2] - at_stop[2]) * SCALE * 1000
+        print(f'\nQUANG TROI sau khi ra lenh dung: {coast:.0f} mm that')
+        print('  => may trang thai phai ra lenh dung SOM truoc diem gap dung quang nay.')
 
     # Điểm gắp thật: trung vị mấy khung cuối, lúc lon đã đứng.
     tail = track[-5:]
