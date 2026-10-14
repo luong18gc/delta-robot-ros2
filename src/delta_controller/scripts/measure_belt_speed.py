@@ -19,6 +19,8 @@ số đo được là con số hệ thống SẼ THẤY, kể cả khi nó lệc
 
 import argparse
 import glob
+import json
+import os
 import sys
 import threading
 import time
@@ -34,6 +36,8 @@ import serial                                   # noqa: E402
 from vision_msgs.msg import Detection3DArray    # noqa: E402
 
 BAUD = 115200
+RESULT_FILE = os.path.join(__file__.rsplit('/src/', 1)[0],
+                           'docs', 'results', 'belt_calibration.json')
 SETTLED_SEC = 1.5          # đứng yên bao lâu thì coi là đã tới cuối
 MOVE_EPS = 0.0015          # m ảo: dịch dưới mức này coi như đứng yên (nhiễu đo 0.5-0.9 mm thật)
 MAX_RUN_SEC = 30.0
@@ -180,13 +184,16 @@ def main():
         mt, my = sum(ts) / n, sum(ys) / n
         var = sum((t - mt) ** 2 for t in ts)
         slope = sum((t - mt) * (y - my) for t, y in zip(ts, ys)) / var if var else 0.0
-        print(f'TOC DO BANG: {abs(slope) * SCALE * 1000:.0f} mm that/giay '
+        speed_real = abs(slope) * SCALE * 1000
+        print(f'TOC DO BANG: {speed_real:.0f} mm that/giay '
               f'({abs(slope) * 1000:.1f} mm ao/giay), do tren {ts[-1]:.1f}s')
         travel = abs(moving[-1][2] - moving[0][2]) * SCALE * 1000
         print(f'  quang duong quan sat duoc: {travel:.0f} mm that')
     else:
+        speed_real = None
         print('Lon dich qua it de do toc do — co the no da o cuoi bang san.')
 
+    coast = None
     if at_stop is not None:
         coast = abs(track[-1][2] - at_stop[2]) * SCALE * 1000
         print(f'\nQUANG TROI sau khi ra lenh dung: {coast:.0f} mm that')
@@ -207,6 +214,25 @@ def main():
         print(f'=> Nen sua scene.REAL_BELT_PICK_Y: {REAL_BELT_PICK_Y:.4f} -> {fy * SCALE:.4f}')
     else:
         print('=> Trong 10 mm, giu nguyen.')
+
+    # Ghi ra file: ba con số này đi vào máy trạng thái, để chúng trôi trong màn hình là mất.
+    result = {
+        'do_luc': time.strftime('%Y-%m-%d %H:%M'),
+        'pwm': args.speed,
+        'vat': args.object,
+        'toc_do_mm_s_that': round(speed_real, 1) if speed_real is not None else None,
+        'quang_troi_mm_that': round(coast, 1) if coast is not None else None,
+        'diem_gap_that_mm': [round(fx * SCALE * 1000, 1), round(fy * SCALE * 1000, 1)],
+        'diem_gap_ao_m': [round(fx, 5), round(fy, 5)],
+        'so_khung_tin_cay': len(track),
+    }
+    try:
+        os.makedirs(os.path.dirname(RESULT_FILE), exist_ok=True)
+        with open(RESULT_FILE, 'w', encoding='utf-8') as fh:
+            json.dump(result, fh, ensure_ascii=False, indent=2)
+        print(f'\nDa ghi {RESULT_FILE}')
+    except OSError as err:                           # noqa: BLE001 — chỉ là tiện ích
+        print(f'(khong ghi duoc file ket qua: {err})')
     return 0
 
 

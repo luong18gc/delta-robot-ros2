@@ -162,7 +162,14 @@ REAL_BELT_CENTER = (0.094, -0.006)  # tâm băng trên bàn thật (x, y)
 # đã hàn cứng được xử lý bằng cách sửa MỘT con số, không mối hàn nào bị gỡ.
 # Cả hai đầu đều trong tầm với nên đổi đầu không mất gì: đầu +Y cách tâm robot 41,6 mm ảo,
 # đầu −Y cách 44,4 mm (tầm với 119 mm).
-REAL_BELT_PICK_Y = 0.0821       # đo được tâm lon ở y = +82.1 khi lon tì sát con lăn đầu +Y
+# ĐO KHI LON TỰ CHẠY TỚI (2026-10-14, measure_belt_speed.py): +90.3 mm. Khác với số cũ +82.1 đo
+# bằng cách đặt tay tì sát con lăn — lon chạy tới còn TRÔI thêm sau khi băng dừng, nên nó đứng xa
+# hơn. Đây mới là chỗ lon thật sự ở, nên đây mới là điểm gắp.
+# ⚠️ Chỗ này KHÔNG lặp lại chính xác giữa các lượt, vì nó do quãng trôi quyết định chứ không do
+# một mốc cơ khí nào. Robot gắp theo vị trí CAMERA báo chứ không theo hằng số này, nên sai lệch
+# lượt-qua-lượt không sao; hằng số chỉ dùng để biết "lon đã tới chưa". Muốn nó lặp lại được thì
+# gắn thanh chặn ở cuối băng, lúc đó lon luôn tì vào một mốc cứng.
+REAL_BELT_PICK_Y = 0.0903
 
 # Quy về hệ ảo: chia cho SCALE. Băng ảo không cần chuyển động — lon ảo dịch vì CAMERA nói nó dịch,
 # không phải vì mặt băng ảo đẩy. Mặt băng ảo chạy còn có hại: ma sát đánh nhau với lệnh đặt pose.
