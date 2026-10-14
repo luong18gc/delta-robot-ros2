@@ -227,8 +227,11 @@ def lop_phong_ve():
     fig, ax = plt.subplots(figsize=(7.2, 3.9))
     rows = [
         ('Hình học', 'vị trí ngoài vùng đặt vật', 'dây điện, mép bàn, sàn nhà', '#dbeafe', ACC),
-        ('Hình dáng', 'bề rộng/chiều cao sai so với\nhình bóng dự đoán', 'bàn tay, mảnh logo,\nhai vật dính liền', '#dcfce7', OK),
-        ('Tỉ lệ nhìn thấy', f''ngoài [' + f'{VISIBLE_MIN:.2f}'.replace('.', ',') + '; ' + f'{VISIBLE_MAX:.2f}'.replace('.', ',') + ']'',
+        ('Hình dáng', 'bề rộng/chiều cao sai so với\nhình bóng dự đoán',
+         'bàn tay, mảnh logo,\nhai vật dính liền', '#dcfce7', OK),
+        ('Tỉ lệ nhìn thấy',
+         'ngoài [%s; %s]' % (f'{VISIBLE_MIN:.2f}'.replace('.', ','),
+                             f'{VISIBLE_MAX:.2f}'.replace('.', ',')),
          'vật bị che một phần', '#fef3c7', '#b45309'),
         ('Xác nhận nhiều khung', 'nhảy xa chưa trụ lại', 'nhiễu thoáng qua', '#fee2e2', WARN),
     ]
