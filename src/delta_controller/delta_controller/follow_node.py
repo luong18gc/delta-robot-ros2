@@ -76,9 +76,11 @@ class FollowNode(Node):
         self._obj = objects[next(iter(objects))] if self._auto else objects[name]
         self._name = None if self._auto else name
         self._resting = {}        # tên lon -> (x, y) chỗ nó đứng yên lần cuối
-        # Đỉnh lon = mặt bàn + chiều cao lon; tâm tool0 phải cao hơn đỉnh đúng nửa bề dày platform.
-        self._z = (TABLE_Z + 2 * self._obj.half_height
-                   + PLATFORM_HALF_THICKNESS + self._hover)
+        # Cao độ bám lấy từ CHÍNH LON (odometry cho cả z), không suy từ mặt bàn. Lon đứng trên
+        # BĂNG TẢI cao hơn lon đứng trên bàn 16,7 mm ảo = 50 mm thật; giả định mặt bàn thì robot
+        # bay thấp hơn đỉnh lon đúng bấy nhiêu, tức là đâm vào lon. Đây cũng là cách duy nhất còn
+        # đúng khi sau này có thêm bệ, khay hay lon cao thấp khác nhau (Bước 10c).
+        self._z = self._hover_over(TABLE_Z + self._obj.half_height)   # tạm, tới khi thấy lon
 
         self._commander = JointCommander(self)
         self._target = None          # (x, y) ảo, chỗ lon đang đứng
@@ -96,11 +98,16 @@ class FollowNode(Node):
         self.create_timer(1.0 / self._rate, self._tick)
         self.create_timer(5.0, self._report)
         self.get_logger().info(
-            f'Bam {"lon VUA DICH" if self._auto else name}: giu tool0 o z = {self._z:.4f} m ao '
-            f'(khe {1000 * SCALE * self._hover:.0f} mm that tren dinh lon), '
+            f'Bam {"lon VUA DICH" if self._auto else name}: khe '
+            f'{1000 * SCALE * self._hover:.0f} mm that tren dinh lon (cao do bam lay tu chinh '
+            f'lon, nen lon tren BAN hay tren BANG deu dung), '
             f'toc do toi da {self._max_speed:.3f} m/s ao.')
 
     # ------------------------------------------------------------------ nhận tin
+
+    def _hover_over(self, center_z):
+        """Cao độ tool0 để lơ lửng trên một lon có tâm ở `center_z`."""
+        return center_z + self._obj.half_height + PLATFORM_HALF_THICKNESS + self._hover
 
     def _on_joints(self, msg):
         if len(msg.position) >= 3:
@@ -123,6 +130,7 @@ class FollowNode(Node):
                 if name != self._name:
                     return
                 self._target = here
+                self._z = self._hover_over(p.z)
                 self._target_at = self.get_clock().now().nanoseconds * 1e-9
         return callback
 
