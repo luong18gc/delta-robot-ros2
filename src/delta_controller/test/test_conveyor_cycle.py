@@ -241,3 +241,133 @@ def test_vung_dat_lon_loai_day_dong_co_nhung_giu_mat_bang():
             corner = (BELT_CENTER[0] + sx * BELT_WIDTH / 2,
                       BELT_CENTER[1] + sy * BELT_LENGTH / 2)
             assert in_object_area(*corner), f'goc mat bang {corner} phai nam trong vung'
+
+
+# ---------------------------------------------------------------- nhiều vật cùng lúc
+
+def two_on_belt(lead_y, trail_y):
+    """Hai vật trên băng: một dẫn đầu, một theo sau."""
+    cans = on_belt_at(lead_y, name=CAN)
+    cans.update(on_belt_at(trail_y, name=OBJECTS[1].name))
+    return cans
+
+
+def test_hai_vat_thi_chon_vat_DAN_DAU():
+    """Vật gần điểm gắp nhất phải được xử lý trước — vật sau còn phải chờ nó đi khỏi."""
+    cycle = ConveyorCycle()
+    cans = two_on_belt(BELT_CENTER[1] + 0.01, BELT_CENTER[1] - 0.03)
+    cycle.step(0.0, cans)
+    assert cycle.target == CAN, 'phai chon vat gan diem gap nhat'
+
+
+def test_chon_dung_vat_dan_dau_du_thu_tu_trong_dict_nguoc():
+    cycle = ConveyorCycle()
+    cans = on_belt_at(BELT_CENTER[1] - 0.03, name=OBJECTS[1].name)
+    cans.update(on_belt_at(BELT_CENTER[1] + 0.01, name=CAN))
+    cycle.step(0.0, cans)
+    assert cycle.target == CAN
+
+
+def test_vat_theo_sau_khong_lam_dung_bang_som():
+    """Chỉ vật ĐANG XỬ LÝ tới điểm gắp mới được dừng băng, không phải vật bất kỳ."""
+    cycle = ConveyorCycle()
+    cans = two_on_belt(BELT_CENTER[1] - 0.02, BELT_CENTER[1] - 0.035)
+    cycle.step(0.0, cans)
+    cycle.step(0.1, cans, tool=tool_over(cans))
+    assert cycle.state == DANG_CHAY
+    # vật theo sau "nhảy" tới điểm gắp (giả định vô lý, chỉ để kiểm tra điều kiện)
+    weird = dict(cans)
+    weird[OBJECTS[1].name] = (BELT_CENTER[0], BELT_PICK_XY[1], Z, 1.0)
+    action = cycle.step(1.0, weird, tool=tool_over(cans))
+    assert cycle.state == DANG_CHAY, 'vat theo sau khong duoc lam dung bang'
+    assert action.belt is None
+
+
+def test_bam_dung_vat_dan_dau_chu_khong_bam_vat_sau():
+    cycle = ConveyorCycle()
+    cans = two_on_belt(BELT_CENTER[1] + 0.01, BELT_CENTER[1] - 0.03)
+    action = cycle.step(0.0, cans)
+    lead_x, lead_y = cans[CAN][0], cans[CAN][1]
+    assert action.track[:2] == (lead_x, lead_y)
+
+
+def test_xong_vat_dau_thi_chuyen_sang_vat_ke_tiep():
+    """Vòng đầy đủ với hai vật: lấy vật thật đầu ra rồi vật sau phải được nhận ngay."""
+    cycle = ConveyorCycle()
+    cans = two_on_belt(BELT_PICK_XY[1], BELT_CENTER[1] - 0.03)
+    cycle.step(0.0, cans, tool=tool_over(cans))
+    cycle.step(0.1, cans, tool=tool_over(cans))          # -> DUNG_BANG
+    cycle.step(5.0, cans, tool=tool_over(cans))          # -> DANG_GAP
+    cycle.step(6.0, cans, holding='')                    # -> NHA_QUYEN
+
+    # vật thật đầu VẪN trên băng -> chưa được nhận vật mới
+    for t in range(7, 12):
+        assert cycle.step(float(t), cans).frozen == (CAN,)
+        assert cycle.state == NHA_QUYEN
+
+    # tay người nhấc vật đầu ra; vật sau vẫn còn trên băng
+    rest = on_belt_at(BELT_CENTER[1] - 0.03, name=OBJECTS[1].name)
+    for i in range(cycle.confirm_frames):
+        cycle.step(20.0 + i, rest)
+    assert cycle.state == CHO_LON
+
+    action = cycle.step(30.0, rest)
+    assert cycle.target == OBJECTS[1].name, 'phai chuyen sang vat ke tiep'
+    assert action.track is not None
+
+
+def test_vat_khac_con_tren_bang_khong_chan_viec_nhan_lai_quyen():
+    """
+    Chỉ VẬT ĐÃ GẮP còn trên băng mới chặn; vật khác thì không.
+
+    Nhầm chỗ này thì vòng đứng mãi: hệ thống chờ một mặt băng trống mà người dùng không có lý do
+    gì phải dọn trống nó.
+    """
+    cycle = ConveyorCycle()
+    cans = two_on_belt(BELT_PICK_XY[1], BELT_CENTER[1] - 0.03)
+    cycle.step(0.0, cans, tool=tool_over(cans))
+    cycle.step(0.1, cans, tool=tool_over(cans))
+    cycle.step(5.0, cans, tool=tool_over(cans))
+    cycle.step(6.0, cans, holding='')
+    assert cycle.state == NHA_QUYEN
+    rest = on_belt_at(BELT_CENTER[1] - 0.03, name=OBJECTS[1].name)
+    for i in range(cycle.confirm_frames):
+        cycle.step(7.0 + i, rest)
+    assert cycle.state == CHO_LON, 'vat khac tren bang khong duoc chan'
+
+
+def test_khong_thay_lon_lau_thi_lui_ve_tu_the_quan_sat():
+    """
+    Sau khi thả vật vào khay, robot đứng trên khay và có thể CHE vật kế tiếp trên băng.
+
+    Nếu cứ đứng đó mà chờ thì hệ thống chờ mãi một thứ chính nó đang che — bế tắc chỉ xuất hiện
+    khi có nhiều vật, vì với một vật thì người dùng đặt vật mới vào và robot vẫn thấy.
+    """
+    from delta_controller.conveyor_cycle import STEP_ASIDE_SEC
+    from delta_controller.scene import OBSERVE_XYZ
+    cycle = ConveyorCycle()
+    assert cycle.step(0.0, {}).track is None                 # vừa vào, chưa vội
+    action = cycle.step(STEP_ASIDE_SEC + 0.5, {})
+    assert action.track == OBSERVE_XYZ and action.belt is False
+
+
+def test_thay_lon_thi_khong_lui_nua():
+    from delta_controller.conveyor_cycle import STEP_ASIDE_SEC
+    cycle = ConveyorCycle()
+    cycle.step(0.0, {})
+    action = cycle.step(STEP_ASIDE_SEC + 0.5, loading_end())
+    assert cycle.state == BAM_LON and action.track[:2] == loading_end()[CAN][:2]
+
+
+def test_khuyen_nghi_khoang_cach_du_cho_hai_vat_tren_bang():
+    """Khoảng cách khuyến nghị phải đủ để hai vật không chạm nhau về mặt hình học."""
+    from delta_controller.scene import (
+        MIN_PITCH_ON_BELT, REAL_BELT_LENGTH, REAL_MIN_PITCH_ON_BELT,
+    )
+    diameter = 2 * OBJECTS[0].half_width * 3.0          # đường kính thật, m
+    assert REAL_MIN_PITCH_ON_BELT > diameter, 'khoang cach phai lon hon duong kinh vat'
+    assert REAL_BELT_LENGTH / REAL_MIN_PITCH_ON_BELT >= 2.0, 'bang phai chua duoc it nhat 2 vat'
+    cans = two_on_belt(BELT_PICK_XY[1], BELT_PICK_XY[1] - MIN_PITCH_ON_BELT)
+    cycle = ConveyorCycle()
+    cycle.step(0.0, cans)
+    assert cycle.target == CAN, 'van phai chon dung vat dan dau'

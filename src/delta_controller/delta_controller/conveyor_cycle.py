@@ -27,14 +27,18 @@ Hai bất biến mà máy trạng thái này bảo đảm:
 
 1. Không bao giờ có hai nguồn cùng ghi vị trí một lon. Lon đang gắp thì chỉ mô phỏng ghi; lon trên
    băng thì chỉ camera ghi.
-2. Không nhận lon mới khi lon cũ chưa được dọn. Nếu không, hai lon thật cùng trên băng sẽ phá giả
-   định "mỗi màu một vật" của cả khối thị giác.
+2. Không nhận lon mới khi LON VỪA GẮP chưa được dọn khỏi băng. Ràng buộc này chỉ áp cho đúng lon
+   đó, không phải cho cả mặt băng: ĐẶT NHIỀU LON CÙNG LÚC LÀ HỢP LỆ. Lon gần điểm gắp nhất được
+   xử lý trước, các lon sau chờ tới lượt; khi băng dừng để gắp thì chúng cũng dừng theo nên không
+   ảnh hưởng gì. Điều kiện duy nhất là các lon phải KHÁC MÀU (giả định "mỗi màu một vật" của khối
+   thị giác) và cách nhau ít nhất `scene.REAL_MIN_PITCH_ON_BELT` = 80 mm thật để hình bóng của
+   chúng không chồng nhau trong ảnh.
 """
 
 from dataclasses import dataclass, field
 import math
 
-from delta_controller.scene import BELT_PICK_XY, OBJECTS, on_belt, SCALE
+from delta_controller.scene import BELT_PICK_XY, OBJECTS, OBSERVE_XYZ, on_belt, SCALE
 
 CHO_LON = 'CHO_LON'
 BAM_LON = 'BAM_LON'
@@ -54,6 +58,10 @@ TRAVEL_TIMEOUT_SEC = 40.0
 # Lon biến mất khỏi camera thoáng qua (tay người lướt ngang, một khung nhiễu) thì KHÔNG kết luận
 # gì. Giống tinh thần CONFIRM_FRAMES của digital_twin: đừng tin một khung.
 CONFIRM_FRAMES = 5
+# Chờ bấy nhiêu giây không thấy lon nào thì đưa robot về tư thế quan sát. Sau khi thả lon vào
+# khay, robot đứng ngay trên khay và có thể CHE lon kế tiếp trên băng; nếu cứ đứng đó mà chờ thì
+# hệ thống chờ mãi một thứ chính nó đang che. Đây là kiểu bế tắc chỉ xuất hiện khi có nhiều lon.
+STEP_ASIDE_SEC = 2.0
 # Khe giữa đáy platform và nắp lon lúc bám. Đủ xa để không chạm lon khi ước lượng lệch vài mm,
 # đủ gần để lúc hút chỉ phải hạ một đoạn ngắn.
 HOVER = 0.02                  # m ảo = 60 mm thật
@@ -150,6 +158,9 @@ class ConveyorCycle:
 
     def _cho_lon(self, now, on_belt_now):
         if not on_belt_now:
+            if now - self.since > STEP_ASIDE_SEC:
+                return Action(belt=False, track=OBSERVE_XYZ,
+                              message='Khong thay lon nao — lui ve tu the quan sat de khoi che.')
             return Action(belt=False, message='Cho dat lon len bang.')
         # Lon gần nhất với điểm gắp đi trước — nếu có nhiều lon thì lon đầu hàng được xử lý.
         name, (_x, y) = max(on_belt_now.items(), key=lambda kv: kv[1][1])

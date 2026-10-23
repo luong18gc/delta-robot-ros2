@@ -170,6 +170,15 @@ REAL_BELT_CENTER = (0.094, -0.006)  # tâm băng trên bàn thật (x, y)
 # lượt-qua-lượt không sao; hằng số chỉ dùng để biết "lon đã tới chưa". Muốn nó lặp lại được thì
 # gắn thanh chặn ở cuối băng, lúc đó lon luôn tì vào một mốc cứng.
 REAL_BELT_PICK_Y = 0.0903
+# Khoảng cách TÂM–TÂM tối thiểu giữa hai vật cùng đứng trên băng. Đo 2026-10-23 bằng cách chiếu
+# hình bóng dự đoán của hai lon qua mô hình camera ĐÃ HIỆU CHUẨN rồi đo khe giữa hai khung bao:
+#     60 mm -> hai hình bóng CHỒNG NHAU trong ảnh;  70 mm -> khe 14 px;  80 mm -> khe 32 px.
+# ⚠️ Khác với con số 60 mm đã ghi cho vật đặt cạnh nhau TRÊN BÀN. Trên băng, hai vật cách nhau
+# theo trục Y cũng cách camera xa gần khác nhau (camera chúc 46°), nên phối cảnh NÉN khoảng cách
+# giữa chúng trong ảnh. Cùng một khoảng cách thật cho khe ảnh nhỏ hơn.
+# Lấy 80 mm làm khuyến nghị để còn dư; với quãng từ đầu nạp tới điểm gắp thì vừa 3 vật.
+REAL_MIN_PITCH_ON_BELT = 0.080
+MIN_PITCH_ON_BELT = REAL_MIN_PITCH_ON_BELT / SCALE
 
 # Quy về hệ ảo: chia cho SCALE. Băng ảo không cần chuyển động — lon ảo dịch vì CAMERA nói nó dịch,
 # không phải vì mặt băng ảo đẩy. Mặt băng ảo chạy còn có hại: ma sát đánh nhau với lệnh đặt pose.
