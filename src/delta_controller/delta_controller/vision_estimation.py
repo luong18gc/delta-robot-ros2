@@ -32,6 +32,16 @@ VISIBLE_MIN = 0.90
 # nhảy 294 mm rồi quay về. Chặn dưới không bắt được vì nó chỉ hỏi tỉ lệ có TỤT hay không.
 # 1.30 chừa chỗ cho phản chiếu còn sót và sai số hình bóng (đo 0.99–1.02 khi lon lành lặn).
 VISIBLE_MAX = 1.30
+# ⚠️ Trần trên PHỤ THUỘC CÁCH TÁCH VẬT, không phải một hằng số của bài toán. Với phép trừ nền,
+# mặt nạ CHÍNH LÀ hình bóng nên vật lành lặn cho tỉ lệ ~1,00 và 1,30 là biên 30 %. Với phép phân
+# ngưỡng màu thì mẫu số còn nhân thêm `color_fraction`, mà hằng số đó cố ý lấy giá trị NHỎ NHẤT
+# đo được (để vật lành lặn không bao giờ bị chặn dưới) — nên tỉ lệ bị thổi lên và vật lành lặn
+# đo được tới 1,18–1,30.
+# Đo 2026-10-23 trên cảnh mô phỏng, ba vật đứng yên đúng chỗ, không gì che: 1,181 / 1,294 /
+# 1,301 — vật thứ ba VƯỢT 1,30 đúng một phần nghìn và bị từ chối suốt. Triệu chứng nhìn như che
+# khuất (dời tư thế quan sát không ăn thua, vì có che đâu mà dời).
+# Giữ cùng biên 30 % so với mức vật lành lặn đạt tới: 1,30 × 1,30 ≈ 1,70.
+VISIBLE_MAX_COLOR = 1.70
 # Bề rộng và chiều cao của hình bóng ĐO ĐƯỢC được phép lệch bao nhiêu so với hình bóng DỰ ĐOÁN.
 # Đây là kiểm tra HÌNH DÁNG, và nó bắt được thứ mà tỉ lệ diện tích không bao giờ bắt được: phép
 # khớp chỉ khớp MÉP TRÊN và TÂM NGANG, nên bề rộng và chiều cao là thông tin ĐỘC LẬP, không bị
@@ -321,7 +331,8 @@ def _stand_on(detection, camera, obj, support_z, reflective_table):
 
 
 def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
-                    bins=BIN_LAYOUT, reflective_table=False, belt=False):
+                    bins=BIN_LAYOUT, reflective_table=False, belt=False,
+                    visible_max=VISIBLE_MAX):
     """
     Vị trí tâm vật từ một Detection.
 
@@ -388,7 +399,7 @@ def estimate_object(detection, camera, obj, image_shape, use_top_edge=True,
     # Hình dáng: chỉ đòi hỏi khi vật đứng trên bàn. Vật trong khay bị thành khay che nửa dưới nên
     # khung bao đo được THẤP HƠN hình bóng đầy đủ — đúng như vậy mới phải.
     shape_ok = method == 'top_edge' or shape_matches(seen_size, camera, obj, position)
-    reliable = (not cut and method != 'bin_center' and visible <= VISIBLE_MAX and shape_ok
+    reliable = (not cut and method != 'bin_center' and visible <= visible_max and shape_ok
                 and (method == 'top_edge' or visible >= VISIBLE_MIN))
     return ObjectEstimate(position=tuple(float(c) for c in position), method=method,
                           visible_fraction=float(visible), cut_by_border=cut, reliable=reliable)

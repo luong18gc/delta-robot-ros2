@@ -25,11 +25,12 @@ from rclpy.node import Node                                         # noqa: E402
 from vision_msgs.msg import Detection3DArray                        # noqa: E402
 
 POSES = [
-    (0.0, 0.0, -0.11),
-    (0.05, 0.0, -0.11),
-    (0.08, 0.0, -0.12),
-    (0.0, 0.0, -0.13),
-    (-0.04, 0.0, -0.11),
+    (0.0, 0.0, -0.11),          # tư thế đang dùng — bàn máy nằm ĐÚNG đường nhìn tới vật giữa
+    (0.0, 0.032, -0.11),        # giữa khoảng trống phía +Y (tính từ hình học đường nhìn)
+    (0.0, -0.032, -0.11),       # giữa khoảng trống phía −Y
+    (-0.03, 0.032, -0.11),      # lùi thêm về phía camera
+    (0.0, 0.045, -0.11),
+    (0.0, 0.032, -0.105),
 ]
 SETTLE_SEC = 4.0
 

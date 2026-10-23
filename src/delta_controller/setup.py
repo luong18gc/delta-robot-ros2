@@ -37,6 +37,7 @@ setup(
             'follow = delta_controller.follow_node:main',
             'conveyor = delta_controller.conveyor_node:main',
             'gui = delta_controller.gui_node:main',
+            'park = delta_controller.park_node:main',
         ],
     },
 )

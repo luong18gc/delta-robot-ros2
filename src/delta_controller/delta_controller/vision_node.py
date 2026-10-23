@@ -22,7 +22,7 @@ from delta_controller.calibrate_camera_node import DEFAULT_OUTPUT as DEFAULT_CAL
 from delta_controller.camera_model import CameraModel
 from delta_controller.color_detector import detect_objects, draw_detections
 from delta_controller.scene import OBJECTS
-from delta_controller.vision_estimation import estimate_object
+from delta_controller.vision_estimation import estimate_object, VISIBLE_MAX_COLOR
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -78,7 +78,10 @@ class VisionNode(Node):
         """Màu -> ObjectEstimate (tọa độ robot + tỉ lệ nhìn thấy + cờ tin cậy)."""
         if self._camera is None:
             return {}
-        return {c: estimate_object(d, self._camera, OBJECT_OF_COLOR[c], image_shape)
+        # Trần trên riêng cho phép phân ngưỡng màu: mẫu số có thêm `color_fraction` lấy giá trị
+        # nhỏ nhất, nên tỉ lệ bị thổi lên và trần 1,30 của phép trừ nền cắt nhầm vật lành lặn.
+        return {c: estimate_object(d, self._camera, OBJECT_OF_COLOR[c], image_shape,
+                                   visible_max=VISIBLE_MAX_COLOR)
                 for c, d in detections.items() if c in OBJECT_OF_COLOR}
 
     def _on_image(self, msg):

@@ -94,4 +94,13 @@ def generate_launch_description():
         parameters=[{'world': WORLD}],
     )
 
-    return LaunchDescription([gui_arg, simulation, bridge, gripper, real_vision, twin])
+    # Nâng robot lên tư thế quan sát ngay khi mô phỏng sẵn sàng. Ở tư thế gốc, bàn máy nằm
+    # thấp và che mất vật ở vùng xa, nên vừa mở mô phỏng là camera không thấy đủ vật — trông
+    # như khâu nhận dạng hỏng trong khi nó chỉ đang bị che. Nút này chạy một lần rồi thoát.
+    park = Node(
+        package='delta_controller',
+        executable='park',
+        output='screen',
+    )
+
+    return LaunchDescription([gui_arg, simulation, bridge, gripper, real_vision, twin, park])
