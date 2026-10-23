@@ -425,6 +425,21 @@
           <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
           <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
         </visual>
+        <!-- Nhãn tên loại, dán mặt ngoài phía camera (−X) để nhìn mô phỏng là biết robot
+             thả vào ĐÚNG khay của loại đó, không phải một ô trống bất kỳ.
+             Chữ trắng trên nền xám: độ bão hòa gần 0 nên ngưỡng S >= 90 của khâu nhận dạng
+             loại nó ngay, không bị hiểu nhầm là vật. -->
+        <visual name="label_visual">
+          <pose>-0.0262 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.0008 0.045 0.012</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/bin_label_coca.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
       </link>
     </model>
 
@@ -477,6 +492,21 @@
           <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
           <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
         </visual>
+        <!-- Nhãn tên loại, dán mặt ngoài phía camera (−X) để nhìn mô phỏng là biết robot
+             thả vào ĐÚNG khay của loại đó, không phải một ô trống bất kỳ.
+             Chữ trắng trên nền xám: độ bão hòa gần 0 nên ngưỡng S >= 90 của khâu nhận dạng
+             loại nó ngay, không bị hiểu nhầm là vật. -->
+        <visual name="label_visual">
+          <pose>-0.0262 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.0008 0.045 0.012</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/bin_label_pepsi.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
+        </visual>
       </link>
     </model>
 
@@ -528,6 +558,21 @@
           <pose>0 -0.024 0.0075 0 0 0</pose>
           <geometry><box><size>0.045 0.003 0.015</size></box></geometry>
           <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+        <!-- Nhãn tên loại, dán mặt ngoài phía camera (−X) để nhìn mô phỏng là biết robot
+             thả vào ĐÚNG khay của loại đó, không phải một ô trống bất kỳ.
+             Chữ trắng trên nền xám: độ bão hòa gần 0 nên ngưỡng S >= 90 của khâu nhận dạng
+             loại nó ngay, không bị hiểu nhầm là vật. -->
+        <visual name="label_visual">
+          <pose>-0.0262 0 0.0075 0 0 0</pose>
+          <geometry><box><size>0.0008 0.045 0.012</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
+            <pbr><metal>
+              <albedo_map>model://closed_loop_description/materials/textures/bin_label_sevenup.png</albedo_map>
+              <roughness>1.0</roughness><metalness>0.0</metalness>
+            </metal></pbr>
+          </material>
         </visual>
       </link>
     </model>
