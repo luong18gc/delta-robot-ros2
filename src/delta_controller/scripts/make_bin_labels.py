@@ -73,7 +73,8 @@ def main():
         worst = max(colorsys.rgb_to_hsv(*(c / 255 for c in px))[1]
                     for px in small.getdata())
         flag = 'OK' if worst * 255 < 90 else 'CANH BAO: co the bi nhan nham la vat'
-        print(f'  {os.path.basename(path):24s} "{text}"  S lon nhat {worst * 255:5.1f}/255  {flag}')
+        print(f'  {os.path.basename(path):22s} "{text}"  S lon nhat '
+              f'{worst * 255:5.1f}/255  {flag}')
     print(f'Đã ghi vào {os.path.normpath(OUT)}')
     return 0
 
