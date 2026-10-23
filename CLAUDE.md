@@ -108,6 +108,12 @@ package đã xóa** → chạy sẽ lỗi. Chỉ dùng `3dof_delta.launch.py` (k
 - `object_detector.py` — nhận dạng kiểu TÁCH NỀN TRƯỚC rồi phân loại từng vùng. CHƯA nối vào node
   `vision`: trong mô phỏng, ba khay xám cũng là "không phải mặt bàn" nên lon trong khay dính liền
   với khay thành một vùng và bị loại. Để dành cho camera THẬT (nền bàn đen trơn, có thể giới hạn ROI).
+- `gui_node.py` (entry `gui`) — GIAO DIỆN CỬA SỔ (tkinter) thay cho gõ lệnh. Dùng lại nguyên
+  `CartesianController` nên hành vi không thể lệch với `cartesian_control`. Khóa toàn bộ nút khi
+  một tác vụ đang chạy (robot chỉ có một); tác vụ chạy ở luồng phụ để cửa sổ không đứng hình;
+  bảng vật thể lấy thẳng `latest_vision()` kèm cờ tin cậy. Nút Dừng gọi
+  `ConveyorRunner.request_stop()` — Ctrl+C chỉ tới được luồng chính nên nút bấm không dùng được.
+  ⚠️ Không chạy cùng `cartesian_control` hay `follow`: cả ba cùng ra lệnh qua `cmd_pos`.
 - `cartesian_control`: `object_source` camera (mặc định) | ground_truth, lệnh `nguon`; `scripts/run_pick_place_trials.py` (Bước 9).
 - `scripts/probe_camera.py`, `scripts/make_chessboard_pdf.py`, `scripts/make_marker_pdf.py`
   (`--sim` cho bố trí ảo, mặc định là bố trí BÀN THẬT) — chuẩn bị camera thật (Bước 10).

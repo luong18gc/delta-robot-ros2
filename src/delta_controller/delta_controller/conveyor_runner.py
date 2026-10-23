@@ -42,6 +42,7 @@ class ConveyorRunner:
         self._frozen_pub = node.create_publisher(String, '/twin/frozen', latched)
         self._belt_sent = None          # trạng thái băng đã gửi, để không gửi lại mỗi nhịp
         self._frozen_sent = None
+        self._stop_asked = False        # có ai đó yêu cầu dừng từ bên ngoài
 
     # ------------------------------------------------------------------ dây nối
 
@@ -82,6 +83,16 @@ class ConveyorRunner:
 
     # ------------------------------------------------------------------ vòng chạy
 
+    def request_stop(self):
+        """
+        Yêu cầu dừng vòng từ luồng khác — dùng cho nút Dừng trên giao diện.
+
+        REPL dừng bằng Ctrl+C, nhưng tín hiệu đó chỉ tới được luồng chính nên một nút bấm không
+        gửi được. Đặt cờ rồi để chính vòng chạy tự thoát: nó sẽ đi qua khối dọn dẹp như thường,
+        nên băng vẫn được dừng và quyền vị trí vẫn được trả lại.
+        """
+        self._stop_asked = True
+
     def run(self, rounds=None):
         """
         Chạy tới khi xong `rounds` lon (None = chạy mãi, Ctrl+C để dừng).
@@ -93,9 +104,10 @@ class ConveyorRunner:
         last_message = None
         track = None
         next_tick = 0.0
-        self._log('Vong bang tai. Dat MOT lon len dau nap. Ctrl+C de dung.')
+        self._stop_asked = False
+        self._log('Vong bang tai. Dat MOT lon len dau nap.')
         try:
-            while rounds is None or done < rounds:
+            while (rounds is None or done < rounds) and not self._stop_asked:
                 now = time.monotonic()
                 if now >= next_tick:
                     next_tick = now + TICK_SEC
@@ -133,6 +145,8 @@ class ConveyorRunner:
         except KeyboardInterrupt:
             self._log('\nDung vong bang tai.')
         finally:
+            if self._stop_asked:
+                self._log('Da dung vong bang tai theo yeu cau.')
             self._safe_stop()
         return done
 
