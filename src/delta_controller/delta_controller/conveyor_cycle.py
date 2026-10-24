@@ -131,6 +131,11 @@ class ConveyorCycle:
 
     # ------------------------------------------------------------------ một nhịp
 
+    def abort(self, now):
+        """Bỏ lượt đang làm, quay về chờ vật — dùng khi thao tác gắp thất bại."""
+        self.target = None
+        self._go(CHO_LON, now)
+
     def step(self, now, cans, holding='', tool=None):
         """
         Chạy một nhịp của vòng và trả về việc cần làm.

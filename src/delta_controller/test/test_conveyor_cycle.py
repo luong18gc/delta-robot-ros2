@@ -371,3 +371,20 @@ def test_khuyen_nghi_khoang_cach_du_cho_hai_vat_tren_bang():
     cycle = ConveyorCycle()
     cycle.step(0.0, cans)
     assert cycle.target == CAN, 'van phai chon dung vat dan dau'
+
+
+def test_abort_quay_ve_cho_vat():
+    """Gắp hỏng thì bỏ lượt và quay về chờ, không kẹt ở trạng thái đang gắp."""
+    cycle = picking()
+    assert cycle.state == DANG_GAP
+    cycle.abort(10.0)
+    assert cycle.state == CHO_LON and cycle.target is None
+    assert cycle.step(11.0, loading_end()).track is not None   # sẵn sàng lượt mới
+
+
+def test_gap_hong_roi_van_nhan_vat_tiep_theo():
+    cycle = picking()
+    cycle.abort(10.0)
+    cans = two_on_belt(BELT_PICK_XY[1], BELT_CENTER[1] - 0.03)
+    cycle.step(11.0, cans)
+    assert cycle.target == CAN

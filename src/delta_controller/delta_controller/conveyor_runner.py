@@ -7,11 +7,12 @@ việc tẻ nhạt là gọi dịch vụ và phát topic. Hỏng ở đây là h
 — hai loại lỗi rất khác nhau, nên để lẫn vào một chỗ thì tốn công tìm.
 """
 
+import contextlib
 import threading
 import time
 
 from delta_controller.conveyor_cycle import ConveyorCycle, DANG_GAP
-from delta_controller.task_planner import object_states
+from delta_controller.task_planner import object_states, TaskError
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
@@ -134,7 +135,16 @@ class ConveyorRunner:
                         # sát lại: robot đang đứng ngay trên nắp lon lại chạy ra tư thế quan sát
                         # rồi mò về — thừa một quãng đi, và thừa cả rủi ro lon xê dịch lúc đó.
                         self._hand_over_observation()
-                        self._node.task_executor.pick_place(action.pick)
+                        try:
+                            with self._acting_on_simulation():
+                                self._node.task_executor.pick_place(action.pick)
+                        except TaskError as err:
+                            # Gắp hỏng thì KHÔNG giết cả vòng: báo rõ rồi quay về chờ vật. Một lượt
+                            # hỏng không có nghĩa là mọi lượt sau đều hỏng, và dừng hẳn giữa buổi
+                            # chạy thì người dùng phải khởi động lại từ đầu.
+                            self._log(f'Khong gap duoc {action.pick}: {err}')
+                            self.cycle.abort(time.monotonic())
+                            self._set_frozen(())
                         next_tick = time.monotonic()
                     if before == DANG_GAP and self.cycle.state != DANG_GAP:
                         done += 1
@@ -149,6 +159,27 @@ class ConveyorRunner:
                 self._log('Da dung vong bang tai theo yeu cau.')
             self._safe_stop()
         return done
+
+    @contextlib.contextmanager
+    def _acting_on_simulation(self):
+        """
+        Trong lúc gắp, đọc vị trí vật từ THẾ GIỚI ẢO chứ không từ camera.
+
+        Vì robot gắp VẬT ẢO. Bản sao số đã đưa vật ảo tới đúng chỗ camera báo, nên vị trí ảo mang
+        đúng thông tin của camera — nhưng SAU KHI THẢ thì hai thế giới cố ý khác nhau: vật ảo nằm
+        trong khay, còn vật THẬT vẫn trên băng chờ tay người nhấc ra.
+
+        Không tách ra thì khâu kiểm chứng sau khi thả hỏi camera "vật đã vào khay chưa", camera
+        trả lời "không, nó đang trên băng", và cả vòng dừng với lỗi kiểm chứng — đúng triệu chứng
+        gặp 2026-10-24: gắp xong vật thứ nhất là băng không chạy tiếp.
+        """
+        node = self._node
+        before = node.object_source
+        node.object_source = 'ground_truth'
+        try:
+            yield
+        finally:
+            node.object_source = before
 
     def _hand_over_observation(self):
         """Chuyển kết quả nhìn thấy mới nhất cho `task_executor`, để nó khỏi quan sát lại."""
