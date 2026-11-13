@@ -18,6 +18,26 @@
 #      thừa nét khi chiếu máy chiếu.
 set -euo pipefail
 
+# x11grab KHÔNG bắt được màn hình trên phiên Wayland — nó cho ra tệp ĐEN HOÀN TOÀN chứ không báo
+# lỗi, nên không kiểm ở đây thì người dùng quay xong mới biết (đo 2026-11-13: độ sáng trung bình
+# 0,0). Dừng ngay và nói phải làm gì.
+if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+  cat >&2 <<'MSG'
+Phien do hoa dang la WAYLAND — x11grab khong quay duoc (se ra tep den).
+
+Cach 1 (khuyen nghi, khong can cai gi):
+  Dang xuat -> o man hinh dang nhap bam bieu tuong banh rang goc duoi phai
+  -> chon "Ubuntu on Xorg" -> dang nhap lai -> chay lai lenh nay.
+  Loi them: Gazebo chay thang tren X11 thay vi qua XWayland, thuong bot giat.
+
+Cach 2 (neu phai giu Wayland):
+  sudo apt install obs-studio
+  OBS quay duoc tren Wayland qua PipeWire va dung duoc NVENC.
+  Trong OBS: Settings > Output > Encoder = NVENC H.264, FPS co dinh 25.
+MSG
+  exit 1
+fi
+
 OUT="${1:-demo.mp4}"
 SECONDS_LIMIT="${2:-}"
 FPS="${FPS:-25}"
